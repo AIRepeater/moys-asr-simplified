@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>字幕编辑器 - 用「打开工程」加载 JSON</title>
+<title>MAWE — Moy&#x27;s ASR Workflow Editor · 用「打开工程」加载 JSON</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f172a'/%3E%3Cpath d='M13 16h38v25H31l-11 9v-9h-7z' fill='%2314b8a6'/%3E%3Cpath d='M22 24h20M22 30h15M22 36h11' fill='none' stroke='white' stroke-linecap='round' stroke-width='4'/%3E%3C/svg%3E">
 <style>
   * { box-sizing: border-box; }
@@ -1340,7 +1340,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-26 22:45</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-26 23:07</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1369,6 +1369,7 @@
     <span class="dropdown" id="extra-export-dropdown">
       <button id="extra-export-btn" title="导出表情包时间线">导出表情包时间线 ▾</button>
       <div class="dropdown-menu" id="extra-export-menu">
+        <div class="dropdown-item" id="download-resolve-json" title="导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入">下载 Resolve JSON</div>
         <div class="dropdown-item" id="download-sticker-otio" title="导出只包含表情包图片轨道的 OTIO 工程">下载表情包 OTIO 工程</div>
       </div>
     </span>
@@ -1514,7 +1515,7 @@
   </div>
 </aside>
 
-<section class="editor-settings-panel" id="editor-settings-panel" aria-label="编辑器设置" hidden>
+<section class="editor-settings-panel" id="editor-settings-panel" aria-label="MAWE 设置" hidden>
   <div class="editor-settings-group">
     <span class="editor-settings-title">字幕</span>
     <label class="editor-settings-item">拆分按键
@@ -6566,6 +6567,42 @@ function buildLayoutJson() {
   return JSON.stringify(layout || {}, null, 2);
 }
 
+function buildResolveJson() {
+  const segments = DATA.segments.map((seg, idx) => {
+    const sticker = seg.sticker ? { ...seg.sticker } : null;
+    if (sticker) {
+      const absPath = stickerAbsPath(sticker);
+      if (absPath) sticker.abs_path = absPath;
+    }
+    const colorName = seg.color?.name || seg.color_ref?.name || null;
+    return {
+      idx,
+      start_ms: seg.start,
+      end_ms: seg.end,
+      text: seg.text || '',
+      color: seg.color || null,
+      color_ref: seg.color_ref || null,
+      resolve_color: colorName,
+      sticker,
+      sticker_ref: seg.sticker_ref || null,
+    };
+  });
+  const colorCount = segments.filter(s => s.resolve_color).length;
+  const stickerCount = segments.filter(s => s.sticker).length;
+  if (!colorCount && !stickerCount) {
+    flashHint('没有颜色或表情包配置，无法导出 Resolve JSON');
+    return null;
+  }
+  return JSON.stringify({
+    schema: 'moy.asr_subtitle_editor.resolve.v1',
+    source: 'moys-asr-workflow',
+    filename_base: FILENAME_BASE,
+    media: DATA.media || '',
+    sticker_root: STICKER_ROOT || '',
+    color_palette: COLOR_PALETTE,
+    segments,
+  }, null, 2);
+}
 const OTIO_STICKER_FPS = 60;
 
 function otioTime(frames, fps = OTIO_STICKER_FPS) {
@@ -7056,7 +7093,15 @@ layoutImportFile?.addEventListener('change', async (event) => {
     flashHint(`布局导入失败：${error.message}`);
   }
 });
-document.getElementById('download-sticker-otio').addEventListener('click', async () => {
+document.getElementById('download-resolve-json').addEventListener('click', async () => {
+  if (editingState) finishEdit(true);
+  const payload = buildResolveJson();
+  if (payload) {
+    await downloadFile(payload, `${FILENAME_BASE}_resolve.json`, 'application/json', {
+      desc: 'Resolve JSON', types: { 'application/json': ['.json'] }
+    });
+  }
+});document.getElementById('download-sticker-otio').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildStickerOtio();
   if (payload) {

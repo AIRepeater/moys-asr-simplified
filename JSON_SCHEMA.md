@@ -1,6 +1,6 @@
 # 字幕工程 JSON 规范
 
-本文档定义 Moy's ASR Workflow 网页编辑器（`edit.py` 生成的 `.edit.html`）以及 `blank-editor.html` 共同接受的 JSON 工程文件格式。
+本文档定义 MAWE（Moy's ASR Workflow Editor）（`edit.py` 生成的 `.edit.html`）以及 `blank-editor.html` 共同接受的 JSON 工程文件格式。
 
 用途：让任意来源（ASR、第三方模型生成、人工手写）的 JSON 都能直接被编辑器加载、编辑、再导出。
 

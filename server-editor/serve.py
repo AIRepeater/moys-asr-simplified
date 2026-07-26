@@ -1,4 +1,4 @@
-"""本地 HTTP 字幕编辑器。
+"""MAWE 的本地 HTTP 字幕编辑器。
 
 与 edit.py 生成的 file:// 自包含 HTML 共用 web/ 下的同一份模板、样式和脚本，
 但通过 localhost 提供媒体的 HTTP Range 响应，方便浏览器调试和精确 seek。
@@ -247,7 +247,7 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     if project.media_path:
         media_html = edit.media_tag(project.media_path, "/media")
-        title = html.escape(f"字幕编辑器（本地服务器）- {project.media_path.name}")
+        title = html.escape(f"MAWE（本地服务器）- {project.media_path.name}")
         filename_base = project.json_path.stem if project.json_path else project.media_path.stem
         json_display = project.json_path.name if project.json_path else "未加载工程"
         media_display = project.media_path.name
@@ -256,7 +256,7 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
         media_class = ""
     else:
         media_html = '<audio id="player" controls preload="metadata" style="width:100%;display:block;"></audio>'
-        title = html.escape("字幕编辑器（本地服务器）- 用「打开工程」加载 JSON")
+        title = html.escape("MAWE（本地服务器）- 用「打开工程」加载 JSON")
         filename_base = "untitled"
         json_display = "未加载工程"
         media_display = "未加载媒体"
@@ -572,7 +572,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="启动 localhost 字幕编辑器（与自包含 HTML 共用 web/ 源码，支持媒体 Range seek）",
+        description="启动 MAWE localhost 编辑器（与自包含 HTML 共用 web/ 源码，支持媒体 Range seek）",
     )
     parser.add_argument("json_path", nargs="?", help="字幕工程 JSON；省略时默认尝试恢复上次打开的工程")
     parser.add_argument("-m", "--media", help="媒体文件路径（默认按 JSON.media / 同目录探测）")
@@ -634,7 +634,7 @@ def main() -> int:
     ) as server:
         host, port = server.server_address[:2]
         url = f"http://{host}:{port}/"
-        print("本地编辑器已启动（仅本机可访问）")
+        print("MAWE 已启动（仅本机可访问）")
         print(f"地址: {url}")
         print("按 Ctrl+C 停止服务；修改 web/ 下源码后刷新页面即可看到最新界面。")
         if not args.no_open:
@@ -642,7 +642,7 @@ def main() -> int:
         try:
             server.serve_forever()
         except KeyboardInterrupt:
-            print("\n本地编辑器已停止")
+            print("\nMAWE 已停止")
     return 0
 
 

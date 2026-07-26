@@ -42,6 +42,7 @@ __WAVEFORM_CSS__
     <span class="dropdown" id="extra-export-dropdown">
       <button id="extra-export-btn" title="导出表情包时间线">导出表情包时间线 ▾</button>
       <div class="dropdown-menu" id="extra-export-menu">
+        <div class="dropdown-item" id="download-resolve-json" title="导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入">下载 Resolve JSON</div>
         <div class="dropdown-item" id="download-sticker-otio" title="导出只包含表情包图片轨道的 OTIO 工程">下载表情包 OTIO 工程</div>
       </div>
     </span>
@@ -187,7 +188,7 @@ __WAVEFORM_CSS__
   </div>
 </aside>
 
-<section class="editor-settings-panel" id="editor-settings-panel" aria-label="编辑器设置" hidden>
+<section class="editor-settings-panel" id="editor-settings-panel" aria-label="MAWE 设置" hidden>
   <div class="editor-settings-group">
     <span class="editor-settings-title">字幕</span>
     <label class="editor-settings-item">拆分按键

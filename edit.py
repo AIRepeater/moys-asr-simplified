@@ -1,4 +1,4 @@
-"""字幕编辑器 HTML 生成器（基于带字级时间戳的 JSON）+ 表情包管理。
+"""MAWE（Moy's ASR Workflow Editor）HTML 生成器（基于带字级时间戳的 JSON）+ 表情包管理。
 
 用法:
     uv run python edit.py <subtitle.json> [-m media] [-s stickers_dir] [-o output.html]
@@ -19,7 +19,7 @@ JSON 由 generate_subtitle_qwen_api.py --json 生成，包含每条字幕的字�
 - 媒体窗口叠加字幕预览（可开关）
 - 多选（Shift 范围选 / Ctrl 切换选）
 - 表情包：左侧缩略图、点击查看全尺寸、可删除/替换
-- 下载 SRT / JSON / OTIO 工程
+- 下载 SRT / JSON / Resolve JSON / OTIO 工程
 - 空格快捷键播放/暂停
 """
 
@@ -190,7 +190,7 @@ def build_blank_html() -> str:
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     return render_editor_page(
-        title=html.escape("字幕编辑器 - 用「打开工程」加载 JSON"),
+        title=html.escape("MAWE — Moy's ASR Workflow Editor · 用「打开工程」加载 JSON"),
         media_html=media_html,
         data_json=json.dumps(blank_data, ensure_ascii=False),
         filename_base_json=json.dumps("untitled", ensure_ascii=False),
@@ -206,7 +206,7 @@ def build_blank_html() -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="字幕编辑器（含表情包管理 + 多选）")
+    parser = argparse.ArgumentParser(description="MAWE — Moy's ASR Workflow Editor（含表情包管理 + 多选）")
     parser.add_argument(
         "json_path", nargs="?",
         help="JSON 文件路径（由 generate_subtitle_qwen_api.py --json 生成）；--blank 模式下可省略",
@@ -245,7 +245,7 @@ def main():
             (Path(__file__).parent / "blank-editor.html").resolve()
         # Path.write_text() 在 Windows 上会把换行转换成 CRLF；HTML 资产统一保持 LF。
         output_path.write_bytes(build_blank_html().encode("utf-8"))
-        print(f"空壳编辑器已生成: {output_path}")
+        print(f"MAWE 空壳编辑器已生成: {output_path}")
         print("用法: file:// 打开 → 点「打开工程」同选 .json + 媒体（或按提示再选媒体）")
         return 0
 
@@ -323,7 +323,7 @@ def main():
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
 
     page = render_editor_page(
-        title=html.escape(f"字幕编辑器 - {media_path.name}"),
+        title=html.escape(f"MAWE — {media_path.name}"),
         media_html=media_tag(media_path, media_url),
         data_json=json.dumps(data, ensure_ascii=False),
         filename_base_json=json.dumps(filename_base, ensure_ascii=False),
@@ -354,7 +354,7 @@ def main():
     print("  • 媒体窗口可叠加字幕预览（toolbar 切换）")
     print("  • 拆分键可切换 Enter / Ctrl+Enter")
     print("  • J/K/L 倍速控制（×0.5 / 重置 1× / ×2，叠加）")
-    print("  • 下载 SRT / JSON，以及编辑器支持的附加工程文件")
+    print("  • 下载 SRT / JSON / Resolve JSON，以及编辑器支持的附加工程文件")
     return 0
 
 

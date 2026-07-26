@@ -2105,6 +2105,42 @@ function buildLayoutJson() {
   return JSON.stringify(layout || {}, null, 2);
 }
 
+function buildResolveJson() {
+  const segments = DATA.segments.map((seg, idx) => {
+    const sticker = seg.sticker ? { ...seg.sticker } : null;
+    if (sticker) {
+      const absPath = stickerAbsPath(sticker);
+      if (absPath) sticker.abs_path = absPath;
+    }
+    const colorName = seg.color?.name || seg.color_ref?.name || null;
+    return {
+      idx,
+      start_ms: seg.start,
+      end_ms: seg.end,
+      text: seg.text || '',
+      color: seg.color || null,
+      color_ref: seg.color_ref || null,
+      resolve_color: colorName,
+      sticker,
+      sticker_ref: seg.sticker_ref || null,
+    };
+  });
+  const colorCount = segments.filter(s => s.resolve_color).length;
+  const stickerCount = segments.filter(s => s.sticker).length;
+  if (!colorCount && !stickerCount) {
+    flashHint('没有颜色或表情包配置，无法导出 Resolve JSON');
+    return null;
+  }
+  return JSON.stringify({
+    schema: 'moy.asr_subtitle_editor.resolve.v1',
+    source: 'moys-asr-workflow',
+    filename_base: FILENAME_BASE,
+    media: DATA.media || '',
+    sticker_root: STICKER_ROOT || '',
+    color_palette: COLOR_PALETTE,
+    segments,
+  }, null, 2);
+}
 const OTIO_STICKER_FPS = 60;
 
 function otioTime(frames, fps = OTIO_STICKER_FPS) {
@@ -2595,7 +2631,15 @@ layoutImportFile?.addEventListener('change', async (event) => {
     flashHint(`布局导入失败：${error.message}`);
   }
 });
-document.getElementById('download-sticker-otio').addEventListener('click', async () => {
+document.getElementById('download-resolve-json').addEventListener('click', async () => {
+  if (editingState) finishEdit(true);
+  const payload = buildResolveJson();
+  if (payload) {
+    await downloadFile(payload, `${FILENAME_BASE}_resolve.json`, 'application/json', {
+      desc: 'Resolve JSON', types: { 'application/json': ['.json'] }
+    });
+  }
+});document.getElementById('download-sticker-otio').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildStickerOtio();
   if (payload) {

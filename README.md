@@ -15,6 +15,8 @@
 
 所有编辑都在本机浏览器完成。转写时，脚本会把待识别媒体直接上传到你配置的阿里云百炼账户；本项目没有自己的服务器、不会代管你的 API Key 或媒体。
 
+![MAWE 字幕编辑器预览](assets/screenshot.webp)
+
 ## 你需要准备
 
 - Windows 10/11（目前主要在 Windows 上验证）；macOS/Linux 也可尝试。
@@ -60,9 +62,9 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 如果不使用 uv，请看 [docs/WORKFLOW.md](docs/WORKFLOW.md) 的普通 Python 安装方式。
 
-## 编辑字幕
+## MAWE — Moy's ASR Workflow Editor
 
-推荐使用本地服务器编辑器，它能稳定拖动大型媒体、自动载入 JSON 中记录的媒体路径，并支持安全保存工程：
+MAWE 是 MAW 自带的字幕编辑器。推荐使用它的本地服务器模式：可稳定拖动大型媒体、自动载入 JSON 中记录的媒体路径，并支持安全保存工程：
 
 ```powershell
 uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
@@ -72,15 +74,20 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 
 也可以直接双击转写生成的 `.edit.html`，或双击仓库里的 `blank-editor.html` 后用“打开工程”同时选择 JSON 和媒体。单文件模式更适合离线携带；本地服务器模式更适合日常编辑。
 
-常用编辑操作：
+### 目前支持的特性
 
-- 双击字幕：改文字；`Enter` 保存，`Shift+Enter` 换行。
-- 单击字幕或波形：定位播放头；双击波形：播放/暂停。
-- 拖动波形字幕块或边缘：移动字幕、调整起止时间。
-- `Alt + 点击` 字幕块：切换该条禁用状态。
-- 右键菜单：拆分、合并、批量替换、颜色、导出等。
+- 基础部分
+  - 字幕：字幕列表与播放器播放时间绑定；点击字幕或波形可跳转到对应位置。
+  - 拆分或合并字幕 ⭐：工程 JSON 含字/词级时间码时，拆分后会按这些时间码分配两侧的时间，仍能保持准确。
+  - 可显示当前单句的时长、字数和阅读速度，并过滤过长文本。
+  - 可预览并批量替换关键词。
+  - 可检测并移除静音空隙；这不会改写原始媒体或原始字幕时间，而是建立可撤销的压缩时间线供播放和导出使用。
+  - 可保存 JSON 工程，或导出标准 SRT 字幕。
+- 拓展部分
+  - 可给字幕附加**表情包**或**颜色**，并在多句字幕之间保持关联。
+  - 可导出 Resolve JSON；配合兼容的达芬奇执行脚本，可在达芬奇内批量导入字幕颜色与表情包配置。执行脚本不随这个最小版 MAW 发布。
 
-完整步骤、常用参数与排错见 [docs/WORKFLOW.md](docs/WORKFLOW.md)。工程 JSON 结构见 [JSON_SCHEMA.md](JSON_SCHEMA.md)。
+详细的使用方法、数据要求、快捷键和导出说明见 [编辑器指南](docs/EDITOR_GUIDE.md)。完整步骤、常用参数与排错见 [docs/WORKFLOW.md](docs/WORKFLOW.md)，工程 JSON 结构见 [JSON_SCHEMA.md](JSON_SCHEMA.md)。
 
 ## API、隐私与费用
 
