@@ -1,0 +1,11 @@
+[project]
+name = "moys-asr-workflow"
+version = "1.0.1"
+description = "A small Qwen ASR API to local subtitle-editor workflow."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "AGPL-3.0-only" }
+dependencies = [
+    "jieba>=0.42",
+    "requests>=2.28",
+]

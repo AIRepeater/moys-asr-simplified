@@ -1,0 +1,332 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+import vm from 'node:vm';
+
+
+const source = fs.readFileSync(new URL('../web/editor-utils.js', import.meta.url), 'utf8');
+const context = { window: {} };
+vm.runInNewContext(source, context);
+const helpers = context.window.AsrEditorUtils;
+
+
+test('builds expandable replacement rows with before and after text', () => {
+  const result = helpers.buildReplacementPreview(
+    [
+      { text: '猫喜欢鱼' },
+      { text: '狗喜欢骨头' },
+    ],
+    [0, 1],
+    '喜欢',
+    '不讨厌',
+    { caseSensitive: true, useRegex: false },
+  );
+  assert.equal(result.matchCount, 2);
+  assert.deepEqual(JSON.parse(JSON.stringify(result.rows)), [
+    { index: 0, before: '猫喜欢鱼', after: '猫不讨厌鱼', matchCount: 1 },
+    { index: 1, before: '狗喜欢骨头', after: '狗不讨厌骨头', matchCount: 1 },
+  ]);
+});
+
+
+test('reports invalid regex without changing any rows', () => {
+  const result = helpers.buildReplacementPreview(
+    [{ text: 'abc' }],
+    [0],
+    '(',
+    'x',
+    { caseSensitive: false, useRegex: true },
+  );
+  assert.match(result.error, /Invalid|Unterminated|括号/i);
+  assert.equal(result.rows.length, 0);
+});
+
+
+test('calculates current cue length and characters per second', () => {
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(helpers.cueMetrics('Hiya fellas.', 34690, 35550))),
+    { totalLength: 12, charsPerSecond: 13.95 },
+  );
+});
+
+test('formats removed silence duration and media share for the summary', () => {
+  assert.equal(helpers.formatHumanDuration(45_890), '45秒');
+  assert.equal(helpers.formatHumanDuration(1_455_890), '24分15秒');
+  assert.equal(helpers.formatHumanDuration(3_661_999), '1小时1分1秒');
+  assert.equal(
+    helpers.formatGapRemoveDuration(1_455_890, 5_823_560),
+    '24分15秒（占比 25%）',
+  );
+  assert.equal(
+    helpers.formatGapRemoveDuration(45_890, 100_000),
+    '45秒（占比 45.9%）',
+  );
+  assert.equal(helpers.formatGapRemoveDuration(45_890, 0), '45秒');
+});
+
+
+test('finds previous and next visible cue for the current cue panel', () => {
+  const segments = [
+    { disabled: false },
+    { disabled: true },
+    { disabled: false },
+    { disabled: false },
+  ];
+  assert.equal(helpers.findAdjacentCueIndex(segments, 2, -1, true), 0);
+  assert.equal(helpers.findAdjacentCueIndex(segments, 0, 1, true), 2);
+  assert.equal(helpers.findAdjacentCueIndex(segments, 2, 1, false), 3);
+});
+
+
+test('aligns SRT export to the first enabled subtitle when requested', () => {
+  const segments = [
+    { start: 1200, disabled: true },
+    { start: 2450, disabled: false },
+    { start: 4000 },
+  ];
+  assert.equal(helpers.getSrtExportOffset(segments, true), 2450);
+  assert.equal(helpers.getSrtExportOffset(segments, false), 0);
+  assert.equal(helpers.getSrtExportOffset([{ start: 500, disabled: true }], true), 0);
+});
+
+
+test('prefers the media named by a project when JSON and media are selected together', () => {
+  const files = [
+    { name: 'other.mp3' },
+    { name: 'take.mov' },
+  ];
+  assert.equal(
+    helpers.findProjectMediaFile(files, 'D:/footage/take.mov', 'take.qwen3-asr.2.1x.json'),
+    files[1],
+  );
+});
+
+
+test('falls back to a matching project stem or one unambiguous selected media file', () => {
+  const matchingStem = { name: 'take.wav' };
+  assert.equal(
+    helpers.findProjectMediaFile([matchingStem, { name: 'other.mp3' }], '', 'take.qwen3-asr.2.1x.json'),
+    matchingStem,
+  );
+  const onlyFile = { name: 'anything.mp3' };
+  assert.equal(helpers.findProjectMediaFile([onlyFile], '', 'project.json'), onlyFile);
+});
+
+
+test('finds only internal audio gaps that pass the gate threshold and minimum duration', () => {
+  const gaps = helpers.detectAudioGapRemoveGaps({
+    peaks: new Int8Array([
+      -100, 100, 0, 0, 0, 0, 0, 0, 0, 0, -100, 100, 0, 0,
+    ]),
+    peaks_per_second: 10,
+    duration_ms: 700,
+  }, {
+    minimumMs: 300,
+    thresholdDb: -20,
+    hysteresisDb: 6,
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(gaps)), [
+    { start: 100, end: 500, removed: true },
+  ]);
+});
+
+
+test('uses hysteresis so a quieter but still audible section does not make a false gap', () => {
+  const waveform = {
+    peaks: new Int8Array([-30, 30, -10, 10, -10, 10, -30, 30]),
+    peaks_per_second: 10,
+    duration_ms: 400,
+  };
+  const withoutHysteresis = helpers.detectAudioGapRemoveGaps(waveform, {
+    minimumMs: 100,
+    thresholdDb: -20,
+    hysteresisDb: 0,
+  });
+  const withHysteresis = helpers.detectAudioGapRemoveGaps(waveform, {
+    minimumMs: 100,
+    thresholdDb: -20,
+    hysteresisDb: 6,
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(withoutHysteresis)), [
+    { start: 100, end: 300, removed: true },
+  ]);
+  assert.deepEqual(JSON.parse(JSON.stringify(withHysteresis)), []);
+});
+
+
+test('applies lead-in and lead-out padding so gaps keep surrounding silence', () => {
+  const waveform = {
+    peaks: new Int8Array([
+      -100, 100, 0, 0, 0, 0, 0, 0, 0, 0, -100, 100, 0, 0,
+    ]),
+    peaks_per_second: 10,
+    duration_ms: 700,
+  };
+  const withoutPadding = helpers.detectAudioGapRemoveGaps(waveform, {
+    minimumMs: 100,
+    thresholdDb: -20,
+    hysteresisDb: 6,
+  });
+  const withPadding = helpers.detectAudioGapRemoveGaps(waveform, {
+    minimumMs: 100,
+    thresholdDb: -20,
+    hysteresisDb: 6,
+    leadInMs: 30,
+    leadOutMs: 100,
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(withoutPadding)), [
+    { start: 100, end: 500, removed: true },
+  ]);
+  // 原始静音 100–500；前端预留 30 抬到 130，后端预留 100 压到 400
+  assert.deepEqual(JSON.parse(JSON.stringify(withPadding)), [
+    { start: 130, end: 400, removed: true },
+  ]);
+});
+
+
+test('drops a gap entirely when lead padding consumes its duration', () => {
+  const gaps = helpers.detectAudioGapRemoveGaps({
+    peaks: new Int8Array([
+      -100, 100, 0, 0, 0, 0, 0, 0, 0, 0, -100, 100, 0, 0,
+    ]),
+    peaks_per_second: 10,
+    duration_ms: 700,
+  }, {
+    minimumMs: 100,
+    thresholdDb: -20,
+    hysteresisDb: 6,
+    leadInMs: 250,
+    leadOutMs: 250,
+  });
+  // 预留总量 500ms 把原始 400ms 静音完全吃掉，整段不再算移除
+  assert.deepEqual(JSON.parse(JSON.stringify(gaps)), []);
+});
+
+
+test('Alt-middle restoration only affects removed parts overlapped by the range', () => {
+  const gaps = helpers.applyGapRemoveRange([
+    { start: 100, end: 500, removed: true },
+    { start: 700, end: 1000, removed: true },
+  ], 300, 800, false);
+  assert.deepEqual(JSON.parse(JSON.stringify(gaps)), [
+    { start: 100, end: 300, removed: true },
+    { start: 300, end: 500, removed: false },
+    { start: 700, end: 800, removed: false },
+    { start: 800, end: 1000, removed: true },
+  ]);
+});
+
+
+test('middle-button range adds arbitrary silence and overrides restored ranges', () => {
+  const gaps = helpers.applyGapRemoveRange([
+    { start: 100, end: 400, removed: false },
+    { start: 700, end: 900, removed: true },
+  ], 250, 800, true);
+  assert.deepEqual(JSON.parse(JSON.stringify(gaps)), [
+    { start: 100, end: 250, removed: false },
+    { start: 250, end: 900, removed: true },
+  ]);
+});
+
+
+test('dragging a shared gap boundary adjusts both neighboring states', () => {
+  const gaps = helpers.resizeGapRemoveBoundary([
+    { start: 100, end: 400, removed: true },
+    { start: 400, end: 700, removed: false },
+  ], 0, 'end', 520);
+  assert.deepEqual(JSON.parse(JSON.stringify(gaps)), [
+    { start: 100, end: 520, removed: true },
+    { start: 520, end: 700, removed: false },
+  ]);
+});
+
+
+test('dragging a gap boundary into the next gap merges both ranges', () => {
+  const gaps = helpers.resizeGapRemoveBoundary([
+    { start: 100, end: 400, removed: true },
+    { start: 700, end: 900, removed: false },
+    { start: 1100, end: 1300, removed: true },
+  ], 0, 'end', 750);
+  assert.deepEqual(JSON.parse(JSON.stringify(gaps)), [
+    { start: 100, end: 900, removed: true },
+    { start: 1100, end: 1300, removed: true },
+  ]);
+});
+
+
+test('maps source time and media intervals after restored gaps are excluded', () => {
+  const gaps = [
+    { start: 1000, end: 1600, removed: true },
+    { start: 2400, end: 3000, removed: false },
+    { start: 4000, end: 4500, removed: true },
+  ];
+  assert.equal(helpers.mapGapRemovedTime(900, gaps), 900);
+  assert.equal(helpers.mapGapRemovedTime(1400, gaps), 1000);
+  assert.equal(helpers.mapGapRemovedTime(5000, gaps), 3900);
+  assert.deepEqual(JSON.parse(JSON.stringify(helpers.buildGapRemovedIntervals(6000, gaps))), [
+    { start: 0, end: 1000 },
+    { start: 1600, end: 4000 },
+    { start: 4500, end: 6000 },
+  ]);
+});
+
+test('builds an ffconcat plan from kept media intervals', () => {
+  assert.equal(helpers.buildFfconcat("D:\\Media\\Alice's take.mp4", [
+    { start: 0, end: 1000 },
+    { start: 1600, end: 4500 },
+  ]), [
+    'ffconcat version 1.0',
+    "file 'D:/Media/Alice'\\''s take.mp4'",
+    'inpoint 0.000',
+    'outpoint 1.000',
+    "file 'D:/Media/Alice'\\''s take.mp4'",
+    'inpoint 1.600',
+    'outpoint 4.500',
+    '',
+  ].join('\n'));
+});
+
+
+test('maps a waveform click to the nearest timestamped word boundary', () => {
+  const segment = {
+    start: 0,
+    end: 1200,
+    text: '你好，世界！',
+    items: [
+      { text: '你好', start: 0, end: 400 },
+      { text: '世界', start: 600, end: 1000 },
+      { text: '！', start: 1000, end: 1200 },
+    ],
+  };
+  assert.equal(helpers.splitCharOffsetAtTime(segment, 520), 3);
+  assert.equal(helpers.splitCharOffsetAtTime(segment, 1080), 3);
+  assert.equal(helpers.splitCharOffsetAtTime({
+    start: 0,
+    end: 100,
+    text: '好！',
+    items: [
+      { text: '好', start: 0, end: 80 },
+      { text: '！', start: 80, end: 100 },
+    ],
+  }, 90), null);
+});
+
+
+test('waveform split fallback keeps the caret on a Unicode character boundary', () => {
+  const segment = { start: 0, end: 300, text: 'A😀B' };
+  assert.equal(helpers.splitCharOffsetAtTime(segment, 200), 3);
+  assert.equal(helpers.splitCharOffsetAtTime({ start: 0, end: 100, text: '猫' }, 50), null);
+});
+
+
+test('shares configured Enter semantics between list editing and current cue editing', () => {
+  assert.equal(helpers.configuredEnterAction({ key: 'Enter', ctrlKey: true }, 'ctrl-enter'), 'split');
+  assert.equal(helpers.configuredEnterAction({ key: 'Enter' }, 'ctrl-enter'), 'save');
+  assert.equal(helpers.configuredEnterAction({ key: 'Enter' }, 'enter'), 'split');
+  assert.equal(helpers.configuredEnterAction({ key: 'Enter', ctrlKey: true }, 'enter'), 'save');
+  assert.equal(helpers.configuredEnterAction({ key: 'Enter', shiftKey: true }, 'ctrl-enter'), 'newline');
+  assert.equal(
+    helpers.configuredEnterAction({ key: 'Enter', shiftKey: true, ctrlKey: true }, 'enter'),
+    'split',
+  );
+});

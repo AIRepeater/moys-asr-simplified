@@ -1,0 +1,22 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Derived editor and waveform data. Keep the JSON project and the original media outside the repository when possible.
+*.waveform.json
+*.json.bak
+*.edit.html
+!blank-editor.html
+
+# Local media and subtitle outputs
+*.mp4
+*.mov
+*.mkv
+*.avi
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.srt
