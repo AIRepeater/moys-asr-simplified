@@ -1340,7 +1340,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-26 23:07</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-27 01:29</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1364,6 +1364,7 @@
         <div class="dropdown-item" id="download-gap-removed-otio" title="导出原视频/音频的去空隙 OTIO 时间线，供支持 OTIO 的剪辑工具或工作流使用">OTIO 工程</div>
         <div class="dropdown-item" id="download-gap-removed-ffconcat" title="导出 FFmpeg concat demuxer 可读取的保留区间；流复制的切点精度受关键帧和编码包限制">FFconcat 文件</div>
         <div class="dropdown-item" id="download-gap-removed-regions-json" title="以毫秒为单位导出原媒体中的全部保留区域，供自定义脚本或工具读取">保留区域 JSON</div>
+        <div class="dropdown-item" id="download-gap-removed-sticker-otio" title="按移除静音空隙后的时间轴导出表情包图片轨道 OTIO；完全落在空隙内的表情包会被丢弃">表情包 OTIO</div>
       </div>
     </span>
     <span class="dropdown" id="extra-export-dropdown">
@@ -6749,19 +6750,44 @@ function stickerOtioName(sticker, absPath) {
 }
 
 function buildStickerOtio() {
-  const stickers = [];
+  const collected = collectStickerOtioEntries(null);
+  if (collected.error) {
+    flashHint(collected.error);
+    return null;
+  }
+  if (!collected.entries.length) {
+    flashHint('没有任何表情包，无法导出 OTIO');
+    return null;
+  }
+  const result = buildStickerOtioTimeline(collected.entries, `${FILENAME_BASE}_表情包`);
+  if (result.error) {
+    flashHint(result.error);
+    return null;
+  }
+  return result.json;
+}
+
+// 收集表情包条目；当传入 removed gaps 时，把每条表情包的时间映射到去空隙后的时间线，
+// 并跳过完全落在空隙内、映射后时长归零的条目。removed 为空数组时退化为原始时间线。
+function collectStickerOtioEntries(removed) {
+  const entries = [];
   for (let idx = 0; idx < DATA.segments.length; idx++) {
     const seg = DATA.segments[idx];
     if (!seg.sticker) continue;
     const absPath = stickerAbsPath(seg.sticker);
-    if (!absPath) {
-      flashHint('表情包缺少真实磁盘路径；请先设置实际表情包根目录后再导出 OTIO');
-      return null;
-    }
-    const startMs = seg.sticker.start != null ? seg.sticker.start : seg.start;
-    const endMs = seg.sticker.end != null ? seg.sticker.end : seg.end;
+    if (!absPath) return { error: '表情包缺少真实磁盘路径；请先设置实际表情包根目录后再导出 OTIO' };
+    const origStart = seg.sticker.start != null ? seg.sticker.start : seg.start;
+    const origEnd = seg.sticker.end != null ? seg.sticker.end : seg.end;
+    if (origEnd <= origStart) continue;
+    const startMs = removed.length
+      ? window.AsrEditorUtils.mapGapRemovedTime(origStart, removed)
+      : origStart;
+    const endMs = removed.length
+      ? window.AsrEditorUtils.mapGapRemovedTime(origEnd, removed)
+      : origEnd;
+    // 映射后归零说明整张表情包都在被移除的空隙内，丢弃
     if (endMs <= startMs) continue;
-    stickers.push({
+    entries.push({
       idx,
       startMs,
       endMs,
@@ -6769,12 +6795,10 @@ function buildStickerOtio() {
       name: stickerOtioName(seg.sticker, absPath),
     });
   }
+  return { entries };
+}
 
-  if (!stickers.length) {
-    flashHint('没有任何表情包，无法导出 OTIO');
-    return null;
-  }
-
+function buildStickerOtioTimeline(stickers, timelineName) {
   stickers.sort((a, b) => (a.startMs - b.startMs) || (a.endMs - b.endMs) || (a.idx - b.idx));
   const children = [];
   let cursor = 0;
@@ -6783,8 +6807,7 @@ function buildStickerOtio() {
     const endFrame = msToOtioFrames(sticker.endMs);
     const durationFrames = Math.max(1, endFrame - startFrame);
     if (startFrame < cursor) {
-      flashHint(`表情包时间重叠，无法导出单轨 OTIO：${sticker.name}`);
-      return null;
+      return { error: `表情包时间重叠，无法导出单轨 OTIO：${sticker.name}` };
     }
     if (startFrame > cursor) {
       children.push({
@@ -6827,35 +6850,59 @@ function buildStickerOtio() {
     });
     cursor = startFrame + durationFrames;
   }
-
-  return JSON.stringify({
-    OTIO_SCHEMA: 'Timeline.1',
-    metadata: {},
-    name: `${FILENAME_BASE}_表情包`,
-    global_start_time: otioTime(0),
-    tracks: {
-      OTIO_SCHEMA: 'Stack.1',
+  return {
+    json: JSON.stringify({
+      OTIO_SCHEMA: 'Timeline.1',
       metadata: {},
-      name: 'tracks',
-      source_range: null,
-      effects: [],
-      markers: [],
-      enabled: true,
-      color: null,
-      children: [{
-        OTIO_SCHEMA: 'Track.1',
+      name: timelineName,
+      global_start_time: otioTime(0),
+      tracks: {
+        OTIO_SCHEMA: 'Stack.1',
         metadata: {},
-        name: '表情包',
+        name: 'tracks',
         source_range: null,
         effects: [],
         markers: [],
         enabled: true,
         color: null,
-        children,
-        kind: 'Video',
-      }],
-    },
-  }, null, 4);
+        children: [{
+          OTIO_SCHEMA: 'Track.1',
+          metadata: {},
+          name: '表情包',
+          source_range: null,
+          effects: [],
+          markers: [],
+          enabled: true,
+          color: null,
+          children,
+          kind: 'Video',
+        }],
+      },
+    }, null, 4),
+  };
+}
+
+function buildGapRemovedStickerOtio() {
+  const removed = getRemovedGapRanges();
+  if (!removed.length) {
+    flashHint('没有已移除的静音空隙；请先使用「移除静音空隙」扫描并移除');
+    return null;
+  }
+  const collected = collectStickerOtioEntries(removed);
+  if (collected.error) {
+    flashHint(collected.error);
+    return null;
+  }
+  if (!collected.entries.length) {
+    flashHint('没有落在保留区间内的表情包，无法导出去空隙表情包 OTIO');
+    return null;
+  }
+  const result = buildStickerOtioTimeline(collected.entries, `${FILENAME_BASE}_去空隙表情包`);
+  if (result.error) {
+    flashHint(result.error);
+    return null;
+  }
+  return result.json;
 }
 
 async function downloadFile(content, filename, mime, accept) {
@@ -7143,6 +7190,15 @@ document.getElementById('download-gap-removed-regions-json').addEventListener('c
   if (payload) {
     await downloadFile(payload, `${FILENAME_BASE}_gap-removed.keep-regions.json`, 'application/json', {
       desc: '去空隙保留区域 JSON', types: { 'application/json': ['.json'] }
+    });
+  }
+});
+document.getElementById('download-gap-removed-sticker-otio').addEventListener('click', async () => {
+  if (editingState) finishEdit(true);
+  const payload = buildGapRemovedStickerOtio();
+  if (payload) {
+    await downloadFile(payload, `${FILENAME_BASE}_gap-removed-stickers.otio`, 'application/vnd.opentimelineio+json', {
+      desc: '去空隙表情包 OTIO 工程', types: { 'application/vnd.opentimelineio+json': ['.otio'] }
     });
   }
 });
