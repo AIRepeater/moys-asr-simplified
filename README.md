@@ -27,6 +27,10 @@
 
 ## 最快上手（推荐）
 
+> 给人类：  
+> 把这个项目地址发给你的 AI Agent 然后让它教你怎么用就行！  
+> ![show|200](assets/show.webp)
+
 在 PowerShell 中执行：
 
 ```powershell
@@ -72,7 +76,9 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 
 浏览器会自动打开 `http://127.0.0.1:8765`。编辑完成后点“保存工程”；覆盖前会留下同目录 `.json.bak` 备份。按 `Ctrl+C` 停止服务。
 
-也可以直接双击转写生成的 `.edit.html`，或双击仓库里的 `blank-editor.html` 后用“打开工程”同时选择 JSON 和媒体。单文件模式更适合离线携带；本地服务器模式更适合日常编辑。
+> [!note]
+> 也可以直接双击转写生成的 `.edit.html`，或双击仓库里的 `blank-editor.html` 后用“打开工程”同时选择 JSON 和媒体。
+> 单 HTML 文件模式更适合离线携带；本地服务器模式更适合日常编辑。
 
 ### 目前支持的特性
 
@@ -87,14 +93,23 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
   - 可给字幕附加**表情包**或**颜色**，并在多句字幕之间保持关联。
   - 可导出 Resolve JSON；配合兼容的达芬奇执行脚本，可在达芬奇内批量导入字幕颜色与表情包配置。执行脚本不随这个最小版 MAW 发布。
 
+> [!info]
+> 多行波形相关特性参考了 [gap-gone](https://github.com/LiRenTech/gap-gone) 项目 ❤️
+
 详细的使用方法、数据要求、快捷键和导出说明见 [编辑器指南](docs/EDITOR_GUIDE.md)。完整步骤、常用参数与排错见 [docs/WORKFLOW.md](docs/WORKFLOW.md)，工程 JSON 结构见 [JSON_SCHEMA.md](JSON_SCHEMA.md)。
 
-## API、隐私与费用
+## 关于 API
 
 - 这是 **API-first** 工具，不含模型下载和本地 Qwen 推理。
 - API Key 仅读取自环境变量或本机 `.env`；`.env` 已被 Git 忽略，绝不要提交、截图或发给别人。
-- 每次转写会使用你的 Key 调用阿里云百炼服务，费用、文件大小与保留政策以官方当前说明为准：[Qwen ASR 文档](https://help.aliyun.com/zh/model-studio/qwen-asr-api-reference)。
+- 每次转写会使用你的 Key 调用阿里云百炼服务，文件大小与保留政策以官方当前说明为准：[Qwen ASR 文档](https://help.aliyun.com/zh/model-studio/qwen-asr-api-reference)。
 - 当前 API 端点面向 `qwen3-asr-flash-filetrans`，支持北京与新加坡地域；配置项说明在 `.env.example`。
+
+### 费用
+
+- 本项目本身是开源项目，可免费使用；为了效率，默认调用阿里云的 Qwen API。
+- 阿里云 Qwen ASR 注册后免费赠送 10 小时转录时间，超出额度后按 0.792 元/小时计费，详见 [价格文档](https://help.aliyun.com/zh/model-studio/model-pricing#dbf1305ef4a69)。
+- 如果你有不错的配置，也可以自己本地部署开源的 [QwenASR](https://github.com/QwenLM/Qwen3-ASR) 本地转录，不产生云端费用。
 
 ## 项目边界
 
