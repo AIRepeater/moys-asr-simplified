@@ -1721,7 +1721,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-28 20:18</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-28 22:02</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1808,11 +1808,11 @@
   </span>
   <span class="sep"></span>
   <span class="waveform-tool-switch" role="group" aria-label="波形工具">
-    <button type="button" data-waveform-tool="select" class="active" title="选择工具（默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧">
+    <button type="button" data-waveform-tool="select" class="active" title="选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧">
       <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.75 12.25 8 8 9.25 6.25 13.5 3 1.75Z"/><path d="m8.3 9.2 3.2 3.05"/></svg>
       <span>选择</span>
     </button>
-    <button type="button" data-waveform-tool="razor" title="分割工具：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择">
+    <button type="button" data-waveform-tool="razor" title="分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择">
       <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><circle cx="4" cy="4" r="2.25"/><circle cx="4" cy="12" r="2.25"/><path d="m5.8 5.35 7.2 5.4M5.8 10.65 13 5.25"/></svg>
       <span>分割</span>
     </button>
@@ -2030,6 +2030,7 @@
     <span><kbd>Shift+点击</kbd> 连选</span>
     <span><kbd>Ctrl+点击</kbd> 多选</span>
     <span><kbd>Alt+点击</kbd> 切换字幕禁用</span>
+    <span><kbd>C</kbd> 合并所选字幕</span>
     <span><kbd id="help-split-key">Ctrl+Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
   </div>
   <div class="help-group">
@@ -2037,6 +2038,7 @@
     <span><kbd>双击波形</kbd> 播放/暂停</span>
     <span><kbd>右键波形背景</kbd> 显示菜单</span>
     <span><kbd id="help-waveform-split-key">B</kbd> 在红色播放指针处拆分字幕</span>
+    <span><kbd>V</kbd> 选择工具 <kbd>R</kbd> 分割工具</span>
     <span><kbd>Shift+滚轮</kbd> 调整波形振幅</span>
     <span><kbd>Ctrl+滚轮</kbd> 调整时间缩放/每行长度</span>
     <span><kbd>Ctrl+Shift+滚轮</kbd> 调整每行高度</span>
@@ -2052,6 +2054,7 @@
     <span class="help-title">播放与编辑</span>
     <span><kbd>空格</kbd> 播放/暂停 <kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倍速 ×0.5/重置/×2</span>
     <span><kbd>A</kbd> 上一条字幕 <kbd>D</kbd> 下一条字幕</span>
+    <span><kbd>Shift+A</kbd> 向前多选 <kbd>Shift+D</kbd> 向后多选</span>
     <span><kbd>F</kbd> 跳转并播放选中字幕</span>
     <span><kbd>Delete</kbd> 删除所选字幕</span>
     <span><kbd>Ctrl+Z</kbd> 撤销</span>
@@ -2378,6 +2381,77 @@
       if (!skipDisabled || !segments[index]?.disabled) return index;
     }
     return -1;
+  }
+
+  function findCueSelectionExtensionTarget(
+    segments,
+    selectedIndexes,
+    currentIndex,
+    timeMs,
+    direction,
+    skipDisabled = false,
+  ) {
+    if (!Array.isArray(segments) || !segments.length || (direction !== -1 && direction !== 1)) return -1;
+    const selected = Array.from(selectedIndexes || [])
+      .filter((index) => Number.isInteger(index) && index >= 0 && index < segments.length);
+    if (!selected.length) {
+      return findCueNavigationTarget(
+        segments,
+        currentIndex,
+        timeMs,
+        direction,
+        skipDisabled,
+      );
+    }
+    const edge = direction < 0 ? Math.min(...selected) : Math.max(...selected);
+    return findAdjacentCueIndex(segments, edge, direction, skipDisabled);
+  }
+
+  function cloneJsonValue(value) {
+    return value == null ? null : JSON.parse(JSON.stringify(value));
+  }
+
+  // 合并选区只有在每条字幕都指向同一个有效 group head 时才继承该 group。
+  // 若选区包含 head，新字幕继续作为 head；若选区只是同组 refs，则继续指向原 head。
+  function resolveMergedGroupInheritance(segments, indexes, headField, refField) {
+    if (!Array.isArray(segments) || !Array.isArray(indexes) || !indexes.length) {
+      return { head: null, ref: null, headIdx: null };
+    }
+    const headIndexes = indexes.map((index) => {
+      const segment = segments[index];
+      if (!segment) return null;
+      if (segment[headField]) return index;
+      const headIdx = segment[refField]?.headIdx;
+      return Number.isInteger(headIdx) && segments[headIdx]?.[headField] ? headIdx : null;
+    });
+    const commonHeadIdx = headIndexes[0];
+    if (
+      !Number.isInteger(commonHeadIdx)
+      || headIndexes.some((headIdx) => headIdx !== commonHeadIdx)
+    ) {
+      return { head: null, ref: null, headIdx: null };
+    }
+
+    const head = segments[commonHeadIdx][headField];
+    if (indexes.includes(commonHeadIdx)) {
+      return {
+        head: cloneJsonValue(head),
+        ref: null,
+        headIdx: commonHeadIdx,
+      };
+    }
+
+    const sourceRef = indexes
+      .map((index) => segments[index]?.[refField])
+      .find((ref) => ref && ref.headIdx === commonHeadIdx);
+    const inheritedRef = cloneJsonValue(sourceRef) || {};
+    inheritedRef.headIdx = commonHeadIdx;
+    if (!inheritedRef.name && head?.name) inheritedRef.name = head.name;
+    return {
+      head: null,
+      ref: inheritedRef,
+      headIdx: commonHeadIdx,
+    };
   }
 
   function getSrtExportOffset(segments, alignFirstEnabled = true) {
@@ -2845,6 +2919,8 @@
     splitCharOffsetAtTime,
     findAdjacentCueIndex,
     findCueNavigationTarget,
+    findCueSelectionExtensionTarget,
+    resolveMergedGroupInheritance,
     getSrtExportOffset,
     effectiveColorName,
     buildSrtPayload,
@@ -2946,9 +3022,11 @@
     '右键': 'Right-click', '字幕操作': 'Subtitle actions',
     '多选': 'Multi-select', '连选': 'Range select',
     '切换字幕禁用': 'Toggle subtitle disabled', '删除所选字幕': 'Delete selected subtitles',
+    '合并所选字幕': 'Merge selected subtitles',
     '播放与编辑': 'Playback and editing', '空格': 'Space',
     '播放/暂停': 'Play/pause',
     '上一条字幕': 'Previous subtitle', '下一条字幕': 'Next subtitle',
+    '向前多选': 'Extend selection backward', '向后多选': 'Extend selection forward',
     '在红色播放指针处拆分字幕': 'Split subtitle at the red playhead',
     '跳转并播放选中字幕': 'Seek to and play selected subtitle',
     '倍速 ×0.5/重置/×2': 'Speed ×0.5/reset/×2',
@@ -2996,7 +3074,8 @@
     '统一分配表情包…': 'Assign sticker to selection…',
     '批量替换选中字幕…': 'Batch replace selected subtitles…',
     '启用选中': 'Enable selection', '禁用选中': 'Disable selection',
-    '清除所有选中': 'Clear selection', '红': 'Red', '黄': 'Yellow',
+    '清除所有选中': 'Clear selection', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
+    '红': 'Red', '黄': 'Yellow',
     '蓝': 'Blue', '绿': 'Green', '紫': 'Purple'
   };
 
@@ -3045,8 +3124,8 @@
     '导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入': 'Export color and sticker Resolve JSON for compatible import scripts',
     '导出只包含表情包图片轨道的 OTIO 工程': 'Export an OTIO project containing only sticker image tracks',
     '在视频画面右上角预览当前时间的表情包': 'Preview stickers at the current time over the video',
-    '选择工具（默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Alt toggles disabled, Alt-drag changes one shared edge',
-    '分割工具：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool: click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
+    '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Alt toggles disabled, Alt-drag changes one shared edge',
+    '分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool (R): click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
     '打开可拖动的移除静音空隙工具窗': 'Open the draggable silent-gap tool',
     '播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览': 'Skip removed silent gaps during playback; clicking inside a gap previews it temporarily',
     '布局只控制面板摆放，不改变波形基础/多行模式': 'Layout only controls panel placement; it does not change waveform mode',
@@ -6844,6 +6923,15 @@ function selectOnly(idx) {
   if (waveformEditor) waveformEditor.updateSelection();
   setCurrentCuePanelIndex(idx);
 }
+function addToSelection(idx) {
+  if (isHiddenDisabled(idx) || selectedIdxs.has(idx)) return;
+  selectedIdxs.add(idx);
+  const el = container.querySelector(`.cue[data-idx="${idx}"]`);
+  if (el) el.classList.add('selected');
+  selCountEl.textContent = String(selectedIdxs.size);
+  if (waveformEditor) waveformEditor.updateSelection();
+  setCurrentCuePanelIndex(idx);
+}
 // 返回与 idx 同属一个表情包/颜色分组的全部字幕下标（含 idx 自身）。
 // head 持有 sticker/color，成员持 sticker_ref/color_ref 指向 head。
 function groupMemberIdxs(idx) {
@@ -7563,8 +7651,9 @@ function splitFromContextMenu(idx, x, y, waveformTimeMs = null) {
 
 // === 合并 ===
 function mergeSegments(idxs) {
-  if (idxs.length < 2) { flashHint('请选中至少两条字幕再合并'); return; }
-  const sorted = [...idxs].sort((a, b) => a - b);
+  if (idxs.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
+  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
+  if (sorted.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
   // 确保连续
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i] !== sorted[i - 1] + 1) {
@@ -7573,40 +7662,62 @@ function mergeSegments(idxs) {
     }
   }
   const segs = sorted.map(i => DATA.segments[i]);
+  const stickerGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
+    DATA.segments, sorted, 'sticker', 'sticker_ref',
+  );
+  const colorGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
+    DATA.segments, sorted, 'color', 'color_ref',
+  );
+  const commonSpeaker = segs[0].speaker != null
+    && segs.every((segment) => segment.speaker === segs[0].speaker)
+    ? segs[0].speaker
+    : null;
   const merged = {
     start: segs[0].start,
     end: segs[segs.length - 1].end,
     text: segs.map(s => s.text).join('  '),
     items: segs.flatMap(s => s.items || []),
-    sticker: segs.find(s => s.sticker)?.sticker || null,
-    sticker_ref: null,  // 合并后引用关系无意义
-    color: (() => {
-      // 合并后的 color：取范围内第一个 head 的 color；如无则 null
-      // 同时 color.start/end 重写为合并后的范围
-      const head = segs.find(s => s.color);
-      if (!head) return null;
-      return { ...head.color, start: segs[0].start, end: segs[segs.length - 1].end };
-    })(),
-    color_ref: null,
+    sticker: stickerGroup.head,
+    sticker_ref: stickerGroup.ref,
+    color: colorGroup.head,
+    color_ref: colorGroup.ref,
+    ...(commonSpeaker !== null ? { speaker: commonSpeaker } : {}),
     disabled: !!segs[0].disabled,  // 合并后取 index=0 的禁用状态
     _dirty: true,
   };
-  // 注意：如果合并范围里有 *_ref（指向被合并范围外的 head），合并后丢失这个引用
-  // 这是预期行为——用户合并时应当知道
   if (merged.items.length === 0) merged.items = null;
   clearSelection();
   pushUndo('合并字幕');
+
+  // 选区并非全部同组时，不继承该组；先按删除切点规则重组外部存活成员，
+  // 避免合并掉某个 head 后留下悬空引用。
+  const mergeSet = new Set(sorted);
+  if (stickerGroup.headIdx === null) {
+    splitGroupsAtCutPoints(mergeSet, 'sticker', 'sticker_ref');
+  }
+  if (colorGroup.headIdx === null) {
+    splitGroupsAtCutPoints(mergeSet, 'color', 'color_ref');
+  }
+
   DATA.segments.splice(sorted[0], sorted.length, merged);
-  // 因为 splice 改变了后续 idx，需要更新所有 *_ref.headIdx 来反映新偏移
+  // splice 后统一重映射 group head：选区内继承的 head 移到首项，
+  // 选区之后的 head 则按减少的字幕数量左移。
   const removedCount = sorted.length - 1;  // 合并把 sorted.length 条变成 1 条
-  if (removedCount > 0) {
-    for (let i = sorted[0] + 1; i < DATA.segments.length; i++) {
-      const sref = DATA.segments[i].sticker_ref;
-      if (sref && sref.headIdx > sorted[sorted.length - 1]) sref.headIdx -= removedCount;
-      const cref = DATA.segments[i].color_ref;
-      if (cref && cref.headIdx > sorted[sorted.length - 1]) cref.headIdx -= removedCount;
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  function remapRef(ref) {
+    if (!ref || !Number.isInteger(ref.headIdx)) return;
+    if (ref.headIdx >= first && ref.headIdx <= last) {
+      ref.headIdx = first;
+    } else if (ref.headIdx > last) {
+      ref.headIdx -= removedCount;
     }
   }
+  DATA.segments.forEach((segment) => {
+    remapRef(segment.sticker_ref);
+    remapRef(segment.color_ref);
+  });
+  syncTimelineGroupRanges();
   renderAll();
   const el = container.querySelector(`.cue[data-idx="${sorted[0]}"]`);
   if (el) scrollCueToCenter(el);
@@ -7962,8 +8073,9 @@ document.addEventListener('keydown', (e) => {
   flashHint(`倍速: ${fmtRate(r)}`);
 });
 
-// A/D：跳转到上一条/下一条字幕的句首并选中。跳转本身不改变播放状态：
-// 播放中会从新位置继续播放，暂停中只移动播放指针。
+// A/D：跳转到上一条/下一条字幕的句首并单选。
+// Shift+A/D：保留当前选择，并向前/后追加选择一条字幕。
+// 跳转本身不改变播放状态：播放中会从新位置继续播放，暂停中只移动播放指针。
 document.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   if (key !== 'a' && key !== 'd') return;
@@ -7981,22 +8093,32 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
 
   const direction = key === 'a' ? -1 : 1;
-  const next = window.AsrEditorUtils.findCueNavigationTarget(
-    DATA.segments,
-    currentCuePanelIdx,
-    Math.round(player.currentTime * 1000),
-    direction,
-    hideDisabled,
-  );
+  const next = e.shiftKey
+    ? window.AsrEditorUtils.findCueSelectionExtensionTarget(
+      DATA.segments,
+      selectedIdxs,
+      currentCuePanelIdx,
+      Math.round(player.currentTime * 1000),
+      direction,
+      hideDisabled,
+    )
+    : window.AsrEditorUtils.findCueNavigationTarget(
+      DATA.segments,
+      currentCuePanelIdx,
+      Math.round(player.currentTime * 1000),
+      direction,
+      hideDisabled,
+    );
   if (next < 0) return;
 
   e.preventDefault();
   e.stopPropagation();
   const wasPlaying = !player.paused;
-  selectOnly(next);
+  if (e.shiftKey) addToSelection(next);
+  else selectOnly(next);
   lastClickedIdx = next;
   const cue = container.querySelector(`.cue[data-idx="${next}"]`);
   if (cue) scrollCueToCenter(cue);
@@ -8006,6 +8128,24 @@ document.addEventListener('keydown', (e) => {
     const promise = player.play();
     if (promise && promise.catch) promise.catch(() => {});
   }
+});
+
+// C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'c' && e.key !== 'C') return;
+  if (editingState || e.repeat) return;
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  mergeSegments([...selectedIdxs]);
 });
 
 // Ctrl/Cmd+Z 撤销；Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
@@ -8042,10 +8182,10 @@ document.addEventListener('keydown', (e) => {
   deleteSegments([...selectedIdxs]);
 });
 
-// 波形工具切换：V=选择（默认），C=剃刀，Esc=切回选择。与 J/K/L 一样只在
+// 波形工具切换：V=选择（默认），R=剃刀，Esc=切回选择。与 J/K/L 一样只在
 // 非输入/非模态/非编辑态下触发，避免抢占文本编辑与弹窗按键。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'v' && e.key !== 'V' && e.key !== 'c' && e.key !== 'C' && e.key !== 'Escape') return;
+  if (e.key !== 'v' && e.key !== 'V' && e.key !== 'r' && e.key !== 'R' && e.key !== 'Escape') return;
   if (!waveformEditor) return;
   // Escape：上下文菜单/弹窗/编辑态各自先处理；只有波形工具在 razor 时才切回。
   if (e.key === 'Escape') {
@@ -10312,7 +10452,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       deleteSegments([idx]);
     }, { danger: true });
   } else {
-    addItem(`合并 ${targetIdxs.length} 条字幕`, '', () => mergeSegments(targetIdxs));
+    addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
     addSep();
     // 只在选中范围内存在表情包时才显示「拓展表情包时长」，且放在「统一分配」前面
     const hasStickerInRange = targetIdxs.some(i =>

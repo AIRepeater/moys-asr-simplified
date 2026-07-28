@@ -192,12 +192,84 @@ test('waveform toolbar exposes grouped icon controls and selected cues use a yel
   await expect(selectTool.locator('svg')).toHaveCount(1);
   await expect(splitTool).toContainText('分割');
   await expect(splitTool.locator('svg')).toHaveCount(1);
+  await expect(selectTool).toHaveAttribute('title', /V/);
+  await expect(splitTool).toHaveAttribute('title', /R/);
   await expect(page.locator('#help-toggle')).toContainText('帮助');
+
+  await page.keyboard.press('r');
+  await expect(splitTool).toHaveClass(/active/);
+  await page.keyboard.press('v');
+  await expect(selectTool).toHaveClass(/active/);
 
   const cue = page.locator('.waveform-cue-block[data-idx="0"]').first();
   await cue.click();
   // 选中字幕块用 outline 高亮（不再改 border-color）
   await expect(cue).toHaveCSS('outline-color', 'rgb(255, 213, 74)');
+});
+
+test('C merges a common group and Shift+A/D extends the subtitle selection', async ({ page }) => {
+  await page.goto(server.url);
+  const cues = page.locator('.cue');
+  await expect(cues).toHaveCount(6);
+
+  await cues.nth(0).click();
+  await expect(cues.nth(0)).toHaveClass(/selected/);
+  await page.keyboard.press('c');
+  await expect(cues).toHaveCount(6);
+  await expect(page.locator('.hint-card', { hasText: '请选择至少两个字幕块！' })).toHaveCount(1);
+
+  await cues.nth(2).click();
+  await expect(cues.nth(2)).toHaveClass(/selected/);
+  await page.keyboard.press('Shift+a');
+  await expect(page.locator('.cue.selected')).toHaveCount(2);
+  await expect.poll(() => page.locator('.cue.selected').evaluateAll(
+    (elements) => elements.map((element) => Number(element.dataset.idx)),
+  )).toEqual([1, 2]);
+  await page.keyboard.press('Shift+d');
+  await expect(page.locator('.cue.selected')).toHaveCount(3);
+
+  await page.reload();
+  await expect(cues).toHaveCount(6);
+  await page.evaluate(() => {
+    DATA.segments[0].color = {
+      name: 'red',
+      value: '#e74c3c',
+      start: DATA.segments[0].start,
+      end: DATA.segments[2].end,
+    };
+    DATA.segments[0].sticker = {
+      name: 'reaction',
+      path: 'reaction.png',
+      start: DATA.segments[0].start,
+      end: DATA.segments[2].end,
+    };
+    for (const index of [1, 2]) {
+      DATA.segments[index].color_ref = { name: 'red', headIdx: 0 };
+      DATA.segments[index].sticker_ref = { name: 'reaction', headIdx: 0 };
+    }
+    renderAll();
+  });
+
+  await cues.nth(1).click();
+  await expect(cues.nth(1)).toHaveClass(/selected/);
+  await page.keyboard.down('Control');
+  await cues.nth(2).click();
+  await page.keyboard.up('Control');
+  await page.keyboard.press('c');
+
+  await expect(cues).toHaveCount(5);
+  await expect(cues.nth(1).locator('.text')).toHaveText('Bravo  Charlie');
+  await expect.poll(() => page.evaluate(() => ({
+    colorRef: DATA.segments[1].color_ref,
+    stickerRef: DATA.segments[1].sticker_ref,
+    colorEnd: DATA.segments[0].color.end,
+    stickerEnd: DATA.segments[0].sticker.end,
+  }))).toEqual({
+    colorRef: { name: 'red', headIdx: 0 },
+    stickerRef: { name: 'reaction', headIdx: 0 },
+    colorEnd: 108000,
+    stickerEnd: 108000,
+  });
 });
 
 test('context-menu subtitle deletion is immediate and undoable', async ({ page }) => {

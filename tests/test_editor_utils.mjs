@@ -83,14 +83,76 @@ test('formats removed silence duration and media share for the summary', () => {
 
 test('finds previous and next visible cue for the current cue panel', () => {
   const segments = [
-    { disabled: false },
-    { disabled: true },
-    { disabled: false },
-    { disabled: false },
+    { start: 0, end: 999, disabled: false },
+    { start: 1000, end: 1999, disabled: true },
+    { start: 2000, end: 2999, disabled: false },
+    { start: 3000, end: 3999, disabled: false },
   ];
   assert.equal(helpers.findAdjacentCueIndex(segments, 2, -1, true), 0);
   assert.equal(helpers.findAdjacentCueIndex(segments, 0, 1, true), 2);
   assert.equal(helpers.findAdjacentCueIndex(segments, 2, 1, false), 3);
+});
+
+test('extends keyboard selection from its outer edge and skips hidden disabled cues', () => {
+  const segments = [
+    { start: 0, end: 999, disabled: false },
+    { start: 1000, end: 1999, disabled: true },
+    { start: 2000, end: 2999, disabled: false },
+    { start: 3000, end: 3999, disabled: false },
+  ];
+
+  assert.equal(
+    helpers.findCueSelectionExtensionTarget(segments, new Set([2]), 2, 0, -1, true),
+    0,
+  );
+  assert.equal(
+    helpers.findCueSelectionExtensionTarget(segments, new Set([0, 2]), 2, 0, 1, true),
+    3,
+  );
+  assert.equal(
+    helpers.findCueSelectionExtensionTarget(segments, new Set(), -1, 2500, 1, false),
+    3,
+  );
+});
+
+test('merge group inheritance keeps a common head or reference and rejects mixed groups', () => {
+  const segments = [
+    {
+      color: { name: 'red', value: '#e74c3c', start: 0, end: 3000 },
+    },
+    {
+      color_ref: { name: 'red', headIdx: 0 },
+    },
+    {
+      color_ref: { name: 'red', headIdx: 0 },
+    },
+    {
+      color: { name: 'blue', value: '#3498db', start: 3000, end: 4000 },
+    },
+  ];
+
+  const refsOnly = helpers.resolveMergedGroupInheritance(
+    segments, [1, 2], 'color', 'color_ref',
+  );
+  assert.equal(refsOnly.head, null);
+  assert.deepEqual(JSON.parse(JSON.stringify(refsOnly.ref)), { name: 'red', headIdx: 0 });
+
+  const includingHead = helpers.resolveMergedGroupInheritance(
+    segments, [0, 1], 'color', 'color_ref',
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(includingHead.head)), segments[0].color);
+  assert.equal(includingHead.ref, null);
+  includingHead.head.name = 'changed';
+  assert.equal(segments[0].color.name, 'red', 'inherited head must be cloned');
+
+  const mixed = helpers.resolveMergedGroupInheritance(
+    segments, [2, 3], 'color', 'color_ref',
+  );
+  assert.deepEqual(JSON.parse(JSON.stringify(mixed)), {
+    head: null,
+    ref: null,
+    headIdx: null,
+  });
 });
 
 test('finds A/D navigation targets from selection or playhead', () => {

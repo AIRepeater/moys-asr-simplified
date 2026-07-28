@@ -952,6 +952,15 @@ function selectOnly(idx) {
   if (waveformEditor) waveformEditor.updateSelection();
   setCurrentCuePanelIndex(idx);
 }
+function addToSelection(idx) {
+  if (isHiddenDisabled(idx) || selectedIdxs.has(idx)) return;
+  selectedIdxs.add(idx);
+  const el = container.querySelector(`.cue[data-idx="${idx}"]`);
+  if (el) el.classList.add('selected');
+  selCountEl.textContent = String(selectedIdxs.size);
+  if (waveformEditor) waveformEditor.updateSelection();
+  setCurrentCuePanelIndex(idx);
+}
 // 返回与 idx 同属一个表情包/颜色分组的全部字幕下标（含 idx 自身）。
 // head 持有 sticker/color，成员持 sticker_ref/color_ref 指向 head。
 function groupMemberIdxs(idx) {
@@ -1671,8 +1680,9 @@ function splitFromContextMenu(idx, x, y, waveformTimeMs = null) {
 
 // === 合并 ===
 function mergeSegments(idxs) {
-  if (idxs.length < 2) { flashHint('请选中至少两条字幕再合并'); return; }
-  const sorted = [...idxs].sort((a, b) => a - b);
+  if (idxs.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
+  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
+  if (sorted.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
   // 确保连续
   for (let i = 1; i < sorted.length; i++) {
     if (sorted[i] !== sorted[i - 1] + 1) {
@@ -1681,40 +1691,62 @@ function mergeSegments(idxs) {
     }
   }
   const segs = sorted.map(i => DATA.segments[i]);
+  const stickerGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
+    DATA.segments, sorted, 'sticker', 'sticker_ref',
+  );
+  const colorGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
+    DATA.segments, sorted, 'color', 'color_ref',
+  );
+  const commonSpeaker = segs[0].speaker != null
+    && segs.every((segment) => segment.speaker === segs[0].speaker)
+    ? segs[0].speaker
+    : null;
   const merged = {
     start: segs[0].start,
     end: segs[segs.length - 1].end,
     text: segs.map(s => s.text).join('  '),
     items: segs.flatMap(s => s.items || []),
-    sticker: segs.find(s => s.sticker)?.sticker || null,
-    sticker_ref: null,  // 合并后引用关系无意义
-    color: (() => {
-      // 合并后的 color：取范围内第一个 head 的 color；如无则 null
-      // 同时 color.start/end 重写为合并后的范围
-      const head = segs.find(s => s.color);
-      if (!head) return null;
-      return { ...head.color, start: segs[0].start, end: segs[segs.length - 1].end };
-    })(),
-    color_ref: null,
+    sticker: stickerGroup.head,
+    sticker_ref: stickerGroup.ref,
+    color: colorGroup.head,
+    color_ref: colorGroup.ref,
+    ...(commonSpeaker !== null ? { speaker: commonSpeaker } : {}),
     disabled: !!segs[0].disabled,  // 合并后取 index=0 的禁用状态
     _dirty: true,
   };
-  // 注意：如果合并范围里有 *_ref（指向被合并范围外的 head），合并后丢失这个引用
-  // 这是预期行为——用户合并时应当知道
   if (merged.items.length === 0) merged.items = null;
   clearSelection();
   pushUndo('合并字幕');
+
+  // 选区并非全部同组时，不继承该组；先按删除切点规则重组外部存活成员，
+  // 避免合并掉某个 head 后留下悬空引用。
+  const mergeSet = new Set(sorted);
+  if (stickerGroup.headIdx === null) {
+    splitGroupsAtCutPoints(mergeSet, 'sticker', 'sticker_ref');
+  }
+  if (colorGroup.headIdx === null) {
+    splitGroupsAtCutPoints(mergeSet, 'color', 'color_ref');
+  }
+
   DATA.segments.splice(sorted[0], sorted.length, merged);
-  // 因为 splice 改变了后续 idx，需要更新所有 *_ref.headIdx 来反映新偏移
+  // splice 后统一重映射 group head：选区内继承的 head 移到首项，
+  // 选区之后的 head 则按减少的字幕数量左移。
   const removedCount = sorted.length - 1;  // 合并把 sorted.length 条变成 1 条
-  if (removedCount > 0) {
-    for (let i = sorted[0] + 1; i < DATA.segments.length; i++) {
-      const sref = DATA.segments[i].sticker_ref;
-      if (sref && sref.headIdx > sorted[sorted.length - 1]) sref.headIdx -= removedCount;
-      const cref = DATA.segments[i].color_ref;
-      if (cref && cref.headIdx > sorted[sorted.length - 1]) cref.headIdx -= removedCount;
+  const first = sorted[0];
+  const last = sorted[sorted.length - 1];
+  function remapRef(ref) {
+    if (!ref || !Number.isInteger(ref.headIdx)) return;
+    if (ref.headIdx >= first && ref.headIdx <= last) {
+      ref.headIdx = first;
+    } else if (ref.headIdx > last) {
+      ref.headIdx -= removedCount;
     }
   }
+  DATA.segments.forEach((segment) => {
+    remapRef(segment.sticker_ref);
+    remapRef(segment.color_ref);
+  });
+  syncTimelineGroupRanges();
   renderAll();
   const el = container.querySelector(`.cue[data-idx="${sorted[0]}"]`);
   if (el) scrollCueToCenter(el);
@@ -2070,8 +2102,9 @@ document.addEventListener('keydown', (e) => {
   flashHint(`倍速: ${fmtRate(r)}`);
 });
 
-// A/D：跳转到上一条/下一条字幕的句首并选中。跳转本身不改变播放状态：
-// 播放中会从新位置继续播放，暂停中只移动播放指针。
+// A/D：跳转到上一条/下一条字幕的句首并单选。
+// Shift+A/D：保留当前选择，并向前/后追加选择一条字幕。
+// 跳转本身不改变播放状态：播放中会从新位置继续播放，暂停中只移动播放指针。
 document.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
   if (key !== 'a' && key !== 'd') return;
@@ -2089,22 +2122,32 @@ document.addEventListener('keydown', (e) => {
   if (projectMediaModal.classList.contains('show')) return;
   if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
   if (ctxmenu.classList.contains('show')) return;
-  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (e.ctrlKey || e.altKey || e.metaKey) return;
 
   const direction = key === 'a' ? -1 : 1;
-  const next = window.AsrEditorUtils.findCueNavigationTarget(
-    DATA.segments,
-    currentCuePanelIdx,
-    Math.round(player.currentTime * 1000),
-    direction,
-    hideDisabled,
-  );
+  const next = e.shiftKey
+    ? window.AsrEditorUtils.findCueSelectionExtensionTarget(
+      DATA.segments,
+      selectedIdxs,
+      currentCuePanelIdx,
+      Math.round(player.currentTime * 1000),
+      direction,
+      hideDisabled,
+    )
+    : window.AsrEditorUtils.findCueNavigationTarget(
+      DATA.segments,
+      currentCuePanelIdx,
+      Math.round(player.currentTime * 1000),
+      direction,
+      hideDisabled,
+    );
   if (next < 0) return;
 
   e.preventDefault();
   e.stopPropagation();
   const wasPlaying = !player.paused;
-  selectOnly(next);
+  if (e.shiftKey) addToSelection(next);
+  else selectOnly(next);
   lastClickedIdx = next;
   const cue = container.querySelector(`.cue[data-idx="${next}"]`);
   if (cue) scrollCueToCenter(cue);
@@ -2114,6 +2157,24 @@ document.addEventListener('keydown', (e) => {
     const promise = player.play();
     if (promise && promise.catch) promise.catch(() => {});
   }
+});
+
+// C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'c' && e.key !== 'C') return;
+  if (editingState || e.repeat) return;
+  const a = document.activeElement;
+  if (a && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.tagName === 'SELECT' || a.isContentEditable)) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  e.preventDefault();
+  e.stopPropagation();
+  mergeSegments([...selectedIdxs]);
 });
 
 // Ctrl/Cmd+Z 撤销；Ctrl/Cmd+Shift+Z 或 Ctrl/Cmd+Y 重做
@@ -2150,10 +2211,10 @@ document.addEventListener('keydown', (e) => {
   deleteSegments([...selectedIdxs]);
 });
 
-// 波形工具切换：V=选择（默认），C=剃刀，Esc=切回选择。与 J/K/L 一样只在
+// 波形工具切换：V=选择（默认），R=剃刀，Esc=切回选择。与 J/K/L 一样只在
 // 非输入/非模态/非编辑态下触发，避免抢占文本编辑与弹窗按键。
 document.addEventListener('keydown', (e) => {
-  if (e.key !== 'v' && e.key !== 'V' && e.key !== 'c' && e.key !== 'C' && e.key !== 'Escape') return;
+  if (e.key !== 'v' && e.key !== 'V' && e.key !== 'r' && e.key !== 'R' && e.key !== 'Escape') return;
   if (!waveformEditor) return;
   // Escape：上下文菜单/弹窗/编辑态各自先处理；只有波形工具在 razor 时才切回。
   if (e.key === 'Escape') {
@@ -4420,7 +4481,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       deleteSegments([idx]);
     }, { danger: true });
   } else {
-    addItem(`合并 ${targetIdxs.length} 条字幕`, '', () => mergeSegments(targetIdxs));
+    addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
     addSep();
     // 只在选中范围内存在表情包时才显示「拓展表情包时长」，且放在「统一分配」前面
     const hasStickerInRange = targetIdxs.some(i =>

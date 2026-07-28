@@ -171,6 +171,77 @@
     return -1;
   }
 
+  function findCueSelectionExtensionTarget(
+    segments,
+    selectedIndexes,
+    currentIndex,
+    timeMs,
+    direction,
+    skipDisabled = false,
+  ) {
+    if (!Array.isArray(segments) || !segments.length || (direction !== -1 && direction !== 1)) return -1;
+    const selected = Array.from(selectedIndexes || [])
+      .filter((index) => Number.isInteger(index) && index >= 0 && index < segments.length);
+    if (!selected.length) {
+      return findCueNavigationTarget(
+        segments,
+        currentIndex,
+        timeMs,
+        direction,
+        skipDisabled,
+      );
+    }
+    const edge = direction < 0 ? Math.min(...selected) : Math.max(...selected);
+    return findAdjacentCueIndex(segments, edge, direction, skipDisabled);
+  }
+
+  function cloneJsonValue(value) {
+    return value == null ? null : JSON.parse(JSON.stringify(value));
+  }
+
+  // 合并选区只有在每条字幕都指向同一个有效 group head 时才继承该 group。
+  // 若选区包含 head，新字幕继续作为 head；若选区只是同组 refs，则继续指向原 head。
+  function resolveMergedGroupInheritance(segments, indexes, headField, refField) {
+    if (!Array.isArray(segments) || !Array.isArray(indexes) || !indexes.length) {
+      return { head: null, ref: null, headIdx: null };
+    }
+    const headIndexes = indexes.map((index) => {
+      const segment = segments[index];
+      if (!segment) return null;
+      if (segment[headField]) return index;
+      const headIdx = segment[refField]?.headIdx;
+      return Number.isInteger(headIdx) && segments[headIdx]?.[headField] ? headIdx : null;
+    });
+    const commonHeadIdx = headIndexes[0];
+    if (
+      !Number.isInteger(commonHeadIdx)
+      || headIndexes.some((headIdx) => headIdx !== commonHeadIdx)
+    ) {
+      return { head: null, ref: null, headIdx: null };
+    }
+
+    const head = segments[commonHeadIdx][headField];
+    if (indexes.includes(commonHeadIdx)) {
+      return {
+        head: cloneJsonValue(head),
+        ref: null,
+        headIdx: commonHeadIdx,
+      };
+    }
+
+    const sourceRef = indexes
+      .map((index) => segments[index]?.[refField])
+      .find((ref) => ref && ref.headIdx === commonHeadIdx);
+    const inheritedRef = cloneJsonValue(sourceRef) || {};
+    inheritedRef.headIdx = commonHeadIdx;
+    if (!inheritedRef.name && head?.name) inheritedRef.name = head.name;
+    return {
+      head: null,
+      ref: inheritedRef,
+      headIdx: commonHeadIdx,
+    };
+  }
+
   function getSrtExportOffset(segments, alignFirstEnabled = true) {
     if (!alignFirstEnabled || !Array.isArray(segments)) return 0;
     const firstEnabled = segments.find((segment) => (
@@ -636,6 +707,8 @@
     splitCharOffsetAtTime,
     findAdjacentCueIndex,
     findCueNavigationTarget,
+    findCueSelectionExtensionTarget,
+    resolveMergedGroupInheritance,
     getSrtExportOffset,
     effectiveColorName,
     buildSrtPayload,
