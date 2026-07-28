@@ -14,6 +14,7 @@ datas = [
     (str(ROOT / "THIRD_PARTY_NOTICES.md"), "."),
     (str(ROOT / "blank-editor.html"), "."),
     (str(ROOT / "assets" / "maw.ico"), "assets"),
+    (str(ROOT / "assets" / "show.webp"), "assets"),
 ]
 datas += collect_data_files("sv_ttk")
 
@@ -50,11 +51,13 @@ a = Analysis(
         "edit",
         "waveform",
         "generate_subtitle_qwen_api",
+        "generate_subtitle_soniox_api",
         "serve",
         "maw.gui",
         "maw.gui_config",
         "maw.gui_workflow",
         "maw.project",
+        "maw.soniox",
     ],
     hookspath=[],
     hooksconfig={},

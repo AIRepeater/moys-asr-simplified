@@ -14,9 +14,10 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
-from typing import TextIO, final
+from typing import Final, TextIO, final
 
-from maw.gui_config import DEFAULT_MODEL_ID
+from maw.gui_config import DEFAULT_MODEL_ID, DEFAULT_ENV_PATH, load_env
+from maw.gui_platform import asset_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,6 +37,9 @@ class TranscriptionRequest:
     length_limit: str = ""
     region: str = ""
     workspace_id: str = ""
+    provider: str = "qwen"
+    speaker_colors: bool = False
+    ui_language: str = "zh"
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +50,7 @@ class TranscriptionResult:
 
 
 ProgressCallback = Callable[[str], None]
+ProcessStartCallback = Callable[[int], None]
 
 
 @final
@@ -85,9 +90,13 @@ def build_output_paths(srt_path: Path) -> OutputPaths:
     return OutputPaths(srt=srt, json=srt.with_suffix(".json"), html=srt.with_suffix(".edit.html"))
 
 
-def default_srt_path(media_path: Path) -> Path:
+PROVIDER_SRT_TAGS: Final = {"qwen": ".qwen3-asr-api", "soniox": ".soniox"}
+
+
+def default_srt_path(media_path: Path, provider: str = "qwen") -> Path:
     media = Path(media_path).expanduser()
-    return media.with_name(f"{media.stem}.qwen3-asr-api.srt")
+    tag = PROVIDER_SRT_TAGS.get(provider, PROVIDER_SRT_TAGS["qwen"])
+    return media.with_name(f"{media.stem}{tag}.srt")
 
 
 def build_transcribe_command(
@@ -98,19 +107,29 @@ def build_transcribe_command(
 ) -> list[str]:
     exe = str(executable or sys.executable)
     is_frozen = bool(getattr(sys, "frozen", False) if frozen is None else frozen)
-    script = Path(__file__).resolve().parents[1] / "generate_subtitle_qwen_api.py"
-    command = [exe, "--transcribe"] if is_frozen else [exe, str(script)]
+    is_soniox = request.provider == "soniox"
+    script_name = "generate_subtitle_soniox_api.py" if is_soniox else "generate_subtitle_qwen_api.py"
+    script = Path(__file__).resolve().parents[1] / script_name
+    if is_frozen:
+        command = [exe, "--transcribe-soniox" if is_soniox else "--transcribe"]
+    else:
+        command = [exe, str(script)]
     command.append(str(request.media_path))
-    command.extend(["--output", str(build_output_paths(request.srt_path).srt), "--json", "--no-html"])
-    _append_option(command, "--model", request.model or DEFAULT_MODEL_ID)
+    command.extend(["--output", str(build_output_paths(request.srt_path).srt), "--json", "--no-html", "--with-waveform"])
+    if is_soniox:
+        _append_option(command, "--model", request.model if request.model != DEFAULT_MODEL_ID else "")
+        if request.speaker_colors:
+            command.append("--speaker-colors")
+    else:
+        _append_option(command, "--model", request.model or DEFAULT_MODEL_ID)
+        _append_option(command, "--region", request.region)
     _append_option(command, "--language", request.language)
     _append_option(command, "--length-limit", request.length_limit)
-    _append_option(command, "--region", request.region)
     return command
 
 
 def build_serve_command(
-    json_path: Path,
+    json_path: Path | None,
     media_path: Path | None,
     port: int,
     *,
@@ -121,9 +140,13 @@ def build_serve_command(
     is_frozen = bool(getattr(sys, "frozen", False) if frozen is None else frozen)
     script = Path(__file__).resolve().parents[1] / "server-editor" / "serve.py"
     command = [exe, "--serve"] if is_frozen else [exe, str(script)]
-    command.append(str(json_path))
-    if media_path:
-        command.extend(["-m", str(media_path)])
+    if json_path is None:
+        # 无工程时启动空白编辑器，由用户在页面内自行选择 JSON 与媒体
+        command.append("--blank")
+    else:
+        command.append(str(json_path))
+        if media_path:
+            command.extend(["-m", str(media_path)])
     command.extend(["--port", str(port)])
     return command
 
@@ -135,12 +158,13 @@ def run_transcription(
     cancel_event: Event | None = None,
     executable: Path | str | None = None,
     frozen: bool | None = None,
+    on_process_start: ProcessStartCallback | None = None,
 ) -> TranscriptionResult:
     if cancel_event and cancel_event.is_set():
         raise TranscriptionCancelledError
     paths = build_output_paths(request.srt_path)
     paths.srt.parent.mkdir(parents=True, exist_ok=True)
-    env = _child_environment(os.environ, request.api_key, request.workspace_id)
+    env = _child_environment(os.environ, request.api_key, request.workspace_id, request.provider)
     command = build_transcribe_command(request, executable=executable, frozen=frozen)
     process = subprocess.Popen(
         command,
@@ -152,16 +176,22 @@ def run_transcription(
         env=env,
         cwd=str(Path(__file__).resolve().parents[1]),
     )
+    if on_process_start is not None:
+        on_process_start(process.pid)
     _stream_process(process, on_event or _ignore, cancel_event)
     if process.returncode != 0:
         raise TranscriptionProcessError(process.returncode)
     _require_output(paths.srt, "SRT")
     _require_output(paths.json, "JSON")
-    html_path = render_editor_html(paths.json, request.media_path, paths.html)
+    try:
+        html_path = render_editor_html(paths.json, request.media_path, paths.html, request.ui_language)
+    except Exception as error:  # HTML is optional; preserve successful SRT/JSON outputs.
+        html_path = None
+        (on_event or _ignore)(f"[warning] 编辑器 HTML 生成失败，SRT/JSON 已保留：{error}")
     return TranscriptionResult(srt_path=paths.srt, json_path=paths.json, html_path=html_path)
 
 
-def render_editor_html(json_path: Path, media_path: Path, html_path: Path) -> Path | None:
+def render_editor_html(json_path: Path, media_path: Path, html_path: Path, ui_language: str = "zh") -> Path | None:
     try:
         from edit import media_tag, render_editor_page
         from maw.project import normalize_project
@@ -182,6 +212,7 @@ def render_editor_html(json_path: Path, media_path: Path, html_path: Path) -> Pa
         filename_base_json=json.dumps(Path(json_path).stem, ensure_ascii=False),
         stickers_json="[]",
         sticker_root_json="null",
+        ui_language_json=json.dumps("en" if ui_language == "en" else "zh"),
         generated_at=time.strftime("%Y-%m-%d %H:%M:%S"),
         json_display=html.escape(Path(json_path).name),
         json_name_class="",
@@ -222,13 +253,48 @@ def _read_process_lines(stdout: TextIO | None, lines: queue.Queue[str | None]) -
     lines.put(None)
 
 
-def _child_environment(parent: Mapping[str, str], api_key: str, workspace_id: str = "") -> dict[str, str]:
+def _child_environment(parent: Mapping[str, str], api_key: str, workspace_id: str = "", provider: str = "qwen") -> dict[str, str]:
     env = dict(parent)
-    if api_key:
-        env["DASHSCOPE_API_KEY"] = api_key
-    if workspace_id:
-        env["DASHSCOPE_WORKSPACE_ID"] = workspace_id
+    env["PYTHONUNBUFFERED"] = "1"
+    configured_path = parent.get("FFMPEG_PATH") or load_env(DEFAULT_ENV_PATH).get("FFMPEG_PATH", "")
+    configured = _prepend_ffmpeg_path(env, configured_path) if configured_path else False
+    if not configured:
+        bundled_directory = _bundled_ffmpeg_directory()
+        if bundled_directory:
+            _prepend_ffmpeg_path(env, str(bundled_directory))
+    if provider == "soniox":
+        if api_key:
+            env["SONIOX_API_KEY"] = api_key
+    else:
+        if api_key:
+            env["DASHSCOPE_API_KEY"] = api_key
+        if workspace_id:
+            env["DASHSCOPE_WORKSPACE_ID"] = workspace_id
     return env
+
+
+def _prepend_ffmpeg_path(env: dict[str, str], configured_path: str) -> bool:
+    if not configured_path.strip():
+        return False
+    candidate = Path(configured_path.strip()).expanduser()
+    directory = candidate if candidate.is_dir() else candidate.parent
+    if not directory.exists():
+        return False
+    old_path = env.get("PATH", "")
+    env["PATH"] = str(directory) if not old_path else str(directory) + os.pathsep + old_path
+    return True
+
+
+def _bundled_ffmpeg_directory() -> Path | None:
+    ffmpeg_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+    ffprobe_name = "ffprobe.exe" if os.name == "nt" else "ffprobe"
+    candidates = [asset_path("ffmpeg/bin")]
+    if getattr(sys, "frozen", False):
+        candidates.insert(0, Path(sys.executable).resolve().parent / "ffmpeg" / "bin")
+    for directory in candidates:
+        if (directory / ffmpeg_name).is_file() and (directory / ffprobe_name).is_file():
+            return directory
+    return None
 
 
 def _terminate(process: subprocess.Popen[str]) -> None:

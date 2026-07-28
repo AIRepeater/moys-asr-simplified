@@ -23,7 +23,7 @@ SPEC.loader.exec_module(server_editor)
 class LocalEditorServerTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
-        # CI 运行器的 %TEMP% 可能是 8.3 短路径；被测代码会 resolve() 成长路径，基准侧统一规范化
+        # Windows CI may expose %TEMP% as an 8.3 short path while production code resolves it.
         self.root = Path(self.temp_dir.name).resolve()
         self.media = self.root / "clip.mp3"
         self.media.write_bytes(b"0123456789")
@@ -70,6 +70,8 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('id="save-project-as"', page)
         self.assertIn('id="recent-projects"', page)
         self.assertIn('id="auto-open-last-project"', page)
+        self.assertLess(page.index('id="auto-open-last-project"'), page.index('id="recent-projects-list"'))
+        self.assertIn("const STORAGE_KEY = 'mawe.language';", page)
         self.assertIn('class="waveform-mode-switch"', page)
 
         with server_editor.EditorServer(("127.0.0.1", 0), project) as server:

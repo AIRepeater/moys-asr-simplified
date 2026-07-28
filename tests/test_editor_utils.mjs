@@ -8,6 +8,22 @@ const source = fs.readFileSync(new URL('../web/editor-utils.js', import.meta.url
 const context = { window: {} };
 vm.runInNewContext(source, context);
 const helpers = context.window.AsrEditorUtils;
+const i18nSource = fs.readFileSync(new URL('../web/editor-i18n.js', import.meta.url), 'utf8');
+const i18nContext = { window: {} };
+vm.runInNewContext(i18nSource, i18nContext);
+const i18n = i18nContext.window.MAWE_I18N;
+
+
+test('translates editor project controls and dynamic save messages to English', () => {
+  assert.equal(i18n.translateText('保存工程', 'en'), 'Save project');
+  assert.equal(i18n.translateText('自动打开上次工程', 'en'), 'Automatically open last project');
+  assert.equal(i18n.translateText('上次打开：demo.json', 'en'), 'Last opened: demo.json');
+  assert.equal(
+    i18n.translateText('已保存工程：demo.json（已备份为 demo.json.bak）', 'en'),
+    'Project saved: demo.json (backup: demo.json.bak)',
+  );
+  assert.equal(i18n.translateText('保存工程', 'zh'), '保存工程');
+});
 
 
 test('builds expandable replacement rows with before and after text', () => {
@@ -75,6 +91,23 @@ test('finds previous and next visible cue for the current cue panel', () => {
   assert.equal(helpers.findAdjacentCueIndex(segments, 2, -1, true), 0);
   assert.equal(helpers.findAdjacentCueIndex(segments, 0, 1, true), 2);
   assert.equal(helpers.findAdjacentCueIndex(segments, 2, 1, false), 3);
+});
+
+test('finds A/D navigation targets from selection or playhead', () => {
+  const segments = [
+    { start: 1000, end: 2000 },
+    { start: 2500, end: 3000, disabled: true },
+    { start: 3500, end: 4500 },
+    { start: 5000, end: 6000 },
+  ];
+
+  assert.equal(helpers.findCueNavigationTarget(segments, 2, 3500, -1, false), 1);
+  assert.equal(helpers.findCueNavigationTarget(segments, 2, 3500, -1, true), 0);
+  assert.equal(helpers.findCueNavigationTarget(segments, -1, 4000, -1, false), 1);
+  assert.equal(helpers.findCueNavigationTarget(segments, -1, 4000, -1, true), 0);
+  assert.equal(helpers.findCueNavigationTarget(segments, -1, 4000, 1, true), 3);
+  assert.equal(helpers.findCueNavigationTarget(segments, -1, 3200, -1, true), 0);
+  assert.equal(helpers.findCueNavigationTarget(segments, -1, 3200, 1, true), 2);
 });
 
 
@@ -483,8 +516,8 @@ test('history stack: clear and clearRedo reset the right stacks', () => {
 
 // === preview.subtitle geometry helpers ===
 
-test('normalizePreviewGeometry returns legacy default for invalid input', () => {
-  const expected = { x: 0, y: 0.76, width: 1, height: 0.16 };
+test('normalizePreviewGeometry returns default geometry for invalid input', () => {
+  const expected = { x: 0.175, y: 0.76, width: 0.65, height: 0.16 };
   assert.deepEqual(JSON.parse(JSON.stringify(helpers.normalizePreviewGeometry(null))), expected);
   assert.deepEqual(JSON.parse(JSON.stringify(helpers.normalizePreviewGeometry('bad'))), expected);
   assert.deepEqual(JSON.parse(JSON.stringify(helpers.normalizePreviewGeometry({}))), expected);

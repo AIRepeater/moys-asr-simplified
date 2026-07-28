@@ -2,13 +2,20 @@
 * text=auto eol=lf
 
 # 二进制资源不做换行规范化
-*.png binary
 *.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
 *.webp binary
+*.gif binary
+*.zip binary
+*.exe binary
+*.dll binary
+*.pyd binary
 *.wav binary
+*.mp3 binary
 *.mp4 binary
 *.mov binary
 *.mkv binary
-*.mp3 binary
 *.m4a binary
 *.flac binary

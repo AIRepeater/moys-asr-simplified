@@ -142,6 +142,35 @@
     return -1;
   }
 
+  function findCueNavigationTarget(segments, currentIndex, timeMs, direction, skipDisabled = false) {
+    if (!Array.isArray(segments) || !segments.length || (direction !== -1 && direction !== 1)) return -1;
+    if (Number.isInteger(currentIndex) && currentIndex >= 0 && currentIndex < segments.length) {
+      return findAdjacentCueIndex(segments, currentIndex, direction, skipDisabled);
+    }
+
+    const time = Number(timeMs);
+    if (!Number.isFinite(time)) return -1;
+    const activeIndex = segments.findIndex((segment) => (
+      segment && Number(segment.start) <= time && Number(segment.end) >= time
+    ));
+    if (activeIndex >= 0) {
+      return findAdjacentCueIndex(segments, activeIndex, direction, skipDisabled);
+    }
+
+    if (direction < 0) {
+      for (let index = segments.length - 1; index >= 0; index -= 1) {
+        if (Number(segments[index]?.start) >= time) continue;
+        if (!skipDisabled || !segments[index]?.disabled) return index;
+      }
+      return -1;
+    }
+    for (let index = 0; index < segments.length; index += 1) {
+      if (Number(segments[index]?.start) <= time) continue;
+      if (!skipDisabled || !segments[index]?.disabled) return index;
+    }
+    return -1;
+  }
+
   function getSrtExportOffset(segments, alignFirstEnabled = true) {
     if (!alignFirstEnabled || !Array.isArray(segments)) return 0;
     const firstEnabled = segments.find((segment) => (
@@ -464,23 +493,27 @@
   const PREVIEW_MIN_WIDTH = 0.20;
   const PREVIEW_MIN_HEIGHT = 0.08;
   const DEFAULT_PREVIEW_GEOMETRY = Object.freeze({
-    x: 0, y: 0.76, width: 1, height: 0.16,
+    x: 0.175, y: 0.76, width: 0.65, height: 0.16,
   });
-  // 复刻原 CSS bottom:8% 的带状：y=0.76, height=0.16 → 76%→92%，留 8% 底边距。
+  // 复刻原 CSS bottom:8% 的带状：y=0.76, height=0.16 → 76%→92%，留 8% 底边距；宽度默认 65% 居中。
+  // 表情包预览的默认几何：右上角小图。
+  const DEFAULT_STICKER_GEOMETRY = Object.freeze({
+    x: 0.73, y: 0.04, width: 0.24, height: 0.3,
+  });
 
   function clampNumber(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
   }
 
-  // 把任意输入归一化为合法 geometry；非法字段回退到 legacy 默认值。
-  function normalizePreviewGeometry(value) {
-    if (!value || typeof value !== 'object') return { ...DEFAULT_PREVIEW_GEOMETRY };
+  // 把任意输入归一化为合法 geometry；非法字段回退到指定默认值。
+  function normalizePreviewGeometry(value, defaults = DEFAULT_PREVIEW_GEOMETRY) {
+    if (!value || typeof value !== 'object') return { ...defaults };
     const geo = {
-      x: clampNumber(value.x, DEFAULT_PREVIEW_GEOMETRY.x),
-      y: clampNumber(value.y, DEFAULT_PREVIEW_GEOMETRY.y),
-      width: clampNumber(value.width, DEFAULT_PREVIEW_GEOMETRY.width),
-      height: clampNumber(value.height, DEFAULT_PREVIEW_GEOMETRY.height),
+      x: clampNumber(value.x, defaults.x),
+      y: clampNumber(value.y, defaults.y),
+      width: clampNumber(value.width, defaults.width),
+      height: clampNumber(value.height, defaults.height),
     };
     return clampPreviewGeometry(geo);
   }
@@ -602,6 +635,7 @@
     formatGapRemoveDuration,
     splitCharOffsetAtTime,
     findAdjacentCueIndex,
+    findCueNavigationTarget,
     getSrtExportOffset,
     effectiveColorName,
     buildSrtPayload,
@@ -619,8 +653,9 @@
     createHistoryStack,
     PREVIEW_MIN_WIDTH,
     PREVIEW_MIN_HEIGHT,
-    DEFAULT_PREVIEW_GEOMETRY,
-    normalizePreviewGeometry,
+  DEFAULT_PREVIEW_GEOMETRY,
+  DEFAULT_STICKER_GEOMETRY,
+  normalizePreviewGeometry,
     clampPreviewGeometry,
     previewGeometryToCss,
     applyPreviewGeometryDelta,

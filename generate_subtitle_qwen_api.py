@@ -28,6 +28,7 @@ from pathlib import Path
 import requests
 
 from edit import get_default_sticker_dir
+from waveform import embed_waveform
 
 
 # ===== 路径与常量 =====
@@ -134,7 +135,7 @@ def get_duration_sec(filepath: str) -> float:
     return float(out.stdout.strip())
 
 
-def _parse_duration(value: str) -> float:
+def parse_duration(value: str) -> float:
     """解析时长字符串，支持 h/m/s 后缀。"""
     value = value.strip().lower()
     m = _re.fullmatch(r'([\d.]+)\s*(h|m|s)?', value)
@@ -147,6 +148,10 @@ def _parse_duration(value: str) -> float:
     elif unit == 'm':
         return num * 60
     return num
+
+
+# 兼容旧私有名（generate_subtitle_soniox_api.py 等复用方请用 parse_duration）
+_parse_duration = parse_duration
 
 
 def load_hotwords() -> list[str]:
@@ -185,7 +190,7 @@ def generate_srt(segments: list[dict]) -> str:
 
 # ===== 切句逻辑（与本地版 _split_words_to_segments 一致，纯 Python 复制） =====
 
-def _split_by_silence(items: list[dict], min_gap_ms: int) -> list[list[dict]]:
+def split_by_silence(items: list[dict], min_gap_ms: int) -> list[list[dict]]:
     """按相邻 item 之间的静音间隔切分。"""
     if not items or min_gap_ms <= 0:
         return [items] if items else []
@@ -200,6 +205,10 @@ def _split_by_silence(items: list[dict], min_gap_ms: int) -> list[list[dict]]:
     if cur:
         groups.append(cur)
     return groups
+
+
+# 兼容旧私有名（maw/soniox.py 等复用方请用 split_by_silence）
+_split_by_silence = split_by_silence
 
 
 def _split_long_group(items: list[dict], max_len: int, weak_punct: set) -> list[list[dict]]:
@@ -284,7 +293,7 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
         }
 
     final: list[list[dict]] = []
-    silence_groups = _split_by_silence(items, gap_split_ms)
+    silence_groups = split_by_silence(items, gap_split_ms)
 
     for sg in silence_groups:
         raw_groups: list[list[dict]] = []
@@ -313,6 +322,170 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
             final.extend(_split_long_group(grp, max_len, WEAK_PUNCT))
 
     return [to_seg(g) for g in final if g]
+
+
+# ===== 双轨切句：CJK 检测 + 空格语言（英文等）切句 =====
+
+# 默认按词数计量：英文每条字幕 3–13 词（Netflix 风格上限约 14 词）
+WESTERN_MAX_WORDS = 13
+WESTERN_MIN_WORDS = 3
+
+# 句末强标点（完整句子边界）与弱标点（超长时的断点），兼容 CJK 全角
+WESTERN_STRONG_END = ".!?。！？；"
+WESTERN_WEAK_END = ",;:，、：,;—–"
+# 判定时剥掉的尾部引号/括号（如 word." 仍视为句号结尾）
+_TRAILING_QUOTES = "\"'”’)]}』」"
+
+
+def is_cjk_char(char: str) -> bool:
+    code = ord(char)
+    return (
+        0x3000 <= code <= 0x303F    # CJK 标点
+        or 0x3040 <= code <= 0x30FF  # 日文假名
+        or 0x3400 <= code <= 0x4DBF  # CJK 扩展 A
+        or 0x4E00 <= code <= 0x9FFF  # CJK 统一表意文字
+        or 0xF900 <= code <= 0xFAFF  # CJK 兼容表意
+        or 0xFF00 <= code <= 0xFFEF  # 全角字符
+    )
+
+
+def is_cjk_dominant(items: list[dict]) -> bool:
+    """item 序列内 CJK 占比 >= 50% 判定为中文主导（走中文切句逻辑）。"""
+    if not items:
+        return True
+    cjk = sum(
+        1 for it in items
+        if any(is_cjk_char(c) for c in it["text"] if not c.isspace())
+    )
+    return cjk * 2 >= len(items)
+
+
+def _ends_with_punct(text: str, punct: str) -> bool:
+    stripped = text.rstrip().rstrip(_TRAILING_QUOTES)
+    return bool(stripped) and stripped[-1] in punct
+
+
+def _split_long_western(group: list[dict], max_words: int) -> list[list[dict]]:
+    """超过 max_words 词的组：优先在 max_words 内最后一个弱标点处断开，
+    没有弱标点则按 max_words 硬切。"""
+    if len(group) <= max_words:
+        return [group]
+    cut = None
+    for i in range(1, min(max_words, len(group) - 1) + 1):
+        if _ends_with_punct(group[i - 1]["text"], WESTERN_WEAK_END):
+            cut = i
+    if cut is None:
+        cut = max_words
+    return [group[:cut]] + _split_long_western(group[cut:], max_words)
+
+
+def split_words_to_segments_western(items: list[dict], max_words: int = WESTERN_MAX_WORDS,
+                                    min_words: int = WESTERN_MIN_WORDS,
+                                    gap_split_ms: int = 1000) -> list[dict]:
+    """空格分词语言（英文等）的切句：尽量保住完整句子。
+
+    0. 按静音间隔（>= gap_split_ms）预切
+    1. 按句末强标点（. ! ? 及全角）切出完整句子
+    2. 合并过短句子（< min_words 词），避免单词成条
+    3. 超长句子（> max_words 词）优先按弱标点断，兜底硬切
+    """
+    def to_seg(group: list[dict]) -> dict:
+        return {
+            "start": group[0]["start"],
+            "end": group[-1]["end"],
+            "text": "".join(it["text"] for it in group),
+            "items": [dict(it) for it in group],
+        }
+
+    final: list[list[dict]] = []
+    for sg in split_by_silence(items, gap_split_ms):
+        raw_groups: list[list[dict]] = []
+        buf: list[dict] = []
+        for it in sg:
+            buf.append(it)
+            if _ends_with_punct(it["text"], WESTERN_STRONG_END):
+                raw_groups.append(buf)
+                buf = []
+        if buf:
+            raw_groups.append(buf)
+
+        merged: list[list[dict]] = []
+        for grp in raw_groups:
+            if merged and len(grp) < min_words:
+                merged[-1].extend(grp)
+            else:
+                merged.append(list(grp))
+        if len(merged) >= 2 and len(merged[-1]) < min_words:
+            merged[-2].extend(merged.pop())
+
+        for grp in merged:
+            final.extend(_split_long_western(grp, max_words))
+
+    return [to_seg(g) for g in final if g]
+
+
+def split_segments_auto(items: list[dict], *, max_len: int, min_len: int,
+                        gap_split_ms: int,
+                        max_words: int = WESTERN_MAX_WORDS,
+                        min_words: int = WESTERN_MIN_WORDS) -> list[dict]:
+    """按静音组自动选择切句逻辑（双轨）。
+
+    先按静音间隔预切；每个静音组内 CJK 主导则走中文逻辑，
+    否则走空格语言逻辑——中英混排的播客也能逐段正确归类。
+    """
+    segments: list[dict] = []
+    for group in split_by_silence(items, gap_split_ms):
+        if is_cjk_dominant(group):
+            segments.extend(split_words_to_segments(group, max_len, min_len, 0))
+        else:
+            segments.extend(split_words_to_segments_western(group, max_words, min_words, 0))
+    return segments
+
+
+def repair_nonpositive_duration_segments(segments: list[dict]) -> list[dict]:
+    """Merge zero/negative-duration API fragments into a neighboring subtitle.
+
+    Qwen filetrans occasionally returns a word or sentence whose begin_time and
+    end_time are identical. If punctuation/silence splitting isolates that item,
+    it becomes an invalid zero-duration segment. Keep its text/items, but attach
+    it to the next valid subtitle (or the previous one when it is trailing).
+    """
+    repaired: list[dict] = []
+    pending: list[dict] = []
+
+    def merge(parts: list[dict]) -> dict:
+        starts = [part["start"] for part in parts]
+        bounds = [value for part in parts for value in (part["start"], part["end"])]
+        start = min(starts)
+        end = max(bounds)
+        if end <= start:
+            end = start + 1
+        return {
+            "start": start,
+            "end": end,
+            "text": "".join(part.get("text", "") for part in parts),
+            "items": [
+                dict(item)
+                for part in parts
+                for item in part.get("items", [])
+            ],
+        }
+
+    for segment in segments:
+        if segment["end"] <= segment["start"]:
+            pending.append(segment)
+            continue
+        if pending:
+            segment = merge([*pending, segment])
+            pending = []
+        repaired.append(segment)
+
+    if pending:
+        if repaired:
+            repaired[-1] = merge([repaired[-1], *pending])
+        else:
+            repaired.append(merge(pending))
+    return repaired
 
 
 # ===== DashScope filetrans API 调用 =====
@@ -633,11 +806,11 @@ def main():
     parser.add_argument("-o", "--output", help="输出 SRT 路径（默认与输入同目录）")
     parser.add_argument(
         "-l", "--max-len", type=int, default=21,
-        help="每条字幕最大字数（默认 21）",
+        help="每条字幕最大字数（默认 21；仅 CJK 内容生效，空格语言按词数自动处理）",
     )
     parser.add_argument(
         "--min-len", type=int, default=5,
-        help="句号间最短字数，不足则合并（默认 5）",
+        help="句号间最短字数，不足则合并（默认 5；仅 CJK 内容生效）",
     )
     parser.add_argument(
         "--language", default=None,
@@ -654,6 +827,10 @@ def main():
     parser.add_argument(
         "--json", dest="json_out", action="store_true",
         help="同时输出含字级时间戳的 JSON 文件（供 edit.py 加载）",
+    )
+    parser.add_argument(
+        "--with-waveform", action="store_true",
+        help="将波形峰值数据嵌入工程 JSON（GUI 转写默认开启）",
     )
     parser.add_argument(
         "-s", "--stickers", default=get_default_sticker_dir(),
@@ -764,9 +941,12 @@ def main():
             print("[警告] 未获得时间戳，输出整段为单条字幕")
             segments = [{"start": 0, "end": int(duration * 1000), "text": result["text"]}]
         else:
-            segments = split_words_to_segments(
-                items, args.max_len, args.min_len, args.gap_split
+            segments = split_segments_auto(
+                items, max_len=args.max_len, min_len=args.min_len,
+                gap_split_ms=args.gap_split,
             )
+
+    segments = repair_nonpositive_duration_segments(segments)
 
     # 剥句末标点（与本地版一致）
     if not args.keep_punct:
@@ -821,6 +1001,17 @@ def main():
                 for seg in segments
             ],
         }
+        if args.with_waveform:
+            waveform_result = embed_waveform(json_data, input_path)
+            json_data = waveform_result.project
+            if waveform_result.error is None:
+                waveform_payload = json_data["waveform"]
+                print(
+                    f"[waveform] 已嵌入 {waveform_payload['peak_count']} peaks "
+                    f"({waveform_payload['peaks_per_second']}/秒)"
+                )
+            else:
+                print(f"[waveform] 警告: {waveform_result.error}；已跳过内嵌波形")
         json_path.write_text(
             json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8"
         )
