@@ -13,7 +13,7 @@ from typing import final
 
 import sv_ttk
 
-from maw.gui_config import LANGUAGES, MODELS, REGIONS, effective_config, language_label, masked_secret, region_label, save_env, value_from_label
+from maw.gui_config import LANGUAGES, LEGACY_MODELS, REGIONS, effective_config, language_label, masked_secret, region_label, save_env, value_from_label
 from maw import gui_forms as forms
 from maw.gui_i18n import STRINGS
 from maw.gui_controls import choose_json, choose_media, choose_output
@@ -44,7 +44,7 @@ class GuiApp:
         self.lang = config.gui_lang
         self.media_var = tk.StringVar()
         self.output_var = tk.StringVar()
-        self.model_var = tk.StringVar(value=MODELS[0].label)
+        self.model_var = tk.StringVar(value=LEGACY_MODELS[0].label)
         self.region_var = tk.StringVar(value=region_label(config.region))
         self.workspace_var = tk.StringVar(value=config.workspace_id)
         self.language_var = tk.StringVar(value=language_label(config.language))
@@ -85,7 +85,7 @@ class GuiApp:
         forms.path_row(media_frame, 1, "srt_output", self.output_var, self._choose_output, self.i18n_widgets)
 
         settings_frame = forms.labelframe(shell, "recognition", 2, self.i18n_widgets)
-        self.model_combo = forms.combo(settings_frame, 0, "model", self.model_var, [model.label for model in MODELS], self.i18n_widgets)
+        self.model_combo = forms.combo(settings_frame, 0, "model", self.model_var, [model.label for model in LEGACY_MODELS], self.i18n_widgets)
         self.region_combo = forms.combo(settings_frame, 1, "region", self.region_var, [label for _value, label in REGIONS], self.i18n_widgets)
         self.region_combo.bind("<<ComboboxSelected>>", lambda _event: self._sync_workspace_state())
         self.workspace_label = forms.label(settings_frame, 2, "workspace", self.i18n_widgets)

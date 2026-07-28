@@ -19,7 +19,7 @@ from pathlib import Path
 from threading import Event
 from typing import Final, final
 
-from maw.gui_config import DEFAULT_ENV_PATH, LANGUAGES, MODELS, PROVIDERS, REGIONS, ProviderConfig, api_key_for_provider, effective_config, masked_secret, model_by_label, provider_by_id, provider_for_model, save_env
+from maw.gui_config import DEFAULT_ENV_PATH, DEFAULT_MODEL_ID, LANGUAGES, MODELS, PROVIDERS, REGIONS, ModelConfig, ProviderConfig, api_key_for_provider, effective_config, masked_secret, model_by_label, provider_by_id, provider_for_model, save_env
 from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, startupinfo
 from maw.gui_workflow import TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, build_serve_command, default_srt_path, run_transcription
 
@@ -50,9 +50,9 @@ def _app_version(paths: object) -> str:
     try:
         text = Path(pyproject).read_text(encoding="utf-8")
     except OSError:
-        return "1.1.0"
+        return "1.2.0"
     match = re.search(r'(?m)^version = "([^"]+)"\r?$', text)
-    return match.group(1) if match else "1.1.0"
+    return match.group(1) if match else "1.2.0"
 
 
 @final
@@ -140,7 +140,7 @@ class LauncherApi:
             "showRareLangs": config.show_rare_langs,
             "lastModel": config.last_model,
             "lastLanguage": config.last_language,
-            "models": [{"id": item.id, "label": item.label, "envKey": item.env_key, "note": item.note} for item in MODELS],
+            "models": [_model_payload(item) for item in MODELS],
             "regions": [{"id": value, "label": label} for value, label in REGIONS],
             "languages": [{"id": value, "label": label} for value, label in LANGUAGES],
             "providers": [_provider_payload(item, self.paths.env_path) for item in PROVIDERS],
@@ -149,7 +149,12 @@ class LauncherApi:
     def default_output(self, payload: Mapping[str, object]) -> dict[str, object]:
         media_text = str(payload.get("mediaPath") or "").strip()
         provider_id = str(payload.get("providerId") or "qwen")
-        return {"ok": bool(media_text), "path": str(default_srt_path(Path(media_text), provider=provider_id)) if media_text else ""}
+        model_id = str(payload.get("modelId") or DEFAULT_MODEL_ID)
+        return {
+            "ok": bool(media_text),
+            "path": str(default_srt_path(Path(media_text), provider=provider_id, model=model_id))
+            if media_text else "",
+        }
 
     def save_settings(self, payload: Mapping[str, object]) -> dict[str, object]:
         api_key = str(payload.get("apiKey") or "").strip()
@@ -411,6 +416,11 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
     media = Path(media_text).expanduser()
     srt = Path(srt_text).expanduser()
     provider = provider_by_id(str(payload.get("providerId") or "qwen"))
+    requested_model = str(payload.get("modelId") or "")
+    model = next(
+        (item for item in provider.models if requested_model in (item.id, item.label)),
+        provider.models[0],
+    )
     api_key = str(payload.get("apiKey") or "").strip() or api_key_for_provider(provider.id, env_path)
     region = str(payload.get("region") or "beijing") if provider.id == "qwen" else ""
     workspace_id = str(payload.get("workspaceId") or "").strip()
@@ -425,14 +435,14 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
     return TranscriptionRequest(
         media_path=media,
         srt_path=srt,
-        model=str(payload.get("modelId") or MODELS[0].id),
+        model=model.id,
         language=str(payload.get("language") or ""),
         api_key=api_key,
         length_limit="2m" if bool(payload.get("testRun")) else str(payload.get("lengthLimit") or "").strip(),
         region=region,
         workspace_id=workspace_id,
         provider=provider.id,
-        speaker_colors=bool(payload.get("speakerColors")) and provider.supports_speaker,
+        speaker_colors=bool(payload.get("speakerColors")) and model.supports_speaker,
         ui_language=_gui_lang(payload),
     )
 
@@ -584,7 +594,21 @@ def _provider_payload(provider: ProviderConfig, env_path: Path) -> dict[str, obj
         "supportsSpeaker": provider.supports_speaker,
         "multiLanguage": provider.multi_language,
         "commonLanguages": list(provider.common_languages),
-        "models": [{"id": item.id, "label": item.label, "envKey": item.env_key, "note": item.note} for item in provider.models],
+        "models": [_model_payload(item) for item in provider.models],
         "regions": [{"id": value, "label": label} for value, label in provider.regions],
         "languages": [{"id": value, "label": label} for value, label in provider.languages],
+    }
+
+
+def _model_payload(model: ModelConfig) -> dict[str, object]:
+    return {
+        "id": model.id,
+        "label": model.label,
+        "envKey": model.env_key,
+        "note": model.note,
+        "supportsSpeaker": model.supports_speaker,
+        "languages": [
+            {"id": value, "label": label}
+            for value, label in model.languages
+        ],
     }

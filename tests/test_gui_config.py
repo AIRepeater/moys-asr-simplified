@@ -103,12 +103,22 @@ class GuiConfigTests(unittest.TestCase):
 
     def test_model_registry_resolves_env_key_and_shape(self) -> None:
         """Given the v1 registry, When inspected, Then model metadata is complete."""
-        self.assertEqual(len(gui_config.MODELS), 1)
+        self.assertEqual(len(gui_config.MODELS), 2)
         model = gui_config.MODELS[0]
 
         self.assertEqual(model.id, "qwen3-asr-flash-filetrans")
         self.assertEqual(model.env_key, "DASHSCOPE_API_KEY")
         self.assertTrue(model.label)
+        funasr = gui_config.MODELS[1]
+        self.assertEqual(funasr.id, "fun-asr")
+        self.assertEqual(funasr.env_key, "DASHSCOPE_API_KEY")
+        self.assertTrue(funasr.supports_speaker)
+        self.assertIn(("zh", "中文 / Chinese"), funasr.languages)
+        self.assertEqual(len(funasr.languages), 31)
+        self.assertEqual(
+            [model.id for model in gui_config.LEGACY_MODELS],
+            ["qwen3-asr-flash-filetrans"],
+        )
 
     def test_provider_registry_contains_qwen_defaults_and_key_url(self) -> None:
         """Given the provider registry, When inspected, Then Qwen owns model settings."""
@@ -119,7 +129,13 @@ class GuiConfigTests(unittest.TestCase):
         self.assertEqual(provider.models[0].id, "qwen3-asr-flash-filetrans")
         self.assertEqual(provider.regions[0][0], "beijing")
         self.assertEqual(provider.languages[0][0], "")
-        self.assertFalse(provider.supports_speaker)
+        self.assertTrue(provider.supports_speaker)
+        self.assertEqual([model.id for model in provider.models], [
+            "qwen3-asr-flash-filetrans",
+            "fun-asr",
+        ])
+        self.assertFalse(provider.models[0].supports_speaker)
+        self.assertTrue(provider.models[1].supports_speaker)
 
     def test_provider_registry_contains_soniox_with_speaker_support(self) -> None:
         """Given the provider registry, When inspected, Then Soniox is registered with speaker support and no regions."""

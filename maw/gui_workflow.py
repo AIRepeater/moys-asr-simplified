@@ -93,9 +93,15 @@ def build_output_paths(srt_path: Path) -> OutputPaths:
 PROVIDER_SRT_TAGS: Final = {"qwen": ".qwen3-asr-api", "soniox": ".soniox"}
 
 
-def default_srt_path(media_path: Path, provider: str = "qwen") -> Path:
+def default_srt_path(
+    media_path: Path,
+    provider: str = "qwen",
+    model: str = DEFAULT_MODEL_ID,
+) -> Path:
     media = Path(media_path).expanduser()
-    tag = PROVIDER_SRT_TAGS.get(provider, PROVIDER_SRT_TAGS["qwen"])
+    tag = ".fun-asr" if provider == "qwen" and model.startswith("fun-asr") else (
+        PROVIDER_SRT_TAGS.get(provider, PROVIDER_SRT_TAGS["qwen"])
+    )
     return media.with_name(f"{media.stem}{tag}.srt")
 
 
@@ -123,6 +129,8 @@ def build_transcribe_command(
     else:
         _append_option(command, "--model", request.model or DEFAULT_MODEL_ID)
         _append_option(command, "--region", request.region)
+        if request.speaker_colors and request.model.startswith("fun-asr"):
+            command.append("--speaker-colors")
     _append_option(command, "--language", request.language)
     _append_option(command, "--length-limit", request.length_limit)
     return command

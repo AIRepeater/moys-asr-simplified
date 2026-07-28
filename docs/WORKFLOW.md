@@ -33,9 +33,9 @@ py -3.11 -m venv .venv
 
 后文的 `uv run python` 可替换为 `.\.venv\Scripts\python`。
 
-## 1. 配置 Qwen API
+## 1. 配置阿里云百炼 API
 
-图形版可在遮罩输入框中填写 API Key；它只进入本次子进程环境，不会写回 `.env` 或 JSON。源码命令行方式使用下面的 `.env`：
+Qwen 与 Fun-ASR 共用同一个百炼 API Key。图形版可在遮罩输入框中填写 API Key；它只进入本次子进程环境，不会写回 `.env` 或 JSON。源码命令行方式使用下面的 `.env`：
 
 ```powershell
 Copy-Item .env.example .env
@@ -48,7 +48,7 @@ notepad .env
 DASHSCOPE_API_KEY=sk-你的密钥
 ```
 
-北京地域默认使用 `DASHSCOPE_REGION=beijing`；新加坡地域改为 `singapore` 并填写 `DASHSCOPE_WORKSPACE_ID`。环境变量优先于 `.env`。密钥申请和地域说明以[官方文档](https://help.aliyun.com/zh/model-studio/get-api-key)为准。
+北京地域默认使用 `DASHSCOPE_REGION=beijing`；`DASHSCOPE_WORKSPACE_ID` 在北京选填，填写后会使用官方推荐的业务空间专属域名。新加坡地域改为 `singapore` 并必须填写 Workspace ID。环境变量优先于 `.env`。密钥申请和地域说明以[官方文档](https://help.aliyun.com/zh/model-studio/get-api-key)为准。
 
 ## 2. 先跑小样本
 
@@ -72,6 +72,29 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 ```
 
 CLI 默认不内嵌波形；需要交给编辑器直接打开且不想生成 `<媒体名>.waveform.json` sidecar 时，加 `--with-waveform`。波形提取会额外用 FFmpeg 完整扫一遍媒体，失败时只给警告，不影响字幕与 JSON 输出。输入视频会先由 FFmpeg 提取单声道 16kHz WAV；音频输入也会通过 FFprobe 获取时长。没有 FFmpeg/FFprobe 时，这一步无法完成。
+
+## 用 Fun-ASR 转写（百炼第二模型，支持说话人）
+
+在 Launcher 中选择「阿里云百炼 ASR」Provider，再把模型切换为 `Fun-ASR（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
+
+命令行示例：
+
+```powershell
+uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model fun-asr -ll 2m --speaker-colors --json
+```
+
+常用可选项：
+
+```text
+--speaker            开启说话人分离，speaker 标签写入工程 JSON（不改变字幕颜色）
+--speaker-colors     在 --speaker 基础上，把不同说话人一次性映射成 5 种字幕颜色
+--language zh        只提供一个语种提示；默认自动识别
+--with-waveform      把波形写进工程 JSON，CLI 默认不内嵌
+```
+
+Fun-ASR 普通文件限制为 12 小时 / 2 GB；说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。MAW 提交前会提取单声道音频，且超过建议时长时给出警告。说话人标签是匿名 ID，不是现实姓名；颜色只是普通工程字段，之后可以在 MAWE 中修改。
+
+Fun-ASR 的 API 输入字段、轮询结果路径和 JSON 映射与 Qwen 不同，虽然二者共用一个入口脚本。实现细节和豆包 URL / Base64 调研记录在 [ASR_PROVIDER_RESEARCH.md](ASR_PROVIDER_RESEARCH.md)。
 
 ## 用 Soniox 转写（可选，支持说话人）
 
@@ -152,7 +175,18 @@ uv run python server-editor\serve.py --blank
 
 ### API 任务超时或上传失败
 
-先确认网络与 API Key 地域；可在 `.env` 提高 `DASHSCOPE_POLL_TIMEOUT`。文件大小、时长、临时文件策略和计费以[官方 Qwen ASR 说明](https://help.aliyun.com/zh/model-studio/qwen-asr-api-reference)为准。
+先确认网络与 API Key 地域；可在 `.env` 提高 `DASHSCOPE_POLL_TIMEOUT`。文件大小、时长、临时文件策略和计费以[官方百炼语音识别说明](https://help.aliyun.com/zh/model-studio/asr-model/)为准。
+
+### Fun-ASR 提交返回 HTTP 403
+
+MAW 会在 HTTP 状态后继续显示百炼返回的业务 `code`、`message` 和 `request_id`：
+
+- `AllocationQuota.FreeTierOnly`：免费额度已用完且账户启用了“仅使用免费额度”，需要在百炼控制台关闭该开关或开通按量付费。
+- `AccessDenied` + `Access denied by API-Key restrictions.`：当前 API Key 使用了自定义权限，但可访问模型范围不包含 Fun-ASR，或者 IP 白名单不允许当前网络。在百炼 API Key 页面编辑该 Key，把权限改为“全部”，或在“自定义”中加入 `fun-asr` 并核对 IP 白名单。若 Key 属于子业务空间，还要由超级管理员为该空间开放 Fun-ASR 模型调用。
+- `Workspace.AccessDenied` / `WorkSpaceNotFound`：检查 API Key、地域和 Workspace ID 是否属于同一业务空间。
+- 只有通用 `AccessDenied`：检查当前地域是否提供 Fun-ASR、账户是否有模型权限，以及 API Key 是否已失效。
+
+北京地域不填写 Workspace ID 时仍使用兼容域名 `dashscope.aliyuncs.com`；填写后使用官方推荐的 `{WorkspaceId}.cn-beijing.maas.aliyuncs.com` 专属域名。新加坡地域必须填写 Workspace ID。通过 HTTP 提交临时 `oss://` URL 时，MAW 已自动附加官方要求的 `X-DashScope-OssResourceResolve: enable`，无需用户手动处理。
 
 ### HTML 打开了但不能稳定拖动视频进度
 

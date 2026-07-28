@@ -1,11 +1,11 @@
 # Moy's ASR Workflow（MAW）
 
-把一个视频或音频交给 Qwen 或 Soniox 云端 ASR API，得到可编辑的字幕工程、SRT 和浏览器字幕编辑器。
+把一个视频或音频交给阿里云百炼 Qwen / Fun-ASR 或 Soniox 云端 ASR API，得到可编辑的字幕工程、SRT 和浏览器字幕编辑器。
 
 ![MAWE 字幕编辑器预览](assets/screenshot-v1.1.0.jpg)
 
 **MAW** 是 Moy's ASR Workflow 的简称。  
-现在的使用流程已经收束到 **Launcher**：选择本地媒体和 Qwen / Soniox 云端 ASR，生成 SRT + JSON 工程，再进入 MAWE 浏览器编辑器校对和导出。Windows 用户不需要先学命令行，也不需要 GPU；本项目仍然保持轻量，不包含本地模型、其他 ASR 引擎或自动下载模型。
+现在的使用流程已经收束到 **Launcher**：选择本地媒体和百炼 Qwen / Fun-ASR 或 Soniox 云端 ASR，生成 SRT + JSON 工程，再进入 MAWE 浏览器编辑器校对和导出。Windows 用户不需要先学命令行，也不需要 GPU；本项目仍然保持轻量，不包含本地模型、其他 ASR 引擎或自动下载模型。
 
 > [!tip]
 > **Windows 用户：[点我下载最新版](https://github.com/Moyf/moys-asr-workflow/releases/latest)**
@@ -17,7 +17,7 @@
 
 ## 这套工具能做什么
 
-1. 用 Qwen 或 Soniox API 把本地视频或音频转为字幕。
+1. 用百炼 Qwen / Fun-ASR 或 Soniox API 把本地视频或音频转为字幕。
 2. 一次生成 `.srt`、含字级时间戳的 `.json` 工程和单文件 `.edit.html`。
 3. 在浏览器中校正文本、时间、波形、静音空隙和字幕布局。
 4. 导出 SRT、工程 JSON，以及编辑器支持的额外格式。
@@ -27,7 +27,7 @@
 
 ## 你需要准备
 
-- 至少一个云端 ASR API Key：可以用[阿里云百炼 Qwen](https://help.aliyun.com/zh/model-studio/get-api-key)，也可以用支持说话人分离的 [Soniox](https://console.soniox.com)。
+- 至少一个云端 ASR API Key：可以用[阿里云百炼](https://help.aliyun.com/zh/model-studio/get-api-key)调用 Qwen 或 Fun-ASR，也可以用支持说话人分离的 [Soniox](https://console.soniox.com)。
 - Windows 图形版：Windows 10/11；下载 `MAWxFF` 不需要另外安装 FFmpeg，下载普通版则需要系统里已经有 `ffmpeg` 和 `ffprobe`。
 - 从源码或命令行运行：Python 3.11 或更新版本、[uv](https://docs.astral.sh/uv/getting-started/installation/)（推荐），以及 [FFmpeg](https://ffmpeg.org/download.html)。macOS/Linux 也可尝试。
 
@@ -46,10 +46,10 @@
 选择供应商和媒体 -> 生成 SRT + JSON 工程 -> 打开 MAWE 校对 -> 保存或导出
 ```
 
-在 Launcher 里选择 Qwen 或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
+在 Launcher 里选择阿里云百炼或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。百炼 Provider 下可以选择 Qwen3 ASR 或支持说话人分离的 Fun-ASR。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
 
 GUI 还可以直接选择工程 JSON 并启动 `http://127.0.0.1` 本地编辑器服务器；中英文界面可在右上角切换。
-启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商（Qwen / Soniox）组织模型、地域、语言和 API Key 获取入口；选择 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
+启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商组织模型、地域、语言和 API Key 获取入口；选择 Fun-ASR 或 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
 
 普通版仍要求系统能找到 `ffmpeg` 和 `ffprobe`。如果 Launcher 提示未检测到 FFmpeg，可以换用 `MAWxFF` 版；也可以自行安装 FFmpeg，把它的 `bin` 目录加入 PATH 后重新打开 MAW。
 
@@ -129,9 +129,25 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 如果不使用 uv，请看 [docs/WORKFLOW.md](docs/WORKFLOW.md) 的普通 Python 安装方式。
 
+## 百炼 Fun-ASR（同一供应商，支持说话人）
+
+Fun-ASR 与 Qwen 共用 `DASHSCOPE_API_KEY`、地域配置和临时 OSS 上传链路。在 Launcher 的「阿里云百炼 ASR」下把模型切换为 `Fun-ASR（支持说话人）` 即可；开启「给不同说话人分配字幕颜色」后，Launcher 会同时启用说话人分离。
+
+命令行也可以直接选择第二个模型：
+
+```powershell
+uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model fun-asr --speaker-colors --json
+```
+
+- `--speaker`：只把匿名 speaker 标签写入工程 JSON，不改变字幕颜色。
+- `--speaker-colors`：启用说话人分离，并把不同说话人映射为 5 种可继续编辑的字幕颜色。
+- 默认输出名使用 `.fun-asr.` 标签；支持词级毫秒时间戳和自动语种识别。
+- 普通文件最长 12 小时 / 2 GB；开启说话人分离时仅支持单声道，官方建议控制在 2 小时以内。MAW 上传的是单声道音频。
+- `hotwords.txt` 暂不会自动注入 Fun-ASR；百炼需要先创建热词表并传 vocabulary ID。
+
 ## Soniox STT（第二供应商，支持说话人）
 
-除 Qwen 外，也可以用 [Soniox](https://soniox.com) 的异步 STT API 转写：
+也可以用 [Soniox](https://soniox.com) 的异步 STT API 转写：
 
 - token 级毫秒时间戳（粒度是 word/sub-word，中文不保证逐字）
 - 可选说话人分离（token 级 speaker 标签，单次任务最多 15 人）
@@ -197,12 +213,12 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 
 - 这是 **API-first** 工具，不含模型下载和本地推理引擎。
 - API Key 仅读取自环境变量或本机 `.env`；`.env` 已被 Git 忽略，绝不要提交、截图或发给别人。
-- 每次转写会使用你的 Key 调用所选供应商；文件大小、数据保留与账户政策请分别查看 [Qwen ASR 文档](https://help.aliyun.com/zh/model-studio/qwen-asr-api-reference) 或 [Soniox 文档](https://soniox.com/docs)。
-- Qwen 使用 `qwen3-asr-flash-filetrans`，支持北京与新加坡地域；Soniox 使用异步文件转写 API，并可选说话人分离。配置项说明都在 `.env.example`。
+- 每次转写会使用你的 Key 调用所选供应商；文件大小、数据保留与账户政策请分别查看[百炼语音识别文档](https://help.aliyun.com/zh/model-studio/asr-model/)或 [Soniox 文档](https://soniox.com/docs)。
+- 百炼 Provider 提供 `qwen3-asr-flash-filetrans` 和 `fun-asr`，支持北京与新加坡地域；北京可选填 Workspace ID 使用推荐的专属域名，新加坡必须填写。Fun-ASR 与 Soniox 均可选说话人分离。配置项说明都在 `.env.example`。
 
 ### 费用
 
-- 本项目本身是开源项目，可免费使用；默认供应商仍是阿里云 Qwen，也可以在 GUI 或命令行里改用 Soniox。
+- 本项目本身是开源项目，可免费使用；默认模型仍是阿里云百炼 Qwen，也可以在 GUI 或命令行里改用同 Provider 的 Fun-ASR 或 Soniox。
 - 阿里云 Qwen ASR 注册后免费赠送 10 小时转录时间，超出额度后按 `0.792 元/小时` 计费，详见 [价格文档](https://help.aliyun.com/zh/model-studio/model-pricing#dbf1305ef4a69)。
 - Soniox 异步文件转写约 `$0.10/小时`，适合需要说话人分离、多语言或小语种的素材，详见 [Soniox Pricing](https://soniox.com/pricing)。
 - 如果你有不错的配置，也可以自己本地部署开源的 [QwenASR](https://github.com/QwenLM/Qwen3-ASR) 本地转录，不产生云端费用，只需要一点电费。
@@ -211,7 +227,7 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 
 ## 项目边界
 
-本仓库刻意不包含：本地模型与 GPU 依赖、除 Qwen 与 Soniox 之外的 ASR 引擎、模型对比工具、剪辑软件脚本、样例媒体、缓存、个人表情包和任何密钥。
+本仓库刻意不包含：本地模型与 GPU 依赖、除百炼 Qwen / Fun-ASR 与 Soniox 之外的 ASR 引擎、模型对比工具、剪辑软件脚本、样例媒体、缓存、个人表情包和任何密钥。
 
 如果你准备修改或维护它，请先读 [AGENTS.md](AGENTS.md)。第三方组件说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 

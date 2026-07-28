@@ -36,6 +36,11 @@ from generate_subtitle_qwen_api import (
     is_cjk_char,
     split_segments_auto,
 )
+from maw.speaker import (
+    SPEAKER_COLOR_PALETTE,
+    apply_speaker_colors,
+    split_items_by_speaker,
+)
 
 BASE_URL = "https://api.soniox.com"
 DEFAULT_MODEL = "stt-async-v5"
@@ -53,16 +58,6 @@ class TranscriptionFailedError(RuntimeError):
     """Soniox 任务进入终态失败（error/failed）。
 
     与本地网络错误/超时区分：只有终态任务才可以安全删除云端记录。"""
-
-# 说话人 → 颜色快照的调色板，与 JSON_SCHEMA.md 第四节的 5 色一致
-SPEAKER_COLOR_PALETTE: tuple[tuple[str, str], ...] = (
-    ("red", "#e74c3c"),
-    ("yellow", "#f1c40f"),
-    ("blue", "#3498db"),
-    ("green", "#2ecc71"),
-    ("purple", "#9b59b6"),
-)
-
 
 # ===== 配置（.env，与 Qwen 版同样的零依赖解析） =====
 
@@ -306,30 +301,6 @@ def tokens_to_items(tokens: list[dict]) -> list[dict]:
     return items
 
 
-def split_items_by_speaker(items: list[dict]) -> list[list[dict]]:
-    """按 speaker 变化硬切分（两个 speaker 不得合入同一 segment）。
-
-    无 speaker 字段时整体为一个 run；缺 speaker 的 item 跟随前一个
-    已知 speaker，不主动制造切分。
-    """
-    runs: list[list[dict]] = []
-    current: list[dict] = []
-    current_speaker: str | None = None
-    for item in items:
-        speaker = item.get("speaker")
-        if (current and speaker is not None and current_speaker is not None
-                and speaker != current_speaker):
-            runs.append(current)
-            current = []
-            current_speaker = None
-        current.append(item)
-        if speaker is not None:
-            current_speaker = speaker
-    if current:
-        runs.append(current)
-    return runs
-
-
 def build_segments(items: list[dict], *, max_len: int, min_len: int,
                    gap_split_ms: int,
                    max_words: int = WESTERN_MAX_WORDS,
@@ -360,53 +331,6 @@ def majority_language(tokens: list[dict]) -> str:
         if lang:
             counts[lang] = counts.get(lang, 0) + 1
     return max(counts, key=lambda k: counts[k]) if counts else ""
-
-
-def apply_speaker_colors(segments: list[dict]) -> dict:
-    """把 segments[*].speaker 按首次出现顺序映射成 5 色 head/ref 快照。
-
-    - 同一 speaker 的每个连续段块：首段写 color head，后续段写 color_ref
-    - 超过 5 个 speaker 时颜色循环复用（返回 stats["overflow"]=True）
-    - 写入的是普通 color 字段，之后用户可在编辑器自由修改：
-      这是生成期的一次性快照，不做 speaker ↔ 颜色的动态绑定
-    """
-    speaker_order: list[str] = []
-    for seg in segments:
-        spk = seg.get("speaker")
-        if spk and spk not in speaker_order:
-            speaker_order.append(spk)
-    if not speaker_order:
-        return {"speakers": [], "colored_segments": 0, "overflow": False}
-
-    overflow = len(speaker_order) > len(SPEAKER_COLOR_PALETTE)
-    palette_of = {
-        spk: SPEAKER_COLOR_PALETTE[i % len(SPEAKER_COLOR_PALETTE)]
-        for i, spk in enumerate(speaker_order)
-    }
-
-    colored = 0
-    i, n = 0, len(segments)
-    while i < n:
-        spk = segments[i].get("speaker")
-        if not spk:
-            i += 1
-            continue
-        j = i
-        while j + 1 < n and segments[j + 1].get("speaker") == spk:
-            j += 1
-        name, value = palette_of[spk]
-        segments[i]["color"] = {
-            "name": name,
-            "value": value,
-            "start": segments[i]["start"],
-            "end": segments[j]["end"],
-        }
-        for k in range(i + 1, j + 1):
-            segments[k]["color_ref"] = {"name": name, "headIdx": i}
-        colored += j - i + 1
-        i = j + 1
-    return {"speakers": speaker_order, "colored_segments": colored,
-            "overflow": overflow}
 
 
 # ===== 顶层转写入口 =====

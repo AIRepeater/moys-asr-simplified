@@ -4,6 +4,18 @@
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-28
+
+### Added
+
+- 阿里云百炼 Provider 新增 `fun-asr` 第二模型：复用现有 DashScope Key、地域和临时 OSS 上传链路，适配 `file_urls` 提交、子任务轮询与词级结果解析；支持 `--speaker` / `--speaker-colors`，并按说话人变化硬切字幕段。
+- Launcher 按所选模型切换语言列表、说话人颜色开关和默认 `.fun-asr.srt` 输出名；旧版 tkinter fallback 继续保持 Qwen 专用。
+- 新增 [Fun-ASR 与豆包录音文件识别调研](docs/ASR_PROVIDER_RESEARCH.md)，记录能力边界、URL / Base64 输入方案和后续验证项。
+
+### Fixed
+
+- DashScope 提交、上传凭证和轮询遇到 HTTP 错误时不再丢失服务端业务码、消息和 request ID；对常见 403 给出 Workspace、模型权限或免费额度开关提示。北京地域填写 Workspace ID 时改用官方推荐的业务空间专属域名。
+
 ## [1.1.0] - 2026-07-28
 
 ### Added

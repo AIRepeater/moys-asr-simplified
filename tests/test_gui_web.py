@@ -62,6 +62,10 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(len(config["providers"][0]["commonLanguages"]), 9)
         self.assertEqual(len(config["providers"][1]["commonLanguages"]), 8)
         self.assertEqual(config["models"][0]["id"], "qwen3-asr-flash-filetrans")
+        self.assertEqual(config["models"][1]["id"], "fun-asr")
+        self.assertFalse(config["models"][0]["supportsSpeaker"])
+        self.assertTrue(config["models"][1]["supportsSpeaker"])
+        self.assertEqual(config["models"][1]["languages"][0]["id"], "")
         self.assertEqual(config["languages"][0]["id"], "")
 
     def test_save_settings_writes_env_without_echoing_key(self) -> None:
@@ -457,6 +461,30 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertEqual(request.length_limit, "30m")
 
+    def test_request_from_payload_enables_speaker_colors_only_for_selected_model(self) -> None:
+        media = self.root / "clip.mp3"
+        media.write_bytes(b"media")
+        base = {
+            "providerId": "qwen",
+            "mediaPath": str(media),
+            "srtPath": str(self.root / "out.srt"),
+            "apiKey": "sk-test",
+            "region": "beijing",
+            "speakerColors": True,
+        }
+
+        qwen = _request_from_payload(
+            {**base, "modelId": "qwen3-asr-flash-filetrans"},
+            self.env_path,
+        )
+        funasr = _request_from_payload(
+            {**base, "modelId": "fun-asr"},
+            self.env_path,
+        )
+
+        self.assertFalse(qwen.speaker_colors)
+        self.assertTrue(funasr.speaker_colors)
+
     def test_event_pump_batches_events_and_preserves_order(self) -> None:
         pump = EventPump(window_getter=lambda: self.window)
         pump.enqueue({"type": "log", "message": "one"})
@@ -539,6 +567,19 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('id="languageFilterHint"', page)
         self.assertIn('language_filter_hint: "默认仅显示常用语言', script)
         self.assertIn('$("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0);', script)
+        self.assertIn("const selectedModel = () =>", script)
+        self.assertIn("applyProviderLanguages(provider(), selectedModel())", script)
+
+    def test_workspace_is_visible_for_beijing_and_required_only_for_singapore(self) -> None:
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        self.assertIn("北京地域选填（推荐），新加坡地域必填。", page)
+        self.assertIn(
+            '$("workspaceField").classList.toggle("hidden", provider().regions.length === 0);',
+            script,
+        )
+        self.assertIn('data.region === "singapore" && !data.workspaceId', script)
 
     def test_launcher_section_titles_share_emoji_numbering_and_size(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

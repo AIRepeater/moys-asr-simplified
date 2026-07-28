@@ -1,10 +1,11 @@
 # pyright: reportAny=false, reportAttributeAccessIssue=false, reportMissingParameterType=false, reportMissingTypeArgument=false, reportMissingTypeStubs=false, reportReturnType=false, reportUnknownArgumentType=false, reportUnknownMemberType=false, reportUnknownParameterType=false, reportUnknownVariableType=false, reportUnusedCallResult=false, reportUnusedVariable=false, reportImplicitStringConcatenation=false, reportArgumentType=false, reportIndexIssue=false
 
-"""使用阿里云 qwen3-asr-flash-filetrans API 生成视频字幕（云端版）。
+"""使用阿里云百炼 Qwen / Fun-ASR 文件转写 API 生成视频字幕（云端版）。
 
 特点：
 - 无需 GPU、模型权重，只调 API（DASHSCOPE_API_KEY）
-- 走 filetrans 异步模式，原生支持字级时间戳，最长 12 小时音频
+- 走 filetrans 异步模式，原生支持字/词级时间戳，最长 12 小时音频
+- Fun-ASR 可选说话人分离，speaker 标签写入 MAW 工程
 - 文件自动上传到 DashScope 临时 OSS（oss:// URL，48 小时有效）
 - 全程 RESTful API（不用 SDK，因为 SDK 不支持 oss:// 给 filetrans）
 - 标点由 API 的 words[].punctuation 字段直接给出，跳过本地 LCS 对齐算法
@@ -28,6 +29,7 @@ from pathlib import Path
 import requests
 
 from edit import get_default_sticker_dir
+from maw.speaker import apply_speaker_colors, split_items_by_speaker
 from waveform import embed_waveform
 
 
@@ -37,6 +39,7 @@ HOTWORDS_FILE = Path(__file__).parent / "hotwords.txt"
 ENV_FILE = Path(__file__).parent / ".env"
 
 FILETRANS_MODEL = "qwen3-asr-flash-filetrans"
+FUNASR_MODEL = "fun-asr"
 
 # 本地 language 名 → DashScope language code
 LANGUAGE_MAP = {
@@ -100,6 +103,8 @@ def _compute_base_url(region: str, workspace_id: str) -> str:
         return f"https://{workspace_id}.ap-southeast-1.maas.aliyuncs.com"
     if region != "beijing":
         print(f"[警告] 未知地域 '{region}'，按北京（华北2）处理")
+    if workspace_id:
+        return f"https://{workspace_id}.cn-beijing.maas.aliyuncs.com"
     return "https://dashscope.aliyuncs.com"
 
 
@@ -109,6 +114,62 @@ def _normalize_language(lang: str | None) -> str | None:
         return None
     key = lang.strip().lower()
     return LANGUAGE_MAP.get(key, key)
+
+
+def is_funasr_model(model: str) -> bool:
+    return model == FUNASR_MODEL or model.startswith("fun-asr-") or model.startswith("fun-asr-mtl")
+
+
+def _dashscope_error_detail(response: requests.Response) -> str:
+    """提取 DashScope 错误码与消息，不输出请求头或 API Key。"""
+    try:
+        body = response.json()
+    except (ValueError, requests.exceptions.JSONDecodeError):
+        text = response.text.strip()
+        return text[:1000] if text else "服务端未返回错误正文"
+
+    if not isinstance(body, dict):
+        return str(body)[:1000]
+    output = body.get("output")
+    output = output if isinstance(output, dict) else {}
+    code = body.get("code") or output.get("code") or ""
+    message = body.get("message") or output.get("message") or ""
+    request_id = body.get("request_id") or output.get("request_id") or ""
+    parts = [
+        f"code={code}" if code else "",
+        f"message={message}" if message else "",
+        f"request_id={request_id}" if request_id else "",
+    ]
+    detail = " | ".join(part for part in parts if part)
+    return detail or json.dumps(body, ensure_ascii=False)[:1000]
+
+
+def _dashscope_error_hint(status_code: int, detail: str) -> str:
+    if "API-Key restrictions" in detail:
+        return (
+            "这枚 API Key 的自定义权限拒绝了本次调用。请在百炼 API Key 页面把权限改为“全部”，"
+            "或在“自定义”的可访问模型中加入 fun-asr，并确认 IP 白名单允许当前网络；"
+            "子业务空间还需先开放 Fun-ASR 模型调用权限。"
+        )
+    if "AllocationQuota.FreeTierOnly" in detail:
+        return "请在百炼控制台关闭“仅使用免费额度”或为账户开通按量付费后重试。"
+    if any(code in detail for code in ("Workspace.AccessDenied", "WorkSpaceNotFound", "WorkspaceNotFound")):
+        return "请确认 API Key、地域和 Workspace ID 属于同一业务空间；北京地域也可填写 Workspace ID 使用专属域名。"
+    if status_code == 403:
+        return "请检查 Fun-ASR 模型权限、账户额度/付费开关，以及 API Key 与地域是否匹配。"
+    return ""
+
+
+def _raise_for_dashscope_status(response: requests.Response, action: str) -> None:
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        detail = _dashscope_error_detail(response)
+        hint = _dashscope_error_hint(response.status_code, detail)
+        suffix = f"\n建议：{hint}" if hint else ""
+        raise RuntimeError(
+            f"{action}失败 (HTTP {response.status_code}): {detail}{suffix}"
+        ) from exc
 
 
 # ===== ffmpeg 工具函数（与本地版一致） =====
@@ -498,7 +559,7 @@ def get_upload_policy(base_url: str, api_key: str, model: str) -> dict:
         headers={"Authorization": f"Bearer {api_key}"},
         timeout=30,
     )
-    resp.raise_for_status()
+    _raise_for_dashscope_status(resp, "获取上传凭证")
     body = resp.json()
     # DashScope 返回结构：{ "request_id": "...", "data": {...} } 或 { "output": {...} }
     if body.get("code") and body.get("code") != 200 and body.get("code") != "200":
@@ -598,15 +659,26 @@ def upload_to_oss(policy: dict, file_path: str) -> str:
 
 def submit_filetrans(base_url: str, api_key: str, file_url: str,
                      language: str | None, enable_words: bool,
-                     enable_itn: bool, model: str = FILETRANS_MODEL) -> str:
+                     enable_itn: bool, model: str = FILETRANS_MODEL,
+                     enable_speaker: bool = False) -> str:
     """提交异步 ASR 任务，返回 task_id。"""
-    params: dict = {
-        "channel_id": [0],
-        "enable_words": enable_words,
-        "enable_itn": enable_itn,
-    }
-    if language:
-        params["language"] = language
+    if is_funasr_model(model):
+        params: dict = {
+            "channel_id": [0],
+            "diarization_enabled": enable_speaker,
+        }
+        if language:
+            params["language_hints"] = [language]
+        input_payload = {"file_urls": [file_url]}
+    else:
+        params = {
+            "channel_id": [0],
+            "enable_words": enable_words,
+            "enable_itn": enable_itn,
+        }
+        if language:
+            params["language"] = language
+        input_payload = {"file_url": file_url}
 
     resp = requests.post(
         f"{base_url}/api/v1/services/audio/asr/transcription",
@@ -619,12 +691,12 @@ def submit_filetrans(base_url: str, api_key: str, file_url: str,
         },
         json={
             "model": model,
-            "input": {"file_url": file_url},
+            "input": input_payload,
             "parameters": params,
         },
         timeout=30,
     )
-    resp.raise_for_status()
+    _raise_for_dashscope_status(resp, "提交 ASR 任务")
     body = resp.json()
     output = body.get("output", {})
     task_id = output.get("task_id")
@@ -634,7 +706,8 @@ def submit_filetrans(base_url: str, api_key: str, file_url: str,
 
 
 def poll_task(base_url: str, api_key: str, task_id: str,
-              interval: int, timeout: int) -> str:
+              interval: int, timeout: int,
+              model: str = FILETRANS_MODEL) -> tuple[str, dict]:
     """轮询任务状态，返回 transcription_url。"""
     url = f"{base_url}/api/v1/tasks/{task_id}"
     deadline = time.time() + timeout
@@ -642,7 +715,7 @@ def poll_task(base_url: str, api_key: str, task_id: str,
 
     while time.time() < deadline:
         resp = requests.get(url, headers={"Authorization": f"Bearer {api_key}"}, timeout=30)
-        resp.raise_for_status()
+        _raise_for_dashscope_status(resp, "查询 ASR 任务")
         body = resp.json()
         output = body.get("output", {})
         status = output.get("task_status", "UNKNOWN")
@@ -652,8 +725,25 @@ def poll_task(base_url: str, api_key: str, task_id: str,
             last_status = status
 
         if status == "SUCCEEDED":
-            result = output.get("result", {})
-            turl = result.get("transcription_url")
+            if is_funasr_model(model):
+                results = output.get("results") or []
+                result = next(
+                    (
+                        item for item in results
+                        if item.get("subtask_status") == "SUCCEEDED"
+                        and item.get("transcription_url")
+                    ),
+                    None,
+                )
+                if result is None:
+                    failed = results[0] if results else output
+                    code = failed.get("code", "UNKNOWN")
+                    message = failed.get("message", "任务成功但音频子任务失败")
+                    raise RuntimeError(f"ASR 子任务失败 [{code}]: {message}")
+                turl = result.get("transcription_url")
+            else:
+                result = output.get("result", {})
+                turl = result.get("transcription_url")
             if not turl:
                 raise RuntimeError(f"任务成功但无 transcription_url: {body}")
             usage = body.get("usage", {})
@@ -730,11 +820,83 @@ def parse_transcription_result(result: dict) -> dict:
     }
 
 
+def parse_funasr_transcription_result(result: dict) -> dict:
+    """把 Fun-ASR 的句级 speaker + 词级时间戳映射为 MAW items。"""
+    transcripts = result.get("transcripts", [])
+    if not transcripts:
+        return {"text": "", "language": "", "items": []}
+
+    transcript = transcripts[0]
+    all_items: list[dict] = []
+    detected_language = ""
+    for sentence in transcript.get("sentences", []):
+        if not detected_language and sentence.get("language"):
+            detected_language = str(sentence["language"])
+        speaker_id = sentence.get("speaker_id")
+        speaker = str(speaker_id) if speaker_id is not None else None
+        words = sentence.get("words") or []
+        if not words:
+            item = {
+                "text": sentence.get("text", ""),
+                "start": sentence.get("begin_time", 0),
+                "end": sentence.get("end_time", 0),
+            }
+            if speaker is not None:
+                item["speaker"] = speaker
+            all_items.append(item)
+            continue
+
+        for word in words:
+            item = {
+                "text": word.get("text", "") + word.get("punctuation", ""),
+                "start": word.get("begin_time", 0),
+                "end": word.get("end_time", 0),
+            }
+            if speaker is not None:
+                item["speaker"] = speaker
+            all_items.append(item)
+
+    return {
+        "text": transcript.get("text", ""),
+        "language": detected_language,
+        "items": all_items,
+    }
+
+
+def build_segments_preserving_speakers(
+    items: list[dict],
+    *,
+    max_len: int,
+    min_len: int,
+    gap_split_ms: int,
+) -> list[dict]:
+    """在每个 speaker run 内切句和修复零时长，避免跨说话人合并。"""
+    segments: list[dict] = []
+    for run in split_items_by_speaker(items):
+        speaker = next(
+            (str(item["speaker"]) for item in run if item.get("speaker") is not None),
+            None,
+        )
+        run_segments = split_segments_auto(
+            run,
+            max_len=max_len,
+            min_len=min_len,
+            gap_split_ms=gap_split_ms,
+        )
+        run_segments = repair_nonpositive_duration_segments(run_segments)
+        if speaker is not None:
+            for segment in run_segments:
+                segment["speaker"] = speaker
+        segments.extend(run_segments)
+    return segments
+
+
 # ===== 顶层转写入口 =====
 
 def transcribe(audio_path: str, language: str | None, hotwords: list[str],
                config: dict, file_url_override: str | None = None,
-               model: str = FILETRANS_MODEL) -> dict:
+               model: str = FILETRANS_MODEL,
+               enable_speaker: bool = False) -> dict:
     """调 DashScope filetrans API 做转录。
 
     返回可由本项目编辑器读取的工程数据：
@@ -750,8 +912,14 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
         )
 
     if hotwords:
-        print(f"[热词] 检测到 {len(hotwords)} 个热词。注意：filetrans API 暂不支持热词注入，"
-              f"本地 qwen-asr 版本才支持（通过 context 软提示）。")
+        if is_funasr_model(model):
+            print(
+                f"[热词] 检测到 {len(hotwords)} 个本地热词。Fun-ASR 仅接受百炼控制台"
+                f"预建的 vocabulary_id，当前未发送 hotwords.txt。"
+            )
+        else:
+            print(f"[热词] 检测到 {len(hotwords)} 个热词。注意：filetrans API 暂不支持热词注入，"
+                  f"本地 qwen-asr 版本才支持（通过 context 软提示）。")
 
     # 1) 准备 file_url
     if file_url_override:
@@ -765,14 +933,21 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
 
     # 2) 提交异步任务
     norm_lang = _normalize_language(language) or _normalize_language(config["default_language"])
-    print(f"[filetrans] 提交任务 (language={norm_lang or 'auto'}, "
-          f"enable_words={config['enable_words']})...")
+    if is_funasr_model(model):
+        print(
+            f"[filetrans] 提交 Fun-ASR 任务 (language={norm_lang or 'auto'}, "
+            f"speaker={'on' if enable_speaker else 'off'})..."
+        )
+    else:
+        print(f"[filetrans] 提交 Qwen 任务 (language={norm_lang or 'auto'}, "
+              f"enable_words={config['enable_words']})...")
     task_id = submit_filetrans(
         base_url, api_key, file_url,
         language=norm_lang,
         enable_words=config["enable_words"],
         enable_itn=config["enable_itn"],
         model=model,
+        enable_speaker=enable_speaker,
     )
     print(f"[filetrans] 任务已提交: task_id={task_id}")
 
@@ -782,16 +957,27 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
         base_url, api_key, task_id,
         interval=config["poll_interval"],
         timeout=config["poll_timeout"],
+        model=model,
     )
     elapsed_poll = time.perf_counter() - t0
-    audio_secs = task_usage.get("seconds", 0)
-    est_tokens = audio_secs * 25  # 文档：每秒音频 = 25 tokens
-    print(f"[filetrans] 任务完成，耗时 {elapsed_poll:.1f}s | "
-          f"计费 {audio_secs}s 音频 ≈ {est_tokens} tokens")
+    if is_funasr_model(model):
+        audio_secs = task_usage.get("duration", 0)
+        print(f"[filetrans] 任务完成，耗时 {elapsed_poll:.1f}s | 计费语音 {audio_secs}s")
+    else:
+        audio_secs = task_usage.get("seconds", 0)
+        est_tokens = audio_secs * 25  # 文档：每秒音频 = 25 tokens
+        print(f"[filetrans] 任务完成，耗时 {elapsed_poll:.1f}s | "
+              f"计费 {audio_secs}s 音频 ≈ {est_tokens} tokens")
 
     # 4) 下载 + 解析
     raw = download_transcription(transcription_url)
-    result = parse_transcription_result(raw)
+    result = (
+        parse_funasr_transcription_result(raw)
+        if is_funasr_model(model)
+        else parse_transcription_result(raw)
+    )
+    if not result.get("language") and norm_lang:
+        result["language"] = norm_lang
     result["usage"] = task_usage
     return result
 
@@ -800,7 +986,7 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
 
 def main():
     parser = argparse.ArgumentParser(
-        description="使用阿里云 qwen3-asr-flash-filetrans API 生成视频字幕（云端版）",
+        description="使用阿里云百炼 Qwen / Fun-ASR API 生成视频字幕（云端版）",
     )
     parser.add_argument("input", help="输入视频或音频文件路径")
     parser.add_argument("-o", "--output", help="输出 SRT 路径（默认与输入同目录）")
@@ -823,6 +1009,14 @@ def main():
     parser.add_argument(
         "--gap-split", type=int, default=1500,
         help="静音切句阈值（毫秒），相邻字停顿超过此值则切句（默认 1500）",
+    )
+    parser.add_argument(
+        "--speaker", action="store_true",
+        help="Fun-ASR 开启说话人分离，speaker 标签写入工程 JSON",
+    )
+    parser.add_argument(
+        "--speaker-colors", action="store_true",
+        help="Fun-ASR 在说话人分离基础上，把不同说话人映射成 5 种字幕颜色",
     )
     parser.add_argument(
         "--json", dest="json_out", action="store_true",
@@ -861,6 +1055,9 @@ def main():
         help="输出 API 原始结果用于调试",
     )
     args = parser.parse_args()
+    enable_speaker = args.speaker or args.speaker_colors
+    if enable_speaker and not is_funasr_model(args.model):
+        parser.error("--speaker / --speaker-colors 仅适用于 Fun-ASR 模型")
 
     input_path = Path(args.input)
     if not input_path.exists() and not args.file_url:
@@ -899,6 +1096,11 @@ def main():
             duration = get_duration_sec(audio_path)
             m, s = divmod(int(duration), 60)
             print(f"[info] 音频总时长: {m}分{s}秒")
+            if enable_speaker and duration > 2 * 60 * 60:
+                print(
+                    "[警告] Fun-ASR 官方建议说话人分离音频不超过 2 小时；"
+                    "当前任务可能失败或超时。"
+                )
 
             if args.length_limit and args.length_limit < duration:
                 limit_sec = args.length_limit
@@ -920,6 +1122,7 @@ def main():
             audio_path, args.language, hotwords, config,
             file_url_override=args.file_url,
             model=args.model,
+            enable_speaker=enable_speaker,
         )
         elapsed = time.perf_counter() - t0
 
@@ -939,14 +1142,23 @@ def main():
         items = result["items"]
         if not items:
             print("[警告] 未获得时间戳，输出整段为单条字幕")
-            segments = [{"start": 0, "end": int(duration * 1000), "text": result["text"]}]
+            segments = repair_nonpositive_duration_segments(
+                [{"start": 0, "end": int(duration * 1000), "text": result["text"]}]
+            )
         else:
-            segments = split_segments_auto(
+            segments = build_segments_preserving_speakers(
                 items, max_len=args.max_len, min_len=args.min_len,
                 gap_split_ms=args.gap_split,
             )
 
-    segments = repair_nonpositive_duration_segments(segments)
+    if enable_speaker:
+        speakers = sorted({str(seg["speaker"]) for seg in segments if seg.get("speaker") is not None})
+        print(f"[speaker] 识别到 {len(speakers)} 个说话人: {', '.join(speakers)}")
+        if args.speaker_colors:
+            stats = apply_speaker_colors(segments)
+            print(f"[speaker] 已为 {stats['colored_segments']} 条字幕写入颜色快照")
+            if stats["overflow"]:
+                print("[警告] 说话人超过 5 个，颜色已循环复用，请在编辑器中手动调整")
 
     # 剥句末标点（与本地版一致）
     if not args.keep_punct:
@@ -973,8 +1185,9 @@ def main():
     if not args.output:
         speed_tag = f"{speed:.1f}x" if speed else "na"
         ts_prefix = f"[{datetime.now().strftime('%y%m%d%H%M')}]"
+        model_tag = "fun-asr" if is_funasr_model(args.model) else "qwen3-asr-api"
         output_path = output_path.with_name(
-            f"{ts_prefix}{output_path.stem}.qwen3-asr-api.{speed_tag}.srt"
+            f"{ts_prefix}{output_path.stem}.{model_tag}.{speed_tag}.srt"
         )
 
     output_path.write_text(srt_content, encoding="utf-8")
@@ -990,13 +1203,16 @@ def main():
         json_data = {
             "media": str(input_path),
             "language": result.get("language", ""),
-            "model": "qwen3-asr-api",
+            "model": args.model if is_funasr_model(args.model) else "qwen3-asr-api",
             "segments": [
                 {
                     "start": seg["start"],
                     "end": seg["end"],
                     "text": seg["text"],
                     "items": seg.get("items", []),
+                    **({"speaker": seg["speaker"]} if seg.get("speaker") is not None else {}),
+                    **({"color": seg["color"]} if seg.get("color") else {}),
+                    **({"color_ref": seg["color_ref"]} if seg.get("color_ref") else {}),
                 }
                 for seg in segments
             ],

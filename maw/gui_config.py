@@ -21,6 +21,8 @@ class ModelConfig:
     label: str
     env_key: str
     note: str = ""
+    supports_speaker: bool = False
+    languages: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,10 +52,6 @@ class EffectiveConfig:
     last_model: str | None = None
     last_language: str | None = None
 
-
-QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (ModelConfig(id=DEFAULT_MODEL_ID, label="Qwen3 ASR（文件转写）", env_key="DASHSCOPE_API_KEY"),)
-
-SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (ModelConfig(id="stt-async-v5", label="Soniox Async STT（v5）", env_key="SONIOX_API_KEY"),)
 
 REGIONS: Final[tuple[tuple[str, str], ...]] = (
     ("beijing", "北京（华北 2，默认）"),
@@ -92,6 +90,40 @@ LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
     ("no", "挪威语 / Norwegian"),
     ("pl", "波兰语 / Polish"),
     ("sv", "瑞典语 / Swedish"),
+)
+
+FUNASR_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
+    ("", "自动识别"),
+    ("zh", "中文 / Chinese"),
+    ("en", "英语 / English"),
+    ("ja", "日语 / Japanese"),
+    ("ko", "韩语 / Korean"),
+    ("vi", "越南语 / Vietnamese"),
+    ("th", "泰语 / Thai"),
+    ("id", "印尼语 / Indonesian"),
+    ("ms", "马来语 / Malay"),
+    ("tl", "菲律宾语 / Filipino"),
+    ("hi", "印地语 / Hindi"),
+    ("ar", "阿拉伯语 / Arabic"),
+    ("fr", "法语 / French"),
+    ("de", "德语 / German"),
+    ("es", "西班牙语 / Spanish"),
+    ("pt", "葡萄牙语 / Portuguese"),
+    ("ru", "俄语 / Russian"),
+    ("it", "意大利语 / Italian"),
+    ("nl", "荷兰语 / Dutch"),
+    ("sv", "瑞典语 / Swedish"),
+    ("da", "丹麦语 / Danish"),
+    ("fi", "芬兰语 / Finnish"),
+    ("no", "挪威语 / Norwegian"),
+    ("el", "希腊语 / Greek"),
+    ("pl", "波兰语 / Polish"),
+    ("cs", "捷克语 / Czech"),
+    ("hu", "匈牙利语 / Hungarian"),
+    ("ro", "罗马尼亚语 / Romanian"),
+    ("bg", "保加利亚语 / Bulgarian"),
+    ("hr", "克罗地亚语 / Croatian"),
+    ("sk", "斯洛伐克语 / Slovak"),
 )
 
 # 关闭「显示相对小众的语言」时，两家供应商统一保留这 8 种常用语言。
@@ -171,14 +203,42 @@ SONIOX_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
     "zh", "en", "ja", "ko", "fr", "de", "es", "ru",
 )
 
+QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
+    ModelConfig(
+        id=DEFAULT_MODEL_ID,
+        label="Qwen3 ASR（文件转写）",
+        env_key="DASHSCOPE_API_KEY",
+        languages=LANGUAGES,
+    ),
+    ModelConfig(
+        id="fun-asr",
+        label="Fun-ASR（支持说话人）",
+        env_key="DASHSCOPE_API_KEY",
+        note="支持说话人分离与词级时间戳",
+        supports_speaker=True,
+        languages=FUNASR_LANGUAGES,
+    ),
+)
+
+SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
+    ModelConfig(
+        id="stt-async-v5",
+        label="Soniox Async STT（v5）",
+        env_key="SONIOX_API_KEY",
+        supports_speaker=True,
+        languages=SONIOX_LANGUAGES,
+    ),
+)
+
 PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
     ProviderConfig(
         id="qwen",
-        label="Qwen ASR（阿里云百炼）",
+        label="阿里云百炼 ASR",
         key_url="https://help.aliyun.com/zh/model-studio/get-api-key",
         models=QWEN_MODELS,
         regions=REGIONS,
         languages=LANGUAGES,
+        supports_speaker=True,
         common_languages=QWEN_COMMON_LANGUAGES,
     ),
     ProviderConfig(
@@ -195,6 +255,7 @@ PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
 )
 
 MODELS: Final[tuple[ModelConfig, ...]] = PROVIDERS[0].models
+LEGACY_MODELS: Final[tuple[ModelConfig, ...]] = (QWEN_MODELS[0],)
 
 
 def load_env(path: Path = DEFAULT_ENV_PATH) -> dict[str, str]:

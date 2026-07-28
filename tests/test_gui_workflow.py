@@ -335,6 +335,29 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertNotIn("--region", command)
         self.assertNotIn("secret-key", " ".join(command))
 
+    def test_build_transcribe_command_funasr_uses_dashscope_script_and_speaker_colors(self) -> None:
+        request = TranscriptionRequest(
+            media_path=self.media_path,
+            srt_path=self.srt_path,
+            provider="qwen",
+            model="fun-asr",
+            language="zh",
+            region="beijing",
+            speaker_colors=True,
+        )
+
+        command = build_transcribe_command(
+            request,
+            executable=Path("python.exe"),
+            frozen=False,
+        )
+
+        self.assertIn("generate_subtitle_qwen_api.py", command[1])
+        self.assertEqual(command[command.index("--model") + 1], "fun-asr")
+        self.assertEqual(command[command.index("--language") + 1], "zh")
+        self.assertEqual(command[command.index("--region") + 1], "beijing")
+        self.assertIn("--speaker-colors", command)
+
     def test_build_transcribe_command_soniox_omits_speaker_colors_and_leaked_qwen_model(self) -> None:
         request = TranscriptionRequest(
             media_path=self.media_path,
@@ -370,6 +393,10 @@ class GuiWorkflowTests(unittest.TestCase):
         from maw.gui_workflow import default_srt_path
 
         self.assertEqual(default_srt_path(Path("clip.mp4")).name, "clip.qwen3-asr-api.srt")
+        self.assertEqual(
+            default_srt_path(Path("clip.mp4"), model="fun-asr").name,
+            "clip.fun-asr.srt",
+        )
         self.assertEqual(default_srt_path(Path("clip.mp4"), provider="soniox").name, "clip.soniox.srt")
 
     def test_entrypoint_transcribe_soniox_help_dispatches_soniox_script(self) -> None:
