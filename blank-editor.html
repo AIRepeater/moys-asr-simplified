@@ -1721,7 +1721,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-28 22:02</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 13:04</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1923,7 +1923,7 @@
 
 <section class="editor-settings-panel" id="editor-settings-panel" aria-label="MAWE 设置" hidden>
   <div class="editor-settings-group">
-    <span class="editor-settings-title">字幕</span>
+    <span class="editor-settings-title">字幕列表和编辑区</span>
     <div class="editor-settings-item editor-settings-list-fields editor-settings-display-row">
       <span>字幕列表显示内容</span>
       <label class="toggle"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
@@ -1936,30 +1936,30 @@
       <label class="toggle"><input type="checkbox" id="cue-editor-show-navigation" checked> 前后跳转</label>
       <label class="toggle"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
     </div>
+    <label class="editor-settings-item" title="编辑字幕时，选择 Enter 或 Ctrl+Enter 在文字光标处拆分；另一个按键用于保存">
+      字幕（编辑状态下）拆分按键
+      <select id="split-key">
+        <option value="ctrl-enter" selected>Ctrl+Enter</option>
+        <option value="enter">Enter</option>
+      </select>
+    </label>
   </div>
   <div class="editor-settings-group">
-    <span class="editor-settings-title">操作</span>
+    <span class="editor-settings-title">通用操作</span>
     <label class="editor-settings-item" title="字幕列表与波形字幕块的普通单击行为；双击编辑不受影响">
-      单击行为
+      点击字幕块时
       <select id="click-behavior">
         <option value="select-only" selected>仅选中</option>
         <option value="select-and-seek">选中并跳转</option>
       </select>
     </label>
     <small class="editor-settings-hint" id="click-behavior-hint">「仅选中」时可以用F键功能来跳转并播放字幕</small>
-    <label class="editor-settings-item" title="编辑字幕时，选择 Enter 或 Ctrl+Enter 在文字光标处拆分；另一个按键用于保存">
-      字幕编辑拆分按键
-      <select id="split-key">
-        <option value="ctrl-enter" selected>Ctrl+Enter</option>
-        <option value="enter">Enter</option>
-      </select>
-    </label>
     <label class="toggle editor-settings-item" title="开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
       <input type="checkbox" id="select-group-members"> 同时选中分组内项目
     </label>
   </div>
   <div class="editor-settings-group">
-    <span class="editor-settings-title">波形</span>
+    <span class="editor-settings-title">音频波形区</span>
     <span class="editor-settings-item" id="waveform-window-setting">显示窗口
       <span class="editor-settings-stepper">
         <button type="button" id="waveform-zoom-out" title="缩小时间轴">−</button>
@@ -2969,10 +2969,10 @@
     '表情包 OTIO': 'Sticker OTIO', '导出表情包时间线 ▾': 'Export sticker timeline ▾',
     '下载 Resolve JSON': 'Download Resolve JSON',
     '下载表情包 OTIO 工程': 'Download sticker OTIO project',
-    '字幕': 'Subtitles', '字幕预览': 'Subtitle preview', '表情包预览': 'Sticker preview',
+    '字幕': 'Subtitles', '字幕预览': 'Subtitle preview', '表情包预览': 'Sticker preview', '字幕列表和编辑区': 'Subtitle list & editor',
     '显示': 'Showing', '隐藏禁用': 'Hide disabled', '批量替换…': 'Batch replace…',
     '字数阈值': 'Character threshold', '仅看超长': 'Long only',
-    '当前': 'Current', '已选': 'Selected', '波形': 'Waveform',
+    '当前': 'Current', '已选': 'Selected', '波形': 'Waveform', '音频波形区': 'Audio waveform',
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
     '跳过空隙': 'Skip gaps', '未扫描空隙': 'Gaps not scanned', '布局': 'Layout',
@@ -2999,10 +2999,10 @@
     '全部恢复': 'Restore all', '字幕列表显示内容': 'Subtitle list fields',
     '序号': 'Index', '时间码': 'Timecode', '表情包': 'Stickers', '字数': 'Characters',
     '字幕编辑显示内容': 'Subtitle editor fields', '前后跳转': 'Previous/next navigation',
-    '操作': 'Behavior', '单击行为': 'Click behavior', '仅选中': 'Select only',
+    '操作': 'Behavior', '通用操作': 'General', '单击行为': 'Click behavior', '点击字幕块时': 'Click subtitle behavior', '仅选中': 'Select only',
     '选中并跳转': 'Select and seek',
     '「仅选中」时可以用F键功能来跳转并播放字幕': 'In “Select only” mode, press F to seek to and play the subtitle',
-    '字幕编辑拆分按键': 'Subtitle split key',
+    '字幕编辑拆分按键': 'Subtitle split key', '字幕（编辑状态下）拆分按键': 'Subtitle split key (while editing)',
     '同时选中分组内项目': 'Select all group members',
     '显示窗口': 'Visible window', '振幅': 'Amplitude',
     '5 秒': '5 sec', '10 秒': '10 sec', '20 秒': '20 sec', '30 秒': '30 sec',

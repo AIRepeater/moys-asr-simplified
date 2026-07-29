@@ -131,7 +131,7 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 ## 百炼 Fun-ASR（同一供应商，支持说话人）
 
-Fun-ASR 与 Qwen 共用 `DASHSCOPE_API_KEY`、地域配置和临时 OSS 上传链路。在 Launcher 的「阿里云百炼 ASR」下把模型切换为 `Fun-ASR（支持说话人）` 即可；开启「给不同说话人分配字幕颜色」后，Launcher 会同时启用说话人分离。
+Fun-ASR 与 Qwen 共用 `DASHSCOPE_API_KEY`、地域配置和临时 OSS 上传链路。在 Launcher 的「阿里云百炼（FunASR/QwenASR）」下把模型切换为 `Fun-ASR（支持说话人）` 即可；开启「给不同说话人分配字幕颜色」后，Launcher 会同时启用说话人分离。
 
 命令行也可以直接选择第二个模型：
 

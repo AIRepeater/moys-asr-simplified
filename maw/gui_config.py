@@ -206,7 +206,7 @@ SONIOX_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
 QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ModelConfig(
         id=DEFAULT_MODEL_ID,
-        label="Qwen3 ASR（文件转写）",
+        label="Qwen3 ASR（准确率更高）",
         env_key="DASHSCOPE_API_KEY",
         languages=LANGUAGES,
     ),
@@ -233,7 +233,7 @@ SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
 PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
     ProviderConfig(
         id="qwen",
-        label="阿里云百炼 ASR",
+        label="阿里云百炼（FunASR/QwenASR）",
         key_url="https://help.aliyun.com/zh/model-studio/get-api-key",
         models=QWEN_MODELS,
         regions=REGIONS,

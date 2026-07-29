@@ -89,7 +89,7 @@ SRT/JSON 生成及已有 speaker 颜色逻辑：
 
 - CLI 使用 `--model fun-asr` 选择模型，`--speaker` / `--speaker-colors`
   控制说话人分离和颜色快照。
-- Web Launcher 把 Fun-ASR 放在「阿里云百炼 ASR」Provider 下作为第二模型，
+- Web Launcher 把 Fun-ASR 放在「阿里云百炼（FunASR/QwenASR）」Provider 下作为第二模型，
   并按模型切换支持语言、说话人开关和默认 `.fun-asr.srt` 输出名。
 - Fun-ASR 的句级 `speaker_id` 会复制到对应 `items[]`，切句前先按 speaker
   变化硬切，确保一个 MAW segment 不跨说话人。

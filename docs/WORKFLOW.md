@@ -75,7 +75,7 @@ CLI 默认不内嵌波形；需要交给编辑器直接打开且不想生成 `<�
 
 ## 用 Fun-ASR 转写（百炼第二模型，支持说话人）
 
-在 Launcher 中选择「阿里云百炼 ASR」Provider，再把模型切换为 `Fun-ASR（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
+在 Launcher 中选择「阿里云百炼（FunASR/QwenASR）」Provider，再把模型切换为 `Fun-ASR（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
 
 命令行示例：
 
