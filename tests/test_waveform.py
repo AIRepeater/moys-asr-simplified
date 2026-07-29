@@ -209,6 +209,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="overlay-toggle" checked> 预览字幕', page)
         self.assertIn('id="sticker-overlay-toggle"> 预览表情包', page)
         self.assertIn('id="merge-join-text"', page)
+        self.assertIn('id="waveform-drag-playhead"', page)
         self.assertIn('播放时跳过空隙', page)
         self.assertIn('const projectHasStickers = DATA.segments.some(segment => segment.sticker || segment.sticker_ref);', page)
         self.assertIn('!EDITOR_SETTINGS.cueListShowSticker || !projectHasStickers,', page)

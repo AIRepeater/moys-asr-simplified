@@ -45,6 +45,7 @@
     waveformScale: 1,
     disabledDisplay: 'dim',
     showGroupBadges: true,
+    dragPlayhead: true,
   };
   const PALETTE = {
     red: '#e74c3c',
@@ -373,6 +374,7 @@
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
         showGroupBadges: parsed.showGroupBadges !== false,
+        dragPlayhead: parsed.dragPlayhead !== false,
       };
     } catch (_) {
       return {
@@ -645,6 +647,7 @@
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
       this.showGroupBadgesToggle = document.getElementById('waveform-show-group-badges');
+      this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.sideSelect = document.getElementById('waveform-side');
       this.disabledDisplaySelect = document.getElementById('waveform-disabled-display');
       this.layoutPresetSelect = document.getElementById('layout-preset');
@@ -704,6 +707,11 @@
         this.settings.showGroupBadges = this.showGroupBadgesToggle.checked;
         saveSettings(this.settings);
         this.render();
+      });
+      if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
+      this.dragPlayheadToggle?.addEventListener('change', () => {
+        this.settings.dragPlayhead = this.dragPlayheadToggle.checked;
+        saveSettings(this.settings);
       });
       this.sideSelect?.addEventListener('change', () => {
         this.settings.side = this.sideSelect.value === 'right' ? 'right' : 'left';
@@ -1873,6 +1881,8 @@
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
         this.seekFromPointer(event, row);
+        // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
+        if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row);
       });
       row.addEventListener('auxclick', (event) => {
         if (event.button === 1 && gapOperationMode === 'middle_drag') event.preventDefault();
@@ -2030,6 +2040,36 @@
       const startMs = Number(row.dataset.startMs);
       const endMs = Number(row.dataset.endMs);
       return startMs + ratio * (endMs - startMs);
+    }
+
+    // 「允许拖动指针」：在波形空白区域按住左键拖动时，播放指针实时跟随鼠标
+    // 所在位置。高回报率指针事件用 rAF 合并，每帧最多 seek 一次；松开时以
+    // 最终位置再 seek 一次保证落点精确。指针捕获让拖出行范围时按行边界钳制。
+    beginPlayheadDrag(event, row) {
+      row.setPointerCapture?.(event.pointerId);
+      let frame = 0;
+      let lastEvent = null;
+      const flush = () => {
+        frame = 0;
+        if (lastEvent) this.seekFromPointer(lastEvent, row);
+        lastEvent = null;
+      };
+      const cleanup = () => {
+        window.removeEventListener('pointermove', onMove);
+        if (frame) { cancelAnimationFrame(frame); frame = 0; }
+        lastEvent = null;
+      };
+      const onMove = (moveEvent) => {
+        if (!(moveEvent.buttons & 1)) { cleanup(); return; }
+        lastEvent = moveEvent;
+        if (!frame) frame = requestAnimationFrame(flush);
+      };
+      const onUp = (upEvent) => {
+        cleanup();
+        this.seekFromPointer(upEvent, row);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp, { once: true });
     }
 
     handleWheel(event) {
