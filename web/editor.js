@@ -76,7 +76,7 @@ const DEFAULT_GAP_REMOVE_THRESHOLD_DB = -24;
 const DEFAULT_GAP_REMOVE_HYSTERESIS_DB = 2;
 const DEFAULT_GAP_REMOVE_LEAD_IN_MS = 40;
 const DEFAULT_GAP_REMOVE_LEAD_OUT_MS = 80;
-const DEFAULT_GAP_REMOVE_OPERATION_MODE = 'middle_drag';
+const DEFAULT_GAP_REMOVE_OPERATION_MODE = 'boundary_drag';
 const GAP_REMOVE_ADVANCED_OPEN_KEY = 'moy.asr.gap_remove.advanced_open.v1';
 
 function clampGapRemoveMinimum(value) {
@@ -367,7 +367,7 @@ const gapRemoveOperationMode = document.getElementById('gap-remove-operation-mod
 const gapRemoveScanButton = document.getElementById('gap-remove-scan');
 const gapRemoveSkipPlayback = document.getElementById('gap-skip-playback');
 const gapRemoveList = document.getElementById('gap-remove-list');
-const gapRemoveRestoreAllButton = document.getElementById('gap-remove-restore-all');
+const gapRemoveClearAllButton = document.getElementById('gap-remove-clear-all');
 let gapPreviewRange = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
@@ -520,7 +520,10 @@ function renderGapRemoveList() {
     return;
   }
   if (!gaps.length) {
-    gapRemoveList.textContent = '尚未找到符合门限的音量空隙。';
+    const message = document.createElement('div');
+    message.className = 'gap-remove-total';
+    message.textContent = '尚未找到符合门限的音量空隙。';
+    gapRemoveList.appendChild(message);
     return;
   }
   const removedCount = gaps.filter((gap) => gap.removed).length;
@@ -554,7 +557,7 @@ function updateGapRemoveUi() {
     gapRemoveOperationMode.value = state?.operation_mode || DEFAULT_GAP_REMOVE_OPERATION_MODE;
   }
   if (gapRemoveSkipPlayback) gapRemoveSkipPlayback.checked = state?.skip_playback !== false;
-  if (gapRemoveRestoreAllButton) gapRemoveRestoreAllButton.disabled = !gaps.some((gap) => gap.removed);
+  if (gapRemoveClearAllButton) gapRemoveClearAllButton.disabled = !gaps.length;
   if (gapRemovedExportDropdown) {
     gapRemovedExportDropdown.hidden = !gaps.some((gap) => gap.removed);
     if (gapRemovedExportDropdown.hidden) gapRemovedExportDropdown.classList.remove('open');
@@ -613,6 +616,16 @@ function toggleGapRemoved(index) {
   flashHint(removed ? '已人工移除静音空隙' : '已人工恢复静音空隙');
 }
 
+function clearGap(index) {
+  const state = getGapRemoveData(false);
+  const gap = state?.gaps?.[index];
+  if (!gap) return;
+  pushGapRemoveUndo('清理空隙区段');
+  state.gaps = state.gaps.filter((_, gapIndex) => gapIndex !== index);
+  state.manual_corrections = state.gaps.length > 0;
+  setGapRemoveData(state);
+  flashHint('已清理空隙区段');
+}
 function applyManualGapRange(startMs, endMs, removed) {
   const state = getGapRemoveData(true);
   const sourceGaps = state.detector === 'audio_gate' ? state.gaps : [];
@@ -641,14 +654,17 @@ function resizeManualGapBoundary(index, edge, valueMs) {
   flashHint('已人工调整空隙边界');
 }
 
-function restoreAllGaps() {
+function clearAllGaps() {
   const state = getGapRemoveData(false);
-  if (!state?.gaps?.some((gap) => gap.removed)) return;
-  pushGapRemoveUndo('恢复全部空隙');
-  state.gaps = state.gaps.map((gap) => ({ ...gap, removed: false }));
-  state.manual_corrections = true;
+  if (!state?.gaps?.length) return;
+  if (!confirm(
+    `确定要清理全部 ${state.gaps.length} 个空隙区段吗？\n\n这会删除当前所有已移除和已恢复的区段记录。`
+  )) return;
+  pushGapRemoveUndo('清理全部空隙区段');
+  state.gaps = [];
+  state.manual_corrections = false;
   setGapRemoveData(state);
-  flashHint('已恢复全部空隙');
+  flashHint('已清理全部空隙区段');
 }
 
 function gapRemovePanelIsOpen() {
@@ -810,7 +826,7 @@ gapRemovePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
 
 gapRemoveManageButton?.addEventListener('click', toggleGapRemovePanel);
 gapRemoveScanButton?.addEventListener('click', scanAndRemoveGaps);
-gapRemoveRestoreAllButton?.addEventListener('click', restoreAllGaps);
+gapRemoveClearAllButton?.addEventListener('click', clearAllGaps);
 gapRemoveCloseButton?.addEventListener('click', closeGapRemovePanel);
 gapRemoveOperationMode?.addEventListener('change', () => {
   const state = getGapRemoveData(true);
@@ -4518,6 +4534,33 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
   ctxmenu.style.top = ny + 'px';
 }
 
+function showGapContextMenu(x, y, index) {
+  const gap = getGapRemoveGaps()[index];
+  if (!gap) return;
+  ctxmenu.innerHTML = '';
+  const addItem = (label, fn, { danger = false } = {}) => {
+    const item = document.createElement('div');
+    item.className = 'item' + (danger ? ' danger' : '');
+    const text = document.createElement('span');
+    text.textContent = label;
+    item.appendChild(text);
+    item.addEventListener('click', () => {
+      ctxmenu.classList.remove('show');
+      fn();
+    });
+    ctxmenu.appendChild(item);
+  };
+  addItem(gap.removed === false ? '移除区段' : '恢复区段', () => toggleGapRemoved(index));
+  const separator = document.createElement('div');
+  separator.className = 'sep';
+  ctxmenu.appendChild(separator);
+  addItem('清理该区段', () => clearGap(index), { danger: true });
+
+  ctxmenu.classList.add('show');
+  const rect = ctxmenu.getBoundingClientRect();
+  ctxmenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`;
+  ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
+}
 document.addEventListener('click', (e) => {
   if (!ctxmenu.contains(e.target)) ctxmenu.classList.remove('show');
 });
@@ -4669,6 +4712,7 @@ function initWaveformEditor() {
     applyGapRange: applyManualGapRange,
     resizeGapBoundary: resizeManualGapBoundary,
     previewGapAt,
+    showGapContextMenu: (x, y, index) => showGapContextMenu(x, y, index),
     showContextMenu: (x, y, idx, timeMs) => showContextMenu(x, y, idx, timeMs),
     showBlankWaveformMenu: (timeMs, x, y) => showWaveformBlankMenu(timeMs, x, y),
     addCueRange: (startMs, endMs, x, y) => addCueRangeFromWaveform(startMs, endMs, x, y),

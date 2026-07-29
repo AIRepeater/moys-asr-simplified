@@ -1725,7 +1725,7 @@
       row.appendChild(playhead);
 
       const gaps = this.options.getGapRemoveGaps?.() || [];
-      const gapOperationMode = this.options.getGapOperationMode?.() || 'middle_drag';
+      const gapOperationMode = this.options.getGapOperationMode?.() || 'boundary_drag';
       gaps.forEach((gap, index) => {
         if (!gap || gap.end <= startMs || gap.start >= endMs) return;
         const block = document.createElement('div');
@@ -1788,6 +1788,7 @@
         block.addEventListener('contextmenu', (event) => {
           event.preventDefault();
           event.stopPropagation();
+          this.options.showGapContextMenu?.(event.clientX, event.clientY, index);
         });
         row.appendChild(block);
       });

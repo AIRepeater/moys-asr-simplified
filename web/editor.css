@@ -843,6 +843,10 @@
     transition: background var(--t-fast), border-color var(--t-fast);
   }
   .gap-remove-panel-footer button:hover:not(:disabled) { color: var(--text-primary); background: var(--btn-bg-hover); }
+  .gap-remove-panel-footer button.danger {
+    color: #ffe4e4; background: #8f3035; border-color: #c44a50;
+  }
+  .gap-remove-panel-footer button.danger:hover:not(:disabled) { color: #fff; background: #ad3b42; border-color: #e35a62; }
   .gap-remove-panel-footer button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
   .gap-remove-panel-footer button:disabled { opacity: .38; cursor: not-allowed; }
   @media (max-width: 560px) {

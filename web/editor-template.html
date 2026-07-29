@@ -208,7 +208,7 @@ __WAVEFORM_CSS__
     <div class="gap-remove-list" id="gap-remove-list" aria-live="polite">尚未扫描空隙。</div>
     <footer class="gap-remove-panel-footer">
       <span>滚轮可调数值 · Esc 关闭</span>
-      <button type="button" id="gap-remove-restore-all">全部恢复</button>
+      <button type="button" id="gap-remove-clear-all" class="danger">全部清理</button>
     </footer>
   </div>
 </aside>
@@ -294,11 +294,11 @@ __WAVEFORM_CSS__
       </select>
     </label>
     <label class="editor-settings-item" title="移除静音空隙的人工修正方式；Alt+左键始终切换整段；中键拖动默认增加静音，按住 Alt 才恢复声音，边界碰到另一空隙时会合并">
-      空隙操作
+      空隙区段操作方式
       <select id="gap-remove-operation-mode">
         <option value="none">无</option>
-        <option value="boundary_drag">拖动边界</option>
-        <option value="middle_drag" selected>中键拖动</option>
+        <option value="boundary_drag" selected>拖动边界</option>
+        <option value="middle_drag">中键拖动</option>
       </select>
     </label>
   </div>
@@ -338,7 +338,7 @@ __WAVEFORM_CSS__
   <div class="help-group">
     <span class="help-title">静音空隙</span>
     <span><kbd>Alt+点击静音空隙区段</kbd> 切换移除/保留</span>
-    <span class="help-note">设置的空隙操作为「中键拖动」时：</span>
+    <span class="help-note">空隙区段操作方式设为「中键拖动」时：</span>
     <span><kbd>中键拖动</kbd> 增加静音区段</span>
     <span><kbd>Alt+中键拖动</kbd> 增加恢复区段</span>
   </div>
