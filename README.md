@@ -1,97 +1,49 @@
 # Moy's ASR Workflow（MAW）
 
-把一个视频或音频交给阿里云百炼 Qwen / Fun-ASR 或 Soniox 云端 ASR API，得到可编辑的字幕工程、SRT 和浏览器字幕编辑器。
 
-![MAWE 字幕编辑器预览](assets/screenshot-v1.1.0.jpg)
 
-**MAW** 是 Moy's ASR Workflow 的简称。  
-现在的使用流程已经收束到 **Launcher**：选择本地媒体和百炼 Qwen / Fun-ASR 或 Soniox 云端 ASR，生成 SRT + JSON 工程，再进入 MAWE 浏览器编辑器校对和导出。Windows 用户不需要先学命令行，也不需要 GPU；本项目仍然保持轻量，不包含本地模型、其他 ASR 引擎或自动下载模型。
+## 这是什么
 
-> [!tip]
-> **Windows 用户：[点我下载最新版](https://github.com/Moyf/moys-asr-workflow/releases/latest)**
->
-> 电脑里已经装好 FFmpeg，就下载体积更小的 `MAW-Windows-x64-v*.zip`；没有安装、或者不知道 FFmpeg 是什么，就下载 `MAWxFF-Windows-x64-v*.zip`。解压后双击 `MAW.exe`，从 Launcher 开始就行。
+这是个 2026 年新时代的**字幕生成+编辑**工作流：  
+把一个视频或音频交给 AI 转写，得到可编辑的字幕工程和SRT文件。  
 
-> 之后会有更完整的 **Moy's Open Subtitle Editor（MOSE）**：不需要懂编程也能直接用的整合工作站！  
-> 这个仓库会保持小而可用，并为将来导入 MOSE 留出工程 JSON 的兼容路径；详见 [docs/MOSE.md](docs/MOSE.md)。
+全过程快到你反应不过来！  
+<img src="assets/show.webp" width="300" alt="sticker">
 
-## 这套工具能做什么
+## MAW 组成
+Moy 的 ASR 工作流由两部分组成：  
 
-1. 用百炼 Qwen / Fun-ASR 或 Soniox API 把本地视频或音频转为字幕。
-2. 一次生成 `.srt`、含字级时间戳的 `.json` 工程和单文件 `.edit.html`。
-3. 在浏览器中校正文本、时间、波形、静音空隙和字幕布局。
-4. 导出 SRT、工程 JSON，以及编辑器支持的额外格式。
+- **MAW Launcher**：负责媒体处理和发送 AI 转写请求，生成工程并启动编辑器。  
 
-所有编辑都在本机浏览器完成。  
-转写时，脚本会把待识别媒体直接上传到你选择的阿里云百炼或 Soniox 账户；本项目没有自己的服务器、不会代管你的 API Key 或媒体。
+![launcher](assets/launcher.jpg)  
 
-## 你需要准备
+> 当前支持模型：阿里云百炼 Qwen / Fun-ASR 或 Soniox 云端 ASR API  
 
-- 至少一个云端 ASR API Key：可以用[阿里云百炼](https://help.aliyun.com/zh/model-studio/get-api-key)调用 Qwen 或 Fun-ASR，也可以用支持说话人分离的 [Soniox](https://console.soniox.com)。
-- Windows 图形版：Windows 10/11；下载 `MAWxFF` 不需要另外安装 FFmpeg，下载普通版则需要系统里已经有 `ffmpeg` 和 `ffprobe`。
-- 从源码或命令行运行：Python 3.11 或更新版本、[uv](https://docs.astral.sh/uv/getting-started/installation/)（推荐），以及 [FFmpeg](https://ffmpeg.org/download.html)。macOS/Linux 也可尝试。
+- **MAWE**：MAW 自带的字幕编辑器，基本上只是个 HTML 网页，但是功能强大到超出你的想象。  
 
-## 最快上手：从 Launcher 开始
+![MAWE 字幕编辑器预览](assets/screenshot-v1.2.0.jpg)  
 
-### Windows 图形界面
+> 之后可能会套个前端框架独立成 MOSE（Moy's Open Subtitle Editor），但之后再看。  
+
+## 如何使用
 
 [点我下载最新版](https://github.com/Moyf/moys-asr-workflow/releases/latest)，根据电脑情况选一个：
 
 - `MAWxFF-Windows-x64-v*.zip`：已经捆绑 MAW 会用到的 `ffmpeg.exe` 和 `ffprobe.exe`；没有 FFmpeg、或者不知道它是什么，下载这个。
 - `MAW-Windows-x64-v*.zip`：体积更小；适合已经安装 FFmpeg，并且终端能直接运行 `ffmpeg` / `ffprobe` 的用户。
 
-两个版本的 MAW 功能完全一样。解压后双击 `MAW.exe`，Launcher 会带你完成这条流程：
+下载解压之后点击 `MAW.exe` 并运行。
 
-```text
-选择供应商和媒体 -> 生成 SRT + JSON 工程 -> 打开 MAWE 校对 -> 保存或导出
-```
-
-在 Launcher 里选择阿里云百炼或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。百炼 Provider 下可以选择 Qwen3 ASR 或支持说话人分离的 Fun-ASR。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
-
-GUI 还可以直接选择工程 JSON 并启动 `http://127.0.0.1` 本地编辑器服务器；中英文界面可在右上角切换。
-启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商组织模型、地域、语言和 API Key 获取入口；选择 Fun-ASR 或 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
-
-普通版仍要求系统能找到 `ffmpeg` 和 `ffprobe`。如果 Launcher 提示未检测到 FFmpeg，可以换用 `MAWxFF` 版；也可以自行安装 FFmpeg，把它的 `bin` 目录加入 PATH 后重新打开 MAW。
-
-也可以从源码启动同一界面：
-
-```powershell
-uv run python maw_gui.py
-```
-
-如果本机 WebView 运行环境异常，可临时使用旧版 tkinter 界面：
-
-```powershell
-uv run python maw_gui.py --tk
-```
-
-下面的命令行方式仍完整保留，适合自动化和精细参数调整。
+### 申请 API Key
 
 > [!tip]
-> **给人类**：把这个项目地址发给你的 AI Agent 然后让它参考文档操作即可！  
-> <img src="assets/show.webp" width="300" alt="sticker">
+> [如何获取阿里云百炼的 QwenASR/FunASR 的 API](https://help.aliyun.com/zh/model-studio/get-api-key)  
+> （不含广告，默认用 QwenASR 只是因为我测试下来它中文转录表现最好，而且支持字词级时间码）
 
-在 PowerShell 中执行：
+如果你更在意小语种多语言，可以使用 [Soniox Console](https://console.soniox.com) 申请 Key；
+两个 Key 不需要同时配置，用到哪个配哪个即可。
 
-```powershell
-git clone https://github.com/Moyf/moys-asr-workflow moys-asr-workflow
-cd moys-asr-workflow
-uv sync
-Copy-Item .env.example .env
-```
-
-打开新建的 `.env`，按你准备使用的供应商至少填一个 Key：
-
-```ini
-DASHSCOPE_API_KEY=sk-替换成你的真实密钥
-SONIOX_API_KEY=替换成你的 Soniox Key
-```
-
-> [!tip]
-> [如何获取 QwenASR 的 API](https://help.aliyun.com/zh/model-studio/get-api-key)  
-> （不含广告，用 QwenASR 只是因为我测试下来它中文转录表现最好）
-
-如果你更在意多语言或说话人分离，可以直接用 [Soniox Console](https://console.soniox.com) 申请 Key；两个 Key 不需要同时配置。
+配完之后点击「保存到本地环境」，下次就不用重复配置了。
 
 
 <details>
@@ -109,6 +61,66 @@ SONIOX_API_KEY=替换成你的 Soniox Key
 </details>
 
 
+## 流程说明
+
+1. 在 Launcher 中打开媒体，填写 API Key 后，点击 **生成字幕和工程**——MAW 会调用对应的模型把本地视频或音频转为字幕，同时生成工程文件。
+2. 如果你不需要精校字幕，直接用生成的 srt 字幕文件即可 🎉
+3. 如果你需要对字幕进行更复杂的编辑，点击**启动字幕编辑器**后，在浏览器中进行字幕编辑操作。
+4. 操作完成后，点击右上角按钮导出你所需的 SRT 字幕或是其他附加格式。
+
+所有编辑都在本机浏览器完成。  
+转写时，脚本会把待识别媒体直接上传到你选择的阿里云百炼或 Soniox 账户；本项目没有自己的服务器、不会代管你的 API Key 或媒体。
+
+## 你需要准备
+
+- 至少一个云端 ASR API Key：可以用[阿里云百炼](https://help.aliyun.com/zh/model-studio/get-api-key)调用 Qwen 或 Fun-ASR，也可以用支持说话人分离的 [Soniox](https://console.soniox.com)。
+- Windows 图形版：Windows 10/11；下载 `MAWxFF` 不需要另外安装 FFmpeg，下载普通版则需要系统里已经有 `ffmpeg` 和 `ffprobe`。
+- 从源码或命令行运行：Python 3.11 或更新版本、[uv](https://docs.astral.sh/uv/getting-started/installation/)（推荐），以及 [FFmpeg](https://ffmpeg.org/download.html)。macOS/Linux 也可尝试。
+
+
+<details>
+<summary>废话压缩</summary>
+## 详情说明
+两个版本的 MAW 功能完全一样。解压后双击 `MAW.exe`，Launcher 会带你完成这条流程：
+
+```text
+选择供应商和媒体 -> 生成 SRT + JSON 工程 -> 打开 MAWE 校对 -> 保存或导出
+```
+
+在 Launcher 里选择阿里云百炼或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。百炼 Provider 下可以选择 Qwen3 ASR 或支持说话人分离的 Fun-ASR。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
+
+GUI 还可以直接选择工程 JSON 并启动 `http://127.0.0.1` 本地编辑器服务器；中英文界面可在右上角切换。
+启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商组织模型、地域、语言和 API Key 获取入口；选择 Fun-ASR 或 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
+
+普通版仍要求系统能找到 `ffmpeg` 和 `ffprobe`。如果 Launcher 提示未检测到 FFmpeg，可以换用 `MAWxFF` 版；也可以自行安装 FFmpeg，把它的 `bin` 目录加入 PATH 后重新打开 MAW。
+
+### 传统命令行方案
+
+也可以从源码启动同一界面：
+
+```powershell
+uv run python maw_gui.py
+```
+
+下面的命令行方式仍完整保留，适合自动化和精细参数调整。
+
+在 PowerShell 中执行：
+
+```powershell
+git clone https://github.com/Moyf/moys-asr-workflow moys-asr-workflow
+cd moys-asr-workflow
+uv sync
+Copy-Item .env.example .env
+```
+
+打开新建的 `.env`，按你准备使用的供应商至少填一个 Key：
+
+```ini
+DASHSCOPE_API_KEY=sk-替换成你的真实密钥
+SONIOX_API_KEY=替换成你的 Soniox Key
+```
+
+
 然后转写一个文件：
 
 ```powershell
@@ -118,8 +130,7 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --json
 首次成功会在媒体同目录生成：
 
 - `…qwen3-asr-api….srt`：可导入播放器或剪辑软件的字幕；
-- 同名 `.json`：**工程真源**，以后继续编辑请保留它；
-- 同名 `.edit.html`：可双击离线打开的自包含编辑器。
+- 同名 `.json`：**工程真源**，以后继续编辑请保留它。
 
 建议先只处理两分钟，确认 API、FFmpeg 与输出目录都正确：
 
@@ -128,6 +139,7 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 ```
 
 如果不使用 uv，请看 [docs/WORKFLOW.md](docs/WORKFLOW.md) 的普通 Python 安装方式。
+
 
 ## 百炼 Fun-ASR（同一供应商，支持说话人）
 
@@ -175,31 +187,44 @@ uv run python generate_subtitle_soniox_api.py "D:\Videos\example.mp4" --speaker-
 
 颜色写入的是普通 `color` 字段，之后可在编辑器里自由修改；说话人超过 5 个时颜色循环复用并给出警告。`--language zh,en` 可提供语言提示。
 
+</details>
+
+
 ## MAWE — Moy's ASR Workflow Editor
 
 MAWE 是 MAW 自带的字幕编辑器。  
-推荐使用它的本地服务器模式：可稳定拖动大型媒体、自动载入 JSON 中记录的媒体路径，并支持安全保存工程：
+推荐使用它的本地服务器模式：可稳定拖动大型媒体、保留最近工程记录、支持直接保存工程以及自动加载表情包路径。
 
+点击 Launcher 的「启动字幕编辑器」，或者运行：
 ```powershell
 uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 ```
 
-浏览器会自动打开 `http://127.0.0.1:8250`。MAWE 右上角可切换中文 / English；编辑完成后点“保存工程”或按 `Ctrl+S`，覆盖前会留下同目录 `.json.bak` 备份；`Ctrl+Shift+S` 为另存为。按 `Ctrl+C` 停止服务。
+浏览器会自动打开 `http://127.0.0.1:8250`。
+
+MAWE 右上角可切换中文 / English；编辑完成后点“保存工程”或按 `Ctrl+S`，覆盖前会留下同目录 `.json.bak` 备份；`Ctrl+Shift+S` 为另存为。按 `Ctrl+C` 停止服务。
+
+服务器版还会把“保存布局”保存在本机服务器设置中，因此可跨工程复用：默认的三种布局进入“编辑布局”后可保存为本机覆盖版、重置为默认或另存为，但不可删除；选中自己保存的布局后，可以继续保存、另存或删除。布局只保存在本机，不写入工程 JSON。
 
 > [!important]
-> 也可以直接双击转写生成的 `.edit.html`，或双击仓库里的 `blank-editor.html` 后用“打开工程”同时选择 JSON 和媒体。  
-> 单 HTML 文件模式适合你嫌起服务器麻烦（或者搞不来）；本地服务器模式更适合日常编辑，因为更容易和本机文件做交互。
+> 除了服务器版本，也支持同时生成更为便携的 HTML 单文件编辑器。
+> 功能相对缺少一些，但是90%的编辑体验是相同的——生成的时候勾选「同时生成单文件编辑器」后，直接双击转写生成的 `.edit.html` （或者用 Launcher 中的“打开该项目的单文件编辑器”打开工程。  
+> 单 HTML 文件模式适合你嫌起服务器麻烦（或者搞不来）；本地服务器模式更适合日常编辑。
 
 ### 目前支持的特性
 
 - 基础部分
   - 字幕：字幕列表与播放器播放时间绑定；点击字幕或波形可跳转到对应位置。
-  - 拆分或合并字幕 ⭐：工程 JSON 含字/词级时间码时，拆分后会按这些时间码分配两侧的时间，仍能保持准确。
+  - 拆分或合并字幕 ⭐：工程 JSON 含字/词级时间码时，**拆分后会按这些时间码分配两侧的时间，仍能保持准确**。
   - 可显示当前单句的时长、字数和阅读速度，并过滤过长文本。
   - 可预览并批量替换关键词。
   - 视频画面内的字幕预览可直接拖动和缩放；位置与大小保存在 JSON 工程中，撤销/重做、localhost 保存及便携 HTML 导出后仍会保留。
   - 可检测并移除静音空隙；这不会改写原始媒体或原始字幕时间，而是建立可撤销的压缩时间线供播放和导出使用。
   - 可保存 JSON 工程，或导出标准 SRT 字幕。
+- 操作部分
+  - WASD 快速跳转前后字幕
+  - Enter 进入字幕编辑模式
+  - 更多操作详见「🤔帮助」按钮
 - 拓展部分
   - 可给字幕附加**表情包**或**颜色**，并在多句字幕之间保持关联。
   - 可导出 Resolve JSON；配合兼容的达芬奇执行脚本，可在达芬奇内批量导入字幕颜色与表情包配置。执行脚本不随这个最小版 MAW 发布。
@@ -224,12 +249,6 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 - 如果你有不错的配置，也可以自己本地部署开源的 [QwenASR](https://github.com/QwenLM/Qwen3-ASR) 本地转录，不产生云端费用，只需要一点电费。
 
 😭*我说我只有一台 AMD 显卡的台式机和一台 Mac Mini 所以跑不了本地模型有懂的吗*  
-
-## 项目边界
-
-本仓库刻意不包含：本地模型与 GPU 依赖、除百炼 Qwen / Fun-ASR 与 Soniox 之外的 ASR 引擎、模型对比工具、剪辑软件脚本、样例媒体、缓存、个人表情包和任何密钥。
-
-如果你准备修改或维护它，请先读 [AGENTS.md](AGENTS.md)。第三方组件说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 ## 致谢
 
