@@ -234,12 +234,6 @@ class GuiConfigTests(unittest.TestCase):
             with mock.patch.dict(os.environ, {}, clear=True):
                 self.assertEqual(gui_config.api_key_for_provider("soniox", env_path), "file-soniox")
 
-    def test_i18n_string_tables_have_identical_keys(self) -> None:
-        """Given bilingual UI strings, When keys are compared, Then no translation is missing."""
-        from maw.gui_i18n import STRINGS
-
-        self.assertEqual(set(STRINGS["zh"]), set(STRINGS["en"]))
-
 
 if __name__ == "__main__":
     _ = unittest.main()

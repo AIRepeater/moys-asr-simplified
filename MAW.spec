@@ -2,8 +2,6 @@
 
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files
-
 
 ROOT = Path(SPECPATH).resolve()
 
@@ -16,7 +14,6 @@ datas = [
     (str(ROOT / "assets" / "maw.ico"), "assets"),
     (str(ROOT / "assets" / "show.webp"), "assets"),
 ]
-datas += collect_data_files("sv_ttk")
 
 excluded_runtime_paths = [
     ".env",
@@ -53,7 +50,7 @@ a = Analysis(
         "generate_subtitle_qwen_api",
         "generate_subtitle_soniox_api",
         "serve",
-        "maw.gui",
+        "maw.gui_web",
         "maw.gui_config",
         "maw.gui_workflow",
         "maw.project",

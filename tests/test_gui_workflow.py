@@ -453,7 +453,7 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_entrypoint_smoke_import_argument_does_not_open_window(self) -> None:
         import maw_gui
 
-        with mock.patch("maw.gui.run_app") as run_app:
+        with mock.patch("maw.gui_web.run_app") as run_app:
             exit_code = maw_gui.main(["--smoke-import"])
 
         self.assertEqual(exit_code, 0)

@@ -27,11 +27,6 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=argparse.SUPPRESS,
     )
-    parser.add_argument(
-        "--tk",
-        action="store_true",
-        help="Launch the legacy tkinter GUI instead of the webview launcher.",
-    )
     return parser
 
 
@@ -45,10 +40,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return _run_internal_transcribe_soniox(rest)
     if args.serve:
         return _run_internal_serve(rest)
-    if args.tk:
-        from maw.gui import run_app
-    else:
-        from maw.gui_web import run_app
+
+    from maw.gui_web import run_app
 
     run_app()
     return 0
