@@ -1,0 +1,102 @@
+name: Build macOS GUI
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS arm64 bundle
+    runs-on: macos-14
+    env:
+      PYTHONUTF8: '1'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          architecture: arm64
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - name: Verify tag matches pyproject version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          set -euo pipefail
+          Version="$(sed -n 's/^version = "\(.*\)"$/\1/p' pyproject.toml)"
+          if [ "${{ github.ref_name }}" != "v${Version}" ]; then
+            echo "Tag ${{ github.ref_name }} does not match pyproject version v${Version}."
+            exit 1
+          fi
+
+      - name: Install locked dependencies
+        run: uv sync --group build --frozen
+
+      - name: Run packaging contract tests
+        run: uv run python -m unittest tests/test_packaging_contract.py
+
+      - name: Run Python tests
+        run: uv run python -m unittest discover -s tests -p "test_*.py"
+
+      - name: Build MAW GUI bundle
+        run: uv run --group build pyinstaller --noconfirm --clean MAW.spec
+
+      - name: Smoke MAW executable
+        shell: bash
+        run: |
+          set -euo pipefail
+          AppExe="dist/MAW/MAW.app/Contents/MacOS/MAW"
+          if [ ! -f "$AppExe" ]; then
+            echo "Missing $AppExe after build."
+            exit 1
+          fi
+          "$AppExe" --smoke-import
+          "$AppExe" --help >/dev/null
+
+      - name: Ad-hoc codesign the app bundle
+        run: codesign --force --deep --sign - dist/MAW/MAW.app
+
+      - name: Create release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          Version="${{ github.ref_name }}"
+          if [[ "$Version" != v* ]]; then
+            Version="dev"
+          fi
+          Archive="MAW-macOS-arm64-${Version}.zip"
+          ditto -c -k --sequesterRsrc --keepParent dist/MAW/MAW.app "$Archive"
+          shasum -a 256 "$Archive" > "${Archive}.sha256"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MAW-macOS-arm64-${{ github.ref_name || 'dev' }}
+          path: |
+            MAW-macOS-arm64-*.zip
+            MAW-macOS-arm64-*.zip.sha256
+          if-no-files-found: error
+
+      - name: Attach artifacts to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        with:
+          target_commitish: ${{ github.sha }}
+          files: |
+            MAW-macOS-arm64-*.zip
+            MAW-macOS-arm64-*.zip.sha256

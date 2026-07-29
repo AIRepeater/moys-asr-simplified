@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import sys
 from pathlib import Path
 
 
@@ -81,7 +82,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=str(ROOT / 'assets' / 'maw.ico'),
+    icon=str(ROOT / 'assets' / 'maw.ico') if sys.platform == 'win32' else None,
 )
 coll = COLLECT(
     exe,
