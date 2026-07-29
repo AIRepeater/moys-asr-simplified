@@ -40,6 +40,10 @@
         <input id="srtPath" type="text" autocomplete="off">
         <p id="srtPathError" class="field-error"></p>
       </div>
+      <label class="check-field generate-html" for="generateHtml" data-i18n-title="generate_html_title">
+        <input id="generateHtml" type="checkbox">
+        <span data-i18n="generate_html">同时生成单文件版网页编辑器（html）</span>
+      </label>
     </section>
 
     <section class="card" aria-labelledby="settingsTitle">
@@ -124,7 +128,7 @@
           <p class="hint warn" data-i18n="server_media_missing">工程未记录媒体，或文件已移动，请手动选择。</p>
           <p id="serverMediaPathError" class="field-error"></p>
         </div>
-        <div class="field compact"><label for="port" data-i18n="port">端口</label><input id="port" type="number" min="1" max="65535" value="8250"><p id="portError" class="field-error"></p></div>
+        <div class="field compact"><label for="port" data-i18n="port">端口</label><div class="port-row"><input id="port" type="number" min="1" max="65535" value="8250"><button id="refreshServerStatus" class="ghost small" type="button" data-i18n="server_refresh" title="刷新当前端口的服务器状态">刷新</button></div><p id="portError" class="field-error"></p></div>
       </div>
     </section>
 
@@ -134,8 +138,8 @@
         <button id="openMawe" class="ghost split-main" type="button" data-i18n="open_mawe">打开字幕编辑器（MAWE）</button>
         <button id="openMenu" class="ghost split-caret" type="button" aria-haspopup="true">▾</button>
         <div id="htmlMenu" class="split-menu hidden">
-          <button id="openHtml" type="button" data-i18n="open_html" disabled>打开 html 编辑器</button>
-          <button id="openBlankHtml" type="button" data-i18n="open_blank_html">打开 html 空模板</button>
+          <button id="openHtml" class="hidden" type="button" data-i18n="open_html">打开该工程的 HTML 编辑器</button>
+          <button id="openBlankHtml" type="button" data-i18n="open_blank_html">打开空的 HTML 编辑器</button>
         </div>
       </div>
       <button id="openFolder" class="ghost hidden" type="button" data-i18n="open_folder">打开输出文件夹</button>

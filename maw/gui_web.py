@@ -39,6 +39,8 @@ ERROR_MESSAGES: Final[dict[str, str]] = {
     "workspace_missing": "Workspace ID is required for Singapore region.",
     "output_missing": "SRT output path is required.",
     "server_no_response": "Editor server did not respond.",
+    "server_stop_not_maw": "The process using this port is not a MAW editor server.",
+    "server_stop_failed": "Unable to stop the MAW editor server.",
     "sticker_dir_invalid": "Sticker directory does not exist.",
 }
 
@@ -211,6 +213,10 @@ class LauncherApi:
     def start_server(self, payload: Mapping[str, object]) -> dict[str, object]:
         json_text = str(payload.get("jsonPath") or "").strip()
         port = _port(payload)
+        url = f"http://127.0.0.1:{port}/"
+        launch_url = f"{url}?lang={_gui_lang(payload)}"
+        if _wait_for_server(url, timeout=0.25):
+            return {"ok": True, "url": launch_url, "serverAlreadyRunning": True}
         if not json_text:
             # 无工程：不带 JSON 路径启动，由服务器按「自动打开上次工程」设置恢复最近工程或回落为空白编辑器
             command = build_serve_command(None, None, port)
@@ -227,7 +233,7 @@ class LauncherApi:
                 return _error_result("serverMediaPath", "server_media_missing", str(media_state.get("mediaPath") or ""))
             command = build_serve_command(json_path, media_path, port)
         command.append("--no-open")
-        self.stop_server()
+        _ = self._stop_owned_server()
         self.server_process = subprocess.Popen(
             command,
             stdout=subprocess.DEVNULL,
@@ -238,13 +244,19 @@ class LauncherApi:
             startupinfo=startupinfo(),
             creationflags=creationflags(),
         )
-        url = f"http://127.0.0.1:{port}/"
         if not _wait_for_server(url, timeout=5.0):
-            _ = self.stop_server()
+            _ = self._stop_owned_server()
             return _error_result("port", "server_no_response", url)
-        launch_url = f"{url}?lang={_gui_lang(payload)}"
-        webbrowser.open(launch_url)
         return {"ok": True, "url": launch_url}
+
+    def get_server_status(self, payload: Mapping[str, object]) -> dict[str, object]:
+        """Report a responding MAW server on the currently selected localhost port."""
+        port = _port(payload)
+        url = f"http://127.0.0.1:{port}/"
+        if not _wait_for_server(url, timeout=0.25):
+            return {"ok": True, "running": False, "url": url}
+        pid = _maw_server_process_id(port)
+        return {"ok": True, "running": pid is not None, "url": url, "pid": pid}
 
     def check_server_media(self, payload: Mapping[str, object]) -> dict[str, object]:
         json_text = str(payload.get("jsonPath") or "").strip()
@@ -264,7 +276,7 @@ class LauncherApi:
             media_path = json_path.parent / media_path
         return {"ok": True, "hasMedia": True, "mediaPath": media_text, "mediaExists": media_path.exists()}
 
-    def stop_server(self, _payload: Mapping[str, object] | None = None) -> dict[str, object]:
+    def _stop_owned_server(self) -> bool:
         process = self.server_process
         self.server_process = None
         if process and process.poll() is None:
@@ -274,7 +286,21 @@ class LauncherApi:
             except subprocess.TimeoutExpired:
                 process.kill()
                 _ = process.wait(timeout=5)
-        return {"ok": True, "stopped": True}
+            return True
+        return False
+
+    def stop_server(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
+        if self._stop_owned_server():
+            return {"ok": True, "stopped": True}
+        port = _port(payload or {})
+        url = f"http://127.0.0.1:{port}/"
+        if not _wait_for_server(url, timeout=0.25):
+            return {"ok": True, "stopped": False}
+        if _stop_external_maw_server(port):
+            return {"ok": True, "stopped": True}
+        if _maw_server_process_id(port) is None:
+            return _error_result("port", "server_stop_not_maw", url)
+        return _error_result("port", "server_stop_failed", url)
 
     def start_transcription(self, payload: Mapping[str, object]) -> dict[str, object]:
         if self.worker and self.worker.is_alive():
@@ -444,6 +470,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
         provider=provider.id,
         speaker_colors=bool(payload.get("speakerColors")) and model.supports_speaker,
         ui_language=_gui_lang(payload),
+        generate_html=bool(payload.get("generateHtml")),
     )
 
 
@@ -530,6 +557,66 @@ def _wait_for_server(url: str, *, timeout: float) -> bool:
         except (OSError, URLError):
             time.sleep(0.1)
     return False
+
+
+def _listening_process_id(port: int) -> int | None:
+    """Return the PID listening on one IPv4 loopback port on Windows."""
+    if os.name != "nt":
+        return None
+    try:
+        result = subprocess.run(
+            ["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True, check=False,
+            startupinfo=startupinfo(), creationflags=creationflags(),
+        )
+    except OSError:
+        return None
+    pattern = re.compile(rf"^\s*TCP\s+127\.0\.0\.1:{port}\s+\S+\s+LISTENING\s+(\d+)\s*$", re.IGNORECASE)
+    for line in result.stdout.splitlines():
+        match = pattern.match(line)
+        if match:
+            return int(match.group(1))
+    return None
+
+
+def _process_command_line(pid: int) -> str:
+    """Read one Windows process command line. The PID is parsed internally, never user input."""
+    if os.name != "nt":
+        return ""
+    command = f"(Get-CimInstance -ClassName Win32_Process -Filter 'ProcessId = {pid}').CommandLine"
+    try:
+        result = subprocess.run(
+            ["powershell", "-NoProfile", "-NonInteractive", "-Command", command],
+            capture_output=True, text=True, check=False, startupinfo=startupinfo(), creationflags=creationflags(),
+        )
+    except OSError:
+        return ""
+    return result.stdout.strip()
+
+
+def _maw_server_process_id(port: int) -> int | None:
+    """Recognise only MAW's frozen --serve process or its checked-out serve.py command."""
+    pid = _listening_process_id(port)
+    if pid is None:
+        return None
+    command = _process_command_line(pid).lower().replace("/", "\\")
+    is_frozen_maw = "--serve" in command and bool(re.search(r"(?:^|[\\\"\s])maw\.exe(?:[\\\"\s]|$)", command))
+    is_source_maw = "server-editor\\serve.py" in command
+    return pid if is_frozen_maw or is_source_maw else None
+
+
+def _stop_external_maw_server(port: int) -> bool:
+    """Stop a verified MAW editor process without touching another local service."""
+    pid = _maw_server_process_id(port)
+    if pid is None:
+        return False
+    try:
+        result = subprocess.run(
+            ["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True, text=True, check=False,
+            startupinfo=startupinfo(), creationflags=creationflags(),
+        )
+    except OSError:
+        return False
+    return result.returncode == 0
 
 
 def _open_existing_path(path: Path) -> dict[str, object]:

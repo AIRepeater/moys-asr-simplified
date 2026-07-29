@@ -391,7 +391,8 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.api.result = mock.Mock(srt_path=folder / "a.srt", html_path=None)
 
         with mock.patch("maw.gui_web.os.name", "nt"):
-            with mock.patch("maw.gui_web.os.startfile") as startfile:
+            # os.startfile 仅 Windows 存在；create=True 让其他平台也能验证该分支
+            with mock.patch("maw.gui_web.os.startfile", create=True) as startfile:
                 result = self.api.open_output_folder()
 
         self.assertTrue(result["ok"])

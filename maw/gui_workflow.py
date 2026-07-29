@@ -40,6 +40,7 @@ class TranscriptionRequest:
     provider: str = "qwen"
     speaker_colors: bool = False
     ui_language: str = "zh"
+    generate_html: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -192,11 +193,12 @@ def run_transcription(
         raise TranscriptionProcessError(process.returncode)
     _require_output(paths.srt, "SRT")
     _require_output(paths.json, "JSON")
-    try:
-        html_path = render_editor_html(paths.json, request.media_path, paths.html, request.ui_language)
-    except Exception as error:  # HTML is optional; preserve successful SRT/JSON outputs.
-        html_path = None
-        (on_event or _ignore)(f"[warning] 编辑器 HTML 生成失败，SRT/JSON 已保留：{error}")
+    html_path = None
+    if request.generate_html:
+        try:
+            html_path = render_editor_html(paths.json, request.media_path, paths.html, request.ui_language)
+        except Exception as error:  # HTML is optional; preserve successful SRT/JSON outputs.
+            (on_event or _ignore)(f"[warning] 编辑器 HTML 生成失败，SRT/JSON 已保留：{error}")
     return TranscriptionResult(srt_path=paths.srt, json_path=paths.json, html_path=html_path)
 
 
@@ -265,6 +267,8 @@ def _read_process_lines(stdout: TextIO | None, lines: queue.Queue[str | None]) -
 def _child_environment(parent: Mapping[str, str], api_key: str, workspace_id: str = "", provider: str = "qwen") -> dict[str, str]:
     env = dict(parent)
     env["PYTHONUNBUFFERED"] = "1"
+    env["PYTHONUTF8"] = "1"
+    env["PYTHONIOENCODING"] = "utf-8"
     configured_path = parent.get("FFMPEG_PATH") or load_env(DEFAULT_ENV_PATH).get("FFMPEG_PATH", "")
     configured = _prepend_ffmpeg_path(env, configured_path) if configured_path else False
     if not configured:

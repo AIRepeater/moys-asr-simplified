@@ -137,6 +137,8 @@ class GuiWorkflowTests(unittest.TestCase):
         env = _child_environment({"PYTHONUNBUFFERED": "0"}, "secret-key", "workspace-123")
 
         self.assertEqual(env["PYTHONUNBUFFERED"], "1")
+        self.assertEqual(env["PYTHONUTF8"], "1")
+        self.assertEqual(env["PYTHONIOENCODING"], "utf-8")
         self.assertEqual(env["DASHSCOPE_API_KEY"], "secret-key")
         self.assertEqual(env["DASHSCOPE_WORKSPACE_ID"], "workspace-123")
 
