@@ -310,6 +310,7 @@
   }
   .editor-settings-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
   .editor-settings-item[hidden] { display: none; }
+  .editor-settings-group > label.toggle.editor-settings-item { flex: 0 0 100%; }
   .editor-settings-list-fields { flex-wrap: nowrap; }
   .editor-settings-display-row { flex: 0 0 100%; }
   .editor-settings-list-fields > span { color: var(--text-muted); }
@@ -668,7 +669,7 @@
   }
   .modal .modal-field-row button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
   #sticker-root-modal .modal { width: 540px; }
-  .editor-settings-hint { display: block; font-size: 11px; color: var(--text-faint); margin: 2px 0 0; }
+  .editor-settings-hint { display: block; font-size: 12px; color: var(--text-muted); margin: 2px 0 0; }
   .editor-settings-hint[hidden] { display: none; }
   .modal .preview {
     font-size: 12px; color: var(--text-muted); margin-top: 6px; min-height: 16px;
