@@ -60,6 +60,8 @@ uv run python server-editor\serve.py --blank
 
 发布前确认：版本号、`CHANGELOG.md`、README 命令和 `blank-editor.html` 相互一致；运行上述测试；扫描 `.env`、媒体与个人路径；确认 `LICENSE`、`THIRD_PARTY_NOTICES.md` 仍正确。不要创建远端、推送、打 tag 或 GitHub Release，除非维护者明确要求。
 
+Release Markdown 中，粗体闭合标记 `**` 与后续标点或正文之间必须留一个空格，标点后继续正文时也要留一个空格；禁止写成 `- **这个文字**：说明`，应写成 `- **这个文字** ： 说明`，避免 Markdown 渲染异常。
+
 ## 上游关系
 
 MAW 从一开始就是独立项目。需要引入外部代码时，逐项审查、补测试并更新文档；不要整目录覆盖或带入开发者机器上的配置、缓存与辅助工具。

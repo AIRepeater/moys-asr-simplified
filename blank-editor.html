@@ -428,6 +428,16 @@
     left: 0; right: auto;
     width: max-content; min-width: 100%; max-width: 320px;
   }
+  /* 与“打开工程”相同：这两个短菜单按内容收缩，避免通用 240px 最小宽度留下大块空白。 */
+  #workspace-transfer-dropdown > .dropdown-menu {
+    left: 0; right: auto;
+    width: max-content; min-width: 100%; max-width: 320px;
+  }
+  /* 右侧工具栏的表情包导出菜单向左展开，避免贴近窗口右缘时溢出。 */
+  #extra-export-dropdown > .dropdown-menu {
+    left: auto; right: 0;
+    width: max-content; min-width: 100%; max-width: 320px;
+  }
   .toolbar .dropdown.open .dropdown-menu { display: block; }
   .toolbar .dropdown-item {
     padding: 7px 14px; cursor: pointer; user-select: none;
@@ -592,9 +602,11 @@
     margin: 0 -4px 4px;
     border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
   }
+  /* 布局编辑模式下，dock-handle 已在文档流中占位（顶部圆角归把手），
+     工具栏 sticky 让出把手高度即可。 */
   .editor-workspace.layout-editing .cues-container > .cue-list-toolbar {
     top: var(--dock-handle-h);
-    margin-top: var(--dock-handle-h);
+    border-radius: 0;
   }
   .cue {
     display: flex; align-items: flex-start; gap: 8px;
@@ -1301,7 +1313,7 @@
   padding-top: 10px;
 }
 .editor-workspace.layout-wave-right .cue-panel-text-wrap,
-.editor-workspace.layout-free .cue-panel-text-wrap { flex: 1 1 auto; }
+.editor-workspace.layout-custom .cue-panel-text-wrap { flex: 1 1 auto; }
 .editor-workspace.layout-wave-right .cue-panel-navigation,
 .editor-workspace.layout-wave-right .cue-panel-time-actions,
 .editor-workspace.layout-wave-right .cue-panel-sticker-wrap,
@@ -1313,26 +1325,7 @@
   padding: var(--waveform-content-top) 8px 8px;
 }
 
-.editor-workspace.layout-wave-bottom {
-  display: grid;
-  /* 波形在下方时不需要中间的垂直分隔条：保留它会造成 7px 轨道加两侧 gap 的假空隙。 */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows:
-    minmax(130px, calc(var(--layout-row-top) - 9.333px))
-    7px
-    minmax(90px, calc(var(--layout-row-middle) - 9.333px))
-    7px
-    minmax(120px, calc(var(--layout-row-bottom) - 9.333px));
-  gap: 0 8px;
-  overflow: hidden;
-}
-.editor-workspace.layout-wave-bottom > .player-wrap { grid-column: 1; grid-row: 1; }
-.editor-workspace.layout-wave-bottom > .current-cue-panel { grid-column: 2; grid-row: 1; }
-.editor-workspace.layout-wave-bottom > .cues-container { grid-column: 1 / 3; grid-row: 3; }
-.editor-workspace.layout-wave-bottom > .waveform-pane { grid-column: 1 / 3; grid-row: 5; display: block; }
-.editor-workspace.layout-wave-bottom .waveform-scroll { overflow-y: auto; overflow-x: hidden; padding: var(--waveform-content-top) 8px 8px; }
-
-.editor-workspace.layout-free {
+.editor-workspace.layout-custom {
   display: flex;
   flex-direction: row;
   gap: 0;
@@ -1386,40 +1379,39 @@
   position: relative;
   overflow: hidden;
 }
-.layout-free .player-wrap video {
+.layout-custom .player-wrap video {
   width: 100%;
   height: 100%;
   max-height: none;
 }
-.layout-free .player-wrap audio { width: 100%; }
-.layout-free .current-cue-panel {
+.layout-custom .player-wrap audio { width: 100%; }
+.layout-custom .current-cue-panel {
   min-height: max-content;
   overflow: hidden;
   padding-top: 30px;
 }
-.layout-free .layout-module-slot[data-layout-module="panel"],
-.layout-free .layout-child:has(.layout-module-slot[data-layout-module="panel"]) {
+.layout-custom .layout-module-slot[data-layout-module="panel"],
+.layout-custom .layout-child:has(.layout-module-slot[data-layout-module="panel"]) {
   min-height: max-content;
 }
-.layout-free .cue-panel-text-wrap { flex: 1 1 auto; }
-.layout-free .cue-panel-navigation,
-.layout-free .cue-panel-time-actions,
-.layout-free .cue-panel-sticker-wrap,
-.layout-free .cue-panel-time-fields { flex-wrap: wrap; }
-.layout-free .waveform-pane { display: block; }
-.layout-free .waveform-scroll {
+.layout-custom .cue-panel-text-wrap { flex: 1 1 auto; }
+.layout-custom .cue-panel-navigation,
+.layout-custom .cue-panel-time-actions,
+.layout-custom .cue-panel-sticker-wrap,
+.layout-custom .cue-panel-time-fields { flex-wrap: wrap; }
+.layout-custom .waveform-pane { display: block; }
+.layout-custom .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--waveform-content-top) 8px 8px;
 }
 /* 字幕列表本身始终可滚动；不要被预设/停靠模块的 overflow:hidden 截断。 */
 .editor-workspace.layout-wave-right > .cues-container,
-.editor-workspace.layout-wave-bottom > .cues-container,
-.layout-free .cues-container {
+.layout-custom .cues-container {
   overflow-y: auto;
   overflow-x: hidden;
 }
-.layout-free .layout-resizer { display: none; }
+.layout-custom .layout-resizer { display: none; }
 .layout-split-divider {
   position: relative;
   z-index: 35;
@@ -1513,10 +1505,6 @@
 }
 .workspace-divider:hover::after,
 .workspace-divider.dragging::after { background: var(--accent); }
-.editor-workspace.waveform-hidden .waveform-pane,
-.editor-workspace.waveform-hidden .workspace-divider,
-.editor-workspace.waveform-hidden .workspace-divider-secondary,
-.editor-workspace.waveform-hidden .layout-resizer { display: none; }
 
 .layout-resizer {
   display: none;
@@ -1538,9 +1526,6 @@
 .layout-resizer-h1 { grid-column: 1; grid-row: 2; cursor: row-resize; }
 .layout-resizer-h2 { grid-column: 1; grid-row: 4; cursor: row-resize; }
 .layout-resizer-h1::after, .layout-resizer-h2::after { left: 0; right: 0; top: 2px; height: 3px; }
-.layout-wave-bottom .layout-resizer-v { display: none; }
-.layout-wave-bottom .layout-resizer-h1 { grid-column: 1 / 3; grid-row: 2; display: block; }
-.layout-wave-bottom .layout-resizer-h2 { grid-column: 1 / 3; grid-row: 4; display: block; }
 .layout-wave-right .layout-resizer-v,
 .layout-wave-right .layout-resizer-h1,
 .layout-wave-right .layout-resizer-h2 { display: block; }
@@ -1550,6 +1535,14 @@
   align-items: center; padding: 0 8px; color: var(--text-secondary); background: rgba(21, 29, 36, 0.94);
   border-bottom: 1px solid var(--border-subtle); cursor: grab; user-select: none;
   font: 11px/1 var(--font-mono); letter-spacing: 0.02em;
+}
+/* 字幕列表自身会滚动：拖拽把手改为 sticky 进入文档流，
+   滚动时始终钉在列表顶部，不会被内容顶走。 */
+.cues-container > .dock-handle {
+  position: sticky;
+  left: auto; right: auto;
+  margin: 0 -4px;
+  border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
 }
 .dock-handle:hover { color: var(--amber-hover); background: rgba(45, 55, 62, 0.96); }
 .dock-handle:active { cursor: grabbing; }
@@ -1773,6 +1766,12 @@
 }
 .waveform-cue-badge.color { color: #ffd54a; }
 .waveform-cue-badge.sticker { color: #b8d9ff; }
+/* 单行（基础）模式块高不是固定 35px，而是 max(35px, min(72px, 40%))
+   （见 .waveform-basic .waveform-cue-block）；徽章 bottom 同步按
+   「块底 7 + 实际块高 + 间距 2」计算，否则会嵌进更高的单行块内。 */
+.waveform-basic .waveform-cue-badge {
+  bottom: calc(9px + max(35px, min(72px, 40%)) + var(--badge-stack-index, 0) * 16px);
+}
 .waveform-cue-block.selected {
   z-index: 6;
   outline: 2px solid #ffd54a;
@@ -1830,8 +1829,7 @@
   }
   .editor-workspace.layout-classic.waveform-multi .workspace-divider { display: none; }
   .editor-workspace.layout-wave-right,
-  .editor-workspace.layout-wave-bottom,
-  .editor-workspace.layout-free {
+  .editor-workspace.layout-custom {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -1841,8 +1839,8 @@
   .editor-workspace.layout-wave-right > .waveform-pane,
   .editor-workspace.layout-wave-right > .cues-container { min-height: 170px; }
   .editor-workspace.layout-wave-right .layout-resizer { display: none; }
-  .editor-workspace.layout-free .free-layout-root { flex-direction: column; }
-  .editor-workspace.layout-free .layout-module-slot { min-height: 170px; }
+  .editor-workspace.layout-custom .free-layout-root { flex-direction: column; }
+  .editor-workspace.layout-custom .layout-module-slot { min-height: 170px; }
 }
 </style>
 </head>
@@ -1850,7 +1848,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 17:15</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 23:59</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1930,18 +1928,25 @@
     </button>
   </span>
   <span class="sep"></span>
-  <span class="info layout-toolbar-label">布局</span>
-  <select id="layout-preset" title="布局只控制面板摆放，不改变波形基础/多行模式">
-    <option value="classic">标准堆叠</option>
+  <span class="info layout-toolbar-label">工作区</span>
+  <select id="workspace-preset" title="工作区：窗口布局与显示状态（列表显示项、波形模式等）">
     <option value="wave-right" selected>右侧整列波形</option>
-    <option value="wave-bottom">波形在下方</option>
-    <option value="free">自定义停靠</option>
+    <option value="classic">字幕列表编辑</option>
+    <option value="traditional">传统字幕编辑器</option>
   </select>
   <button type="button" id="layout-edit-toggle" title="显示面板标题条和拖动预览">编辑布局</button>
-  <button type="button" id="layout-reset" title="恢复默认的右侧整列波形布局" hidden>重置布局</button>
-  <button type="button" id="layout-export" title="导出当前布局 JSON">导出布局</button>
-  <button type="button" id="layout-import" title="导入布局 JSON">导入布局</button>
-  <input type="file" id="layout-import-file" accept=".layout.json,.json,application/json" style="display:none">
+  <button type="button" id="layout-reset" title="恢复当前内置工作区的默认状态" hidden>重置工作区</button>
+  <button type="button" id="workspace-save" title="保存到当前工作区" hidden>保存工作区</button>
+  <button type="button" id="workspace-save-as" title="将当前工作区另存为新的工作区" hidden>另存为工作区</button>
+  <button type="button" id="workspace-delete" class="danger" title="删除本机保存的工作区" hidden>删除工作区</button>
+  <span class="dropdown" id="workspace-transfer-dropdown" hidden>
+    <button type="button" id="workspace-transfer-btn" title="导出或导入工作区配置">工作区配置 ▾</button>
+    <div class="dropdown-menu" id="workspace-transfer-menu">
+      <div class="dropdown-item" id="workspace-export">导出工作区配置</div>
+      <div class="dropdown-item" id="workspace-import">导入工作区配置</div>
+    </div>
+  </span>
+  <input type="file" id="workspace-import-file" accept=".workspace.json,.json,application/json" style="display:none">
   <span class="sep"></span>
   <span class="info">当前 <b id="now">00:00.000</b></span>
   <span class="info">已选 <b id="sel-count">0</b></span>
@@ -2190,8 +2195,8 @@
   <div class="help-group">
     <span class="help-title">播放与编辑</span>
     <span><kbd>空格</kbd> 播放/暂停 <kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倍速 ×0.5/重置/×2</span>
-    <span><kbd>A</kbd> 上一条字幕 <kbd>D</kbd> 下一条字幕</span>
-    <span><kbd>Shift+A</kbd> 向前多选 <kbd>Shift+D</kbd> 向后多选</span>
+    <span><kbd>A</kbd>或<kbd>W</kbd> 上一条字幕 <kbd>D</kbd>或<kbd>S</kbd> 下一条字幕</span>
+    <span><kbd>Shift+A/W</kbd> 向前多选 <kbd>Shift+D/S</kbd> 向后多选</span>
     <span><kbd>F</kbd> 跳转并播放选中字幕</span>
     <span><kbd>Delete</kbd> 删除所选字幕</span>
     <span><kbd>Ctrl+Z</kbd> 撤销</span>
@@ -2249,10 +2254,9 @@
   <section class="waveform-pane" id="waveform-pane" aria-label="音频波形" tabindex="-1">
     <div class="toolbar waveform-toolbar">
       <span class="info layout-toolbar-label">波形</span>
-      <span class="waveform-mode-switch" role="group" aria-label="波形模式">
+      <span class="waveform-mode-switch" role="group" aria-label="波形显示模式">
         <button type="button" data-waveform-mode="multi">多行</button>
         <button type="button" data-waveform-mode="basic">基础</button>
-        <button type="button" data-waveform-mode="hidden">隐藏</button>
       </span>
       <span class="sep"></span>
       <button type="button" id="gap-remove-manage" title="打开可拖动的移除静音空隙工具窗" aria-expanded="false" aria-controls="gap-remove-panel">移除静音空隙</button>
@@ -3170,11 +3174,13 @@
     '当前': 'Current', '已选': 'Selected', '波形': 'Waveform', '音频波形区': 'Audio waveform',
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
-    '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '布局': 'Layout',
-    '标准堆叠': 'Classic stack', '右侧整列波形': 'Waveform column right',
-    '波形在下方': 'Waveform below', '自定义停靠': 'Custom docking',
-    '编辑布局': 'Edit layout', '重置布局': 'Reset layout',
-    '导出布局': 'Export layout', '导入布局': 'Import layout',
+    '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '工作区': 'Workspace',
+    '字幕列表编辑': 'Subtitle list editor', '右侧整列波形': 'Waveform column right',
+    '传统字幕编辑器': 'Traditional subtitle editor',
+    '编辑布局': 'Edit layout', '完成布局': 'Done editing', '重置工作区': 'Reset workspace',
+    '已保存工作区': 'Saved workspaces',
+    '保存工作区': 'Save workspace', '另存为工作区': 'Save workspace as', '删除工作区': 'Delete workspace',
+    '工作区配置 ▾': 'Workspace configuration ▾', '导出工作区配置': 'Export workspace configuration', '导入工作区配置': 'Import workspace configuration',
     '🔧 设置': '🔧 Settings', '🤔 帮助': '🤔 Help',
     '等待波形数据': 'Waiting for waveform data', '波形处理': 'Waveform processing',
     '扫描参数': 'Scan parameters',
@@ -3200,7 +3206,7 @@
     '合并字幕时插入字符': 'Merge separator', '留空则直接拼接': 'Leave blank to join directly',
     '合并两条字幕时，中间插入的字符（如果不需要可以留空）': 'Characters inserted between merged subtitles (leave blank to join directly)',
     '字幕编辑拆分按键': 'Subtitle split key', '字幕（编辑状态下）拆分按键': 'Subtitle split key (while editing)',
-    '同时选中分组内项目': 'Select all group members',
+    '同时选中分组内项目': 'Select all group members', '或': 'or',
     '显示窗口': 'Visible window', '振幅': 'Amplitude',
     '5 秒': '5 sec', '10 秒': '10 sec', '20 秒': '20 sec', '30 秒': '30 sec',
     '每行长度': 'Seconds per row', '每行高度': 'Row height',
@@ -3333,11 +3339,12 @@
     '分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool (R): click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
     '打开可拖动的移除静音空隙工具窗': 'Open the draggable silent-gap tool',
     '播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览': 'Skip removed silent gaps during playback; clicking inside a gap previews it temporarily',
-    '布局只控制面板摆放，不改变波形基础/多行模式': 'Layout only controls panel placement; it does not change waveform mode',
+    '工作区：窗口布局与显示状态（列表显示项、波形模式等）': 'Workspace: window layout and display state (list fields, waveform mode, etc.)',
     '显示面板标题条和拖动预览': 'Show panel title bars and drag previews',
-    '恢复默认的右侧整列波形布局': 'Restore the default right-column waveform layout',
-    '导出当前布局 JSON': 'Export the current layout JSON',
-    '导入布局 JSON': 'Import layout JSON',
+    '恢复当前内置工作区的默认状态': 'Restore the current built-in workspace to its default state',
+    '保存到当前工作区': 'Save to the current workspace',
+    '将当前工作区另存为新的工作区': 'Save the current workspace as a new workspace',
+    '删除本机保存的工作区': 'Delete the workspace saved on this machine',
     '字幕列表与波形字幕块的普通单击行为；双击编辑不受影响': 'Default click behavior for subtitle rows and waveform blocks; double-click editing is unchanged',
     '编辑字幕时，选择 Enter 或 Ctrl+Enter 在文字光标处拆分；另一个按键用于保存': 'While editing, choose Enter or Ctrl+Enter to split at the text cursor; the other key saves',
     '开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条': 'When enabled, clicking a sticker/color group member selects the whole group; otherwise only that subtitle is selected',
@@ -3574,11 +3581,80 @@
   const SETTINGS_KEY = 'moy.asr.waveform.settings.v1';
   const SCHEMA = 'moy.asr.waveform.v1';
   const ENCODING = 'i8-minmax-base64';
-  const LAYOUT_SCHEMA = 'moy.asr.editor.layout.v1';
-  const LAYOUT_PRESETS = ['classic', 'wave-right', 'wave-bottom', 'free'];
+  const WORKSPACE_SCHEMA = 'moy.asr.editor.workspace.v1';
+  // 渲染器预设：classic / wave-right 由专属 CSS 网格渲染；custom 由 layoutTree 渲染
+  // （传统字幕编辑器与用户保存的自定义工作区都以树渲染）。
+  const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
+  // 内置工作区 id：下拉框可选项；traditional 内部以 custom 渲染器 + 专用树实现。
+  const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'traditional'];
   const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
   const MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
-  const DEFAULT_FREE_ORDER = ['player', 'panel', 'cues', 'wave'];
+  const DEFAULT_MODULE_ORDER = ['player', 'panel', 'cues', 'wave'];
+  const DEFAULT_RIGHT_LAYOUT_TREE = {
+    type: 'split', direction: 'row', ratio: 30,
+    children: [
+      {
+        type: 'split', direction: 'column', ratio: 42,
+        children: [
+          { type: 'module', id: 'player' },
+          {
+            type: 'split', direction: 'column', ratio: 20,
+            children: [{ type: 'module', id: 'panel' }, { type: 'module', id: 'cues' }],
+          },
+        ],
+      },
+      { type: 'module', id: 'wave' },
+    ],
+  };
+  const TRADITIONAL_SUBTITLE_LAYOUT_TREE = {
+    type: 'split', direction: 'column', ratio: 64,
+    children: [
+      {
+        type: 'split', direction: 'row', ratio: 32,
+        children: [
+          {
+            type: 'split', direction: 'column', ratio: 77,
+            children: [{ type: 'module', id: 'player' }, { type: 'module', id: 'panel' }],
+          },
+          { type: 'module', id: 'cues' },
+        ],
+      },
+      { type: 'module', id: 'wave' },
+    ],
+  };
+  // 字幕列表编辑（内置 classic 工作区）：左侧上「视频|当前字幕」、下多行波形，右侧整列字幕列表。
+  const SUBTITLE_LIST_EDIT_LAYOUT_TREE = {
+    type: 'split', direction: 'row', ratio: 55,
+    children: [
+      {
+        type: 'split', direction: 'column', ratio: 43,
+        children: [
+          {
+            type: 'split', direction: 'row', ratio: 63,
+            children: [{ type: 'module', id: 'player' }, { type: 'module', id: 'panel' }],
+          },
+          { type: 'module', id: 'wave' },
+        ],
+      },
+      { type: 'module', id: 'cues' },
+    ],
+  };
+  const CLASSIC_LAYOUT_EDIT_TREE = {
+    type: 'split', direction: 'column', ratio: 38,
+    children: [
+      { type: 'module', id: 'player' },
+      {
+        type: 'split', direction: 'column', ratio: 24,
+        children: [
+          { type: 'module', id: 'panel' },
+          {
+            type: 'split', direction: 'row', ratio: 50,
+            children: [{ type: 'module', id: 'wave' }, { type: 'module', id: 'cues' }],
+          },
+        ],
+      },
+    ],
+  };
   const LAYOUT_DIRECTIONS = ['left', 'right', 'top', 'bottom'];
   const MODULE_EDGE_DROP_RATIO = 0.24;
   const ROOT_EDGE_DROP_RATIO = 0.055;
@@ -3596,7 +3672,6 @@
   const BROWSER_DECODE_LIMIT = 512 * 1024 * 1024;
   const BROWSER_PCM_ESTIMATE_LIMIT = 768 * 1024 * 1024;
   const DEFAULT_LAYOUT_ROWS = [42, 18, 40];
-  const PREVIOUS_DEFAULT_LAYOUT_ROWS = [42, 27, 31];
   const DEFAULT_SETTINGS = {
     mode: 'multi',
     layout: 'wave-right',
@@ -3605,15 +3680,38 @@
     rowHeight: 120,
     side: 'left',
     splitPercent: 60,
-    layoutColumnPercent: 44,
+    layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
-    freeOrder: [...DEFAULT_FREE_ORDER],
-    layoutTree: null,
+    layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
     layoutEditing: false,
     waveformScale: 1,
     disabledDisplay: 'dim',
     showGroupBadges: true,
     dragPlayhead: true,
+  };
+  // 内置工作区默认的列表/编辑区显示开关；traditional 默认开启字幕列表表情包列。
+  const BUILTIN_EDITOR_DISPLAY = {
+    cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: false, cueListShowCharcount: true,
+    cueEditorShowNavigation: false, cueEditorShowTimeActions: true, cueEditorShowSticker: false,
+  };
+  const BUILTIN_WORKSPACES = {
+    // 字幕列表编辑（界面显示名）：聚焦右侧整列字幕列表，以 custom 渲染器渲染。
+    classic: {
+      preset: 'custom', waveformMode: 'multi', splitPercent: 60, columnPercent: 36,
+      rows: [42, 18, 40], tree: SUBTITLE_LIST_EDIT_LAYOUT_TREE,
+      editorDisplay: BUILTIN_EDITOR_DISPLAY,
+    },
+    'wave-right': {
+      preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
+      rows: [42, 18, 40], tree: DEFAULT_RIGHT_LAYOUT_TREE,
+      editorDisplay: BUILTIN_EDITOR_DISPLAY,
+    },
+    // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
+    traditional: {
+      preset: 'custom', waveformMode: 'basic', splitPercent: 60, columnPercent: 36,
+      rows: [42, 18, 40], tree: TRADITIONAL_SUBTITLE_LAYOUT_TREE,
+      editorDisplay: { ...BUILTIN_EDITOR_DISPLAY, cueListShowSticker: true },
+    },
   };
   const PALETTE = {
     red: '#e74c3c',
@@ -3665,11 +3763,11 @@
     return `${hh}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
   }
 
-  function normalizeFreeOrder(value) {
+  function normalizeModuleOrder(value) {
     return Array.isArray(value) && value.length === MODULE_IDS.length
       && value.every((id) => MODULE_IDS.includes(id))
       && new Set(value).size === MODULE_IDS.length
-      ? [...value] : [...DEFAULT_FREE_ORDER];
+      ? [...value] : [...DEFAULT_MODULE_ORDER];
   }
 
   function moduleLayoutNode(id) {
@@ -3683,18 +3781,6 @@
       ratio: clamp(Number(ratio) || 50, 20, 80),
       children: [first, second],
     };
-  }
-
-  function legacyOrderToLayoutTree(order, columnPercent = DEFAULT_SETTINGS.layoutColumnPercent, rows = DEFAULT_LAYOUT_ROWS) {
-    const ids = normalizeFreeOrder(order);
-    const [top, middle, bottom] = normalizeLayoutRows(rows);
-    const left = splitLayoutNode(
-      'column',
-      top,
-      moduleLayoutNode(ids[0]),
-      splitLayoutNode('column', middle / Math.max(1, middle + bottom), moduleLayoutNode(ids[1]), moduleLayoutNode(ids[2])),
-    );
-    return splitLayoutNode('row', columnPercent, left, moduleLayoutNode(ids[3]));
   }
 
   function cloneLayoutTree(node) {
@@ -3861,38 +3947,50 @@
     return [top, middle, bottom];
   }
 
-  function isPreviousDefaultLayoutRows(rows) {
-    return rows.length === PREVIOUS_DEFAULT_LAYOUT_ROWS.length
-      && rows.every((value, index) => value === PREVIOUS_DEFAULT_LAYOUT_ROWS[index]);
-  }
-
   function normalizeLayoutData(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const preset = LAYOUT_PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.layout;
-    const normalizedRows = normalizeLayoutRows(source.rows);
-    // 仅迁移精确命中的旧默认值；用户手动调整过的比例保持原样。
-    const rows = preset === 'wave-right' && isPreviousDefaultLayoutRows(normalizedRows)
-      ? [...DEFAULT_LAYOUT_ROWS] : normalizedRows;
+    const preset = RENDERER_PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.layout;
+    const rows = normalizeLayoutRows(source.rows);
     const columnPercent = clamp(Number(source.columnPercent) || DEFAULT_SETTINGS.layoutColumnPercent, 30, 75);
     const splitPercent = clamp(Number(source.splitPercent) || DEFAULT_SETTINGS.splitPercent, 35, 75);
-    const legacyOrder = normalizeFreeOrder(source.freeOrder || source.dockOrder);
-    const candidateTree = normalizeLayoutTree(source.tree || source.layoutTree);
+    const waveformMode = ['basic', 'multi'].includes(source.waveformMode) ? source.waveformMode : null;
+    const rawWaveformSettings = source.waveformSettings;
+    const waveformSettings = rawWaveformSettings && typeof rawWaveformSettings === 'object' ? {
+      ...(ZOOM_PRESETS.includes(Number(rawWaveformSettings.visibleSeconds))
+        ? { visibleSeconds: Number(rawWaveformSettings.visibleSeconds) } : {}),
+      ...(ROW_PRESETS.includes(Number(rawWaveformSettings.secondsPerRow))
+        ? { secondsPerRow: Number(rawWaveformSettings.secondsPerRow) } : {}),
+      ...(ROW_HEIGHT_PRESETS.includes(Number(rawWaveformSettings.rowHeight))
+        ? { rowHeight: Number(rawWaveformSettings.rowHeight) } : {}),
+      ...(Number.isFinite(Number(rawWaveformSettings.waveformScale))
+        ? { waveformScale: clampWaveformScale(Number(rawWaveformSettings.waveformScale)) } : {}),
+      ...(rawWaveformSettings.side === 'left' || rawWaveformSettings.side === 'right'
+        ? { side: rawWaveformSettings.side } : {}),
+      ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
+        ? { disabledDisplay: rawWaveformSettings.disabledDisplay } : {}),
+      ...(typeof rawWaveformSettings.showGroupBadges === 'boolean'
+        ? { showGroupBadges: rawWaveformSettings.showGroupBadges } : {}),
+      ...(typeof rawWaveformSettings.dragPlayhead === 'boolean'
+        ? { dragPlayhead: rawWaveformSettings.dragPlayhead } : {}),
+    } : null;
+    const candidateTree = normalizeLayoutTree(source.tree);
     const tree = isCompleteLayoutTree(candidateTree)
       ? candidateTree
-      : legacyOrderToLayoutTree(legacyOrder, columnPercent, rows);
+      : cloneLayoutTree(preset === 'classic' ? CLASSIC_LAYOUT_EDIT_TREE : DEFAULT_RIGHT_LAYOUT_TREE);
     return {
-      schema: LAYOUT_SCHEMA,
+      schema: WORKSPACE_SCHEMA,
       preset,
+      waveformMode,
+      waveformSettings,
       splitPercent,
       columnPercent,
       rows,
-      freeOrder: collectLayoutModules(tree),
       tree,
     };
   }
 
-  function swapFreeLayoutOrder(order, sourceId, targetId) {
-    const next = normalizeFreeOrder(order);
+  function swapLayoutModuleOrder(order, sourceId, targetId) {
+    const next = normalizeModuleOrder(order);
     const sourceIndex = next.indexOf(sourceId);
     const targetIndex = next.indexOf(targetId);
     if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return next;
@@ -3903,28 +4001,16 @@
   function readSettings() {
     try {
       const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-      const legacyLayout = parsed.layout || (
-        parsed.mode === 'grid-right' ? 'wave-right' :
-          parsed.mode === 'grid-bottom' ? 'wave-bottom' :
-            parsed.mode === 'dock' ? 'free' : DEFAULT_SETTINGS.layout
-      );
-      const legacyMode = ['hidden', 'basic', 'multi'].includes(parsed.mode)
-        ? parsed.mode
-        : ['grid-right', 'grid-bottom', 'dock'].includes(parsed.mode)
-          ? 'multi'
-          : DEFAULT_SETTINGS.mode;
       const layoutData = normalizeLayoutData({
-        preset: legacyLayout,
+        preset: parsed.layout,
         splitPercent: parsed.splitPercent,
         columnPercent: parsed.layoutColumnPercent,
-        rows: parsed.layoutRows || [parsed.layoutRowPercent, PREVIOUS_DEFAULT_LAYOUT_ROWS[1], PREVIOUS_DEFAULT_LAYOUT_ROWS[2]],
-        freeOrder: parsed.freeOrder || parsed.dockOrder,
-        tree: parsed.layoutTree || parsed.tree,
+        rows: parsed.layoutRows,
+        tree: parsed.layoutTree,
       });
       return {
         ...DEFAULT_SETTINGS,
-        ...parsed,
-        mode: legacyMode,
+        mode: ['basic', 'multi'].includes(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode,
         layout: layoutData.preset,
         visibleSeconds: ZOOM_PRESETS.includes(Number(parsed.visibleSeconds))
           ? Number(parsed.visibleSeconds) : DEFAULT_SETTINGS.visibleSeconds,
@@ -3936,7 +4022,6 @@
         splitPercent: layoutData.splitPercent,
         layoutColumnPercent: layoutData.columnPercent,
         layoutRows: layoutData.rows,
-        freeOrder: layoutData.freeOrder,
         layoutTree: layoutData.tree,
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
@@ -3947,7 +4032,7 @@
     } catch (_) {
       return {
         ...DEFAULT_SETTINGS,
-        layoutTree: legacyOrderToLayoutTree(DEFAULT_FREE_ORDER, DEFAULT_SETTINGS.layoutColumnPercent, DEFAULT_SETTINGS.layoutRows),
+        layoutTree: cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE),
       };
     }
   }
@@ -4218,7 +4303,6 @@
       this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.sideSelect = document.getElementById('waveform-side');
       this.disabledDisplaySelect = document.getElementById('waveform-disabled-display');
-      this.layoutPresetSelect = document.getElementById('layout-preset');
       this.layoutEditToggle = document.getElementById('layout-edit-toggle');
       this.layoutResetButton = document.getElementById('layout-reset');
       this.layoutPreview = document.getElementById('layout-drop-preview');
@@ -4292,7 +4376,6 @@
         saveSettings(this.settings);
         this.renderSegments();
       });
-      this.layoutPresetSelect?.addEventListener('change', () => this.setLayout(this.layoutPresetSelect.value));
       this.layoutEditToggle?.addEventListener('click', () => this.toggleLayoutEditMode());
       this.layoutResetButton?.addEventListener('click', () => this.resetLayout());
       this.scroll.addEventListener('wheel', (event) => this.handleWheel(event), { passive: false });
@@ -4426,8 +4509,8 @@
 
     applyLayout() {
       this.workspace.classList.remove(
-        'waveform-hidden', 'waveform-basic', 'waveform-multi',
-        'layout-classic', 'layout-wave-right', 'layout-wave-bottom', 'layout-free',
+        'waveform-basic', 'waveform-multi',
+        'layout-classic', 'layout-wave-right', 'layout-custom',
         'waveform-right', 'layout-editing',
       );
       this.workspace.classList.add(`waveform-${this.settings.mode}`);
@@ -4437,7 +4520,7 @@
       }
       if (this.settings.layoutEditing) this.workspace.classList.add('layout-editing');
       this.applyLayoutVariables();
-      this.applyFreeLayoutTree();
+      this.applyCustomLayoutTree();
       document.querySelectorAll('[data-waveform-mode]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformMode === this.settings.mode);
       });
@@ -4447,7 +4530,8 @@
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(this.settings.rowHeight);
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
       if (this.disabledDisplaySelect) this.disabledDisplaySelect.value = this.settings.disabledDisplay;
-      if (this.layoutPresetSelect) this.layoutPresetSelect.value = this.settings.layout;
+      if (this.showGroupBadgesToggle) this.showGroupBadgesToggle.checked = this.settings.showGroupBadges !== false;
+      if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
       if (this.layoutEditToggle) {
         this.layoutEditToggle.textContent = this.settings.layoutEditing ? '完成布局' : '编辑布局';
         this.layoutEditToggle.classList.toggle('active', !!this.settings.layoutEditing);
@@ -4459,14 +4543,11 @@
     updateAdvancedSettingsAvailability() {
       const basicMode = this.settings.mode === 'basic';
       const multiMode = this.settings.mode === 'multi';
-      const waveformVisible = this.settings.mode !== 'hidden';
       document.getElementById('waveform-zoom-in').disabled = !basicMode;
       document.getElementById('waveform-zoom-out').disabled = !basicMode;
       this.secondsPerRowSelect.disabled = !multiMode;
       if (this.rowHeightSelect) this.rowHeightSelect.disabled = !multiMode;
-      if (this.waveformScaleDownButton) this.waveformScaleDownButton.disabled = !waveformVisible;
-      if (this.waveformScaleUpButton) this.waveformScaleUpButton.disabled = !waveformVisible;
-      // 「显示窗口」仅基础模式有意义；「每行长度」仅多行模式有意义；隐藏波形时两项都收起。
+      // 「显示窗口」仅基础模式有意义；「每行长度」「每行高度」仅多行模式有意义。
       const windowSetting = document.getElementById('waveform-window-setting');
       const secondsPerRowSetting = document.getElementById('waveform-seconds-per-row-setting');
       const rowHeightSetting = document.getElementById('waveform-row-height-setting');
@@ -4476,7 +4557,7 @@
     }
 
     setMode(mode) {
-      if (!['hidden', 'basic', 'multi'].includes(mode) || mode === this.settings.mode) return;
+      if (!['basic', 'multi'].includes(mode) || mode === this.settings.mode) return;
       this.settings.mode = mode;
       saveSettings(this.settings);
       this.applyLayout();
@@ -4504,18 +4585,27 @@
       return this.tool;
     }
 
-    setLayout(layout) {
-      if (!LAYOUT_PRESETS.includes(layout)) return;
-      this.settings.layout = layout;
-      this.settings.layoutEditing = layout === 'free';
+    // 切换到内置工作区：应用其渲染器、波形模式与完整布局树。
+    setLayout(workspaceId) {
+      const builtin = BUILTIN_WORKSPACES[workspaceId];
+      if (!builtin) return;
+      const normalized = normalizeLayoutData(builtin);
+      this.settings.layout = normalized.preset;
+      if (normalized.waveformMode) this.settings.mode = normalized.waveformMode;
+      if (normalized.waveformSettings) Object.assign(this.settings, normalized.waveformSettings);
+      this.settings.splitPercent = normalized.splitPercent;
+      this.settings.layoutColumnPercent = normalized.columnPercent;
+      this.settings.layoutRows = normalized.rows;
+      this.settings.layoutTree = normalized.tree;
+      this.settings.layoutEditing = false;
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
     }
 
     toggleLayoutEditMode() {
-      if (this.settings.layout !== 'free') {
-        this.settings.layout = 'free';
+      if (this.settings.layout !== 'custom') {
+        this.settings.layout = 'custom';
         this.settings.layoutEditing = true;
       } else {
         this.settings.layoutEditing = !this.settings.layoutEditing;
@@ -4529,16 +4619,12 @@
       return this.settings.mode === 'multi';
     }
 
-    isDockLayout() {
-      return this.settings.layout === 'free' && this.settings.layoutEditing;
-    }
-
-    isFreeLayout() {
-      return this.settings.layout === 'free';
+    isCustomLayout() {
+      return this.settings.layout === 'custom' && this.settings.layoutEditing;
     }
 
     isPresetResizableLayout() {
-      return this.settings.layout === 'wave-right' || this.settings.layout === 'wave-bottom';
+      return this.settings.layout === 'wave-right';
     }
 
     bindDockHandles() {
@@ -4560,7 +4646,7 @@
         }
         handle.draggable = true;
         handle.addEventListener('dragstart', (event) => {
-          if (!this.isDockLayout()) {
+          if (!this.isCustomLayout()) {
             event.preventDefault();
             this.setStatus('请先进入「编辑布局」模式', 'busy');
             return;
@@ -4578,7 +4664,7 @@
           this.workspace.classList.remove('layout-dragging');
         });
         element.addEventListener('dragover', (event) => {
-          if (!this.isDockLayout() || !this.layoutDragSource) return;
+          if (!this.isCustomLayout() || !this.layoutDragSource) return;
           if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
           if (this.layoutDragSource === id) return;
           event.preventDefault();
@@ -4588,7 +4674,7 @@
           this.showLayoutDropPreview(element, id, this.layoutDragSource, intent);
         });
         element.addEventListener('drop', (event) => {
-          if (!this.isDockLayout()) return;
+          if (!this.isCustomLayout()) return;
           const source = this.layoutDragSource || event.dataTransfer?.getData('text/plain');
           if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
           event.preventDefault();
@@ -4605,7 +4691,7 @@
 
     bindWorkspaceDockTarget() {
       this.workspace.addEventListener('dragover', (event) => {
-        if (!this.isDockLayout() || !this.layoutDragSource || event.defaultPrevented) return;
+        if (!this.isCustomLayout() || !this.layoutDragSource || event.defaultPrevented) return;
         const intent = layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY);
         if (!intent) {
           this.clearLayoutDropPreview();
@@ -4617,7 +4703,7 @@
         this.showLayoutDropPreview(this.workspace, null, this.layoutDragSource, intent);
       });
       this.workspace.addEventListener('drop', (event) => {
-        if (!this.isDockLayout() || event.defaultPrevented) return;
+        if (!this.isCustomLayout() || event.defaultPrevented) return;
         const source = this.layoutDragSource || event.dataTransfer?.getData('text/plain');
         if (!source) return;
         const storedIntent = this.layoutDropIntent?.mode === 'root-insert'
@@ -4633,7 +4719,9 @@
     }
 
     applyLayoutDrop(sourceId, targetId, intent) {
-      const tree = this.settings.layoutTree || legacyOrderToLayoutTree(this.settings.freeOrder);
+      const tree = isCompleteLayoutTree(this.settings.layoutTree)
+        ? this.settings.layoutTree
+        : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
       const nextTree = intent.mode === 'root-insert'
         ? insertLayoutModuleAtRootEdge(tree, sourceId, intent.direction)
         : intent.mode === 'insert'
@@ -4647,7 +4735,6 @@
         this.getLayoutHistorySnapshot(),
       );
       this.settings.layoutTree = nextTree;
-      this.settings.freeOrder = collectLayoutModules(nextTree);
       saveSettings(this.settings);
       this.applyLayout();
       if (intent.mode === 'root-insert') {
@@ -4695,12 +4782,12 @@
       });
     }
 
-    ensureFreeLayoutRoot() {
-      if (this.freeLayoutRoot?.isConnected) return this.freeLayoutRoot;
-      this.freeLayoutRoot = document.createElement('div');
-      this.freeLayoutRoot.className = 'free-layout-root';
-      this.workspace.insertBefore(this.freeLayoutRoot, this.layoutPreview || null);
-      return this.freeLayoutRoot;
+    ensureCustomLayoutRoot() {
+      if (this.customLayoutRoot?.isConnected) return this.customLayoutRoot;
+      this.customLayoutRoot = document.createElement('div');
+      this.customLayoutRoot.className = 'free-layout-root';
+      this.workspace.insertBefore(this.customLayoutRoot, this.layoutPreview || null);
+      return this.customLayoutRoot;
     }
 
     restoreDirectLayoutModules() {
@@ -4710,19 +4797,19 @@
         cues: this.cues,
         wave: this.pane,
       };
-      if (!this.freeLayoutRoot?.isConnected) return;
+      if (!this.customLayoutRoot?.isConnected) return;
       Object.values(elements).forEach((element) => {
         if (element) {
           element.style.gridArea = '';
-          this.workspace.insertBefore(element, this.freeLayoutRoot);
+          this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
-      this.freeLayoutRoot.remove();
-      this.freeLayoutRoot = null;
-      this.renderedFreeLayoutTree = null;
+      this.customLayoutRoot.remove();
+      this.customLayoutRoot = null;
+      this.renderedCustomLayoutTree = null;
     }
 
-    createFreeLayoutNode(node) {
+    createCustomLayoutNode(node) {
       const elements = {
         player: this.playerWrap,
         panel: this.panel,
@@ -4746,22 +4833,22 @@
       const divider = document.createElement('div');
       divider.className = `layout-split-divider layout-split-divider-${node.direction}`;
       divider.title = node.direction === 'row' ? '拖动调整左右区域比例' : '拖动调整上下区域比例';
-      first.appendChild(this.createFreeLayoutNode(node.children[0]));
-      second.appendChild(this.createFreeLayoutNode(node.children[1]));
+      first.appendChild(this.createCustomLayoutNode(node.children[0]));
+      second.appendChild(this.createCustomLayoutNode(node.children[1]));
       split.append(first, divider, second);
-      this.applyFreeSplitRatio(first, node.ratio);
-      this.bindFreeLayoutDivider(divider, split, first, node);
+      this.applyCustomSplitRatio(first, node.ratio);
+      this.bindCustomLayoutDivider(divider, split, first, node);
       return split;
     }
 
-    applyFreeSplitRatio(first, ratio) {
+    applyCustomSplitRatio(first, ratio) {
       first.style.flex = `0 0 calc(${clamp(Number(ratio) || 50, 20, 80)}% - 3.5px)`;
     }
 
-    bindFreeLayoutDivider(divider, split, first, node) {
+    bindCustomLayoutDivider(divider, split, first, node) {
       let drag = null;
       divider.addEventListener('pointerdown', (event) => {
-        if (!this.isFreeLayout()) return;
+        if (this.settings.layout !== 'custom') return;
         event.preventDefault();
         drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
         divider.classList.add('dragging');
@@ -4780,7 +4867,7 @@
           drag.changed = true;
         }
         node.ratio = nextRatio;
-        this.applyFreeSplitRatio(first, node.ratio);
+        this.applyCustomSplitRatio(first, node.ratio);
       });
       const finish = (event) => {
         if (!drag || drag.pointerId !== event.pointerId) return;
@@ -4793,30 +4880,40 @@
       divider.addEventListener('pointercancel', finish);
     }
 
-    applyFreeLayoutTree() {
-      if (this.settings.layout !== 'free') {
+    applyCustomLayoutTree() {
+      if (this.settings.layout !== 'custom') {
         this.restoreDirectLayoutModules();
         return;
       }
-      const root = this.ensureFreeLayoutRoot();
+      const root = this.ensureCustomLayoutRoot();
       const tree = isCompleteLayoutTree(this.settings.layoutTree)
         ? this.settings.layoutTree
-        : legacyOrderToLayoutTree(this.settings.freeOrder, this.settings.layoutColumnPercent, this.settings.layoutRows);
+        : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
       this.settings.layoutTree = tree;
-      if (this.renderedFreeLayoutTree === tree && root.childElementCount) return;
+      if (this.renderedCustomLayoutTree === tree && root.childElementCount) return;
       root.replaceChildren();
-      root.appendChild(this.createFreeLayoutNode(tree));
-      this.renderedFreeLayoutTree = tree;
+      root.appendChild(this.createCustomLayoutNode(tree));
+      this.renderedCustomLayoutTree = tree;
     }
 
     getLayoutData() {
       return {
-        schema: LAYOUT_SCHEMA,
+        schema: WORKSPACE_SCHEMA,
         preset: this.settings.layout,
+        waveformMode: this.settings.mode,
+        waveformSettings: {
+          visibleSeconds: this.settings.visibleSeconds,
+          secondsPerRow: this.settings.secondsPerRow,
+          rowHeight: this.settings.rowHeight,
+          waveformScale: this.settings.waveformScale,
+          side: this.settings.side,
+          disabledDisplay: this.settings.disabledDisplay,
+          showGroupBadges: this.settings.showGroupBadges !== false,
+          dragPlayhead: this.settings.dragPlayhead === true,
+        },
         splitPercent: this.settings.splitPercent,
         columnPercent: this.settings.layoutColumnPercent,
         rows: [...this.settings.layoutRows],
-        freeOrder: collectLayoutModules(this.settings.layoutTree),
         tree: cloneLayoutTree(this.settings.layoutTree),
       };
     }
@@ -4836,12 +4933,13 @@
       if (!snapshot || !snapshot.layout) return false;
       const layout = normalizeLayoutData(snapshot.layout);
       this.settings.layout = layout.preset;
+      if (layout.waveformMode) this.settings.mode = layout.waveformMode;
+      if (layout.waveformSettings) Object.assign(this.settings, layout.waveformSettings);
       this.settings.splitPercent = layout.splitPercent;
       this.settings.layoutColumnPercent = layout.columnPercent;
       this.settings.layoutRows = layout.rows;
-      this.settings.freeOrder = layout.freeOrder;
       this.settings.layoutTree = layout.tree;
-      this.settings.layoutEditing = layout.preset === 'free' && !!snapshot.layoutEditing;
+      this.settings.layoutEditing = layout.preset === 'custom' && !!snapshot.layoutEditing;
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -4849,31 +4947,19 @@
     }
 
     resetLayout() {
-      this.recordLayoutUndo('重置布局');
-      this.settings.layout = DEFAULT_SETTINGS.layout;
-      this.settings.splitPercent = DEFAULT_SETTINGS.splitPercent;
-      this.settings.layoutColumnPercent = DEFAULT_SETTINGS.layoutColumnPercent;
-      this.settings.layoutRows = [...DEFAULT_SETTINGS.layoutRows];
-      this.settings.freeOrder = [...DEFAULT_FREE_ORDER];
-      this.settings.layoutTree = legacyOrderToLayoutTree(
-        DEFAULT_FREE_ORDER,
-        DEFAULT_SETTINGS.layoutColumnPercent,
-        DEFAULT_SETTINGS.layoutRows,
-      );
-      this.settings.layoutEditing = false;
-      saveSettings(this.settings);
-      this.applyLayout();
-      this.render();
-      this.setStatus('已恢复默认布局');
+      this.recordLayoutUndo('重置工作区');
+      this.setLayout(DEFAULT_SETTINGS.layout);
+      this.setStatus('已恢复默认工作区');
     }
 
     setLayoutData(value) {
       const layout = normalizeLayoutData(value);
       this.settings.layout = layout.preset;
+      if (layout.waveformMode) this.settings.mode = layout.waveformMode;
+      if (layout.waveformSettings) Object.assign(this.settings, layout.waveformSettings);
       this.settings.splitPercent = layout.splitPercent;
       this.settings.layoutColumnPercent = layout.columnPercent;
       this.settings.layoutRows = layout.rows;
-      this.settings.freeOrder = layout.freeOrder;
       this.settings.layoutTree = layout.tree;
       this.settings.layoutEditing = false;
       saveSettings(this.settings);
@@ -4919,7 +5005,7 @@
     }
 
     revealTime(timeMs, center = true) {
-      if (this.settings.mode === 'hidden' || !this.payload) return;
+      if (!this.payload) return;
       if (this.settings.mode === 'basic') {
         const windowMs = this.settings.visibleSeconds * 1000;
         const maxStart = Math.max(0, this.durationMs - windowMs);
@@ -5178,7 +5264,6 @@
 
     render() {
       this.applyLayout();
-      if (this.settings.mode === 'hidden') return;
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
         this.empty.classList.remove('hidden');
@@ -5205,7 +5290,7 @@
     }
 
     renderSegments() {
-      if (this.settings.mode === 'hidden' || !this.payload) return;
+      if (!this.payload) return;
       if (this.settings.mode === 'basic') this.renderBasic();
       else this.renderMultiVisible(true);
     }
@@ -5655,7 +5740,7 @@
         }
         return;
       }
-      if (event.shiftKey && this.settings.mode !== 'hidden') {
+      if (event.shiftKey) {
         event.preventDefault();
         // 用 rAF 合并高频滚轮：一帧内累加方向，避免每次 wheel 都重渲染导致卡顿
         this.pendingScaleDirection += event.deltaY > 0 ? -1 : 1;
@@ -6147,7 +6232,7 @@
     }
 
     updatePlayback(allowFollow = true) {
-      if (!this.payload || this.settings.mode === 'hidden') return;
+      if (!this.payload) return;
       const now = this.currentTimeMs();
       const segments = this.options.getSegments();
       const activeIndex = segments.findIndex((segment) => !segment.disabled && now >= segment.start && now <= segment.end);
@@ -6199,6 +6284,8 @@
     create(options) {
       return new WaveformEditor(options);
     },
+    builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
+    builtinWorkspaces: BUILTIN_WORKSPACES,
     testing: {
       decodePayload,
       remapItems,
@@ -6213,7 +6300,7 @@
       waveformAmplitude,
       sampleInterpolatedPeak,
       normalizeLayoutData,
-      swapFreeLayoutOrder,
+      swapLayoutModuleOrder,
       normalizeLayoutTree,
       collectLayoutModules,
       swapLayoutTreeModules,
@@ -6404,7 +6491,7 @@ function pushUndo(label) {
 }
 function pushLayoutUndo(label, snapshot) {
   if (!snapshot) return;
-  editorHistory.push({ kind: 'layout', label: label || '调整布局', layout: snapshot });
+  editorHistory.push({ kind: 'layout', label: label || '调整工作区', layout: snapshot });
   updateUndoRedoButtons();
 }
 function pushGapRemoveUndo(label) {
@@ -6439,7 +6526,7 @@ function applyPreviewState(state) {
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label) {
   if (kind === 'layout') {
-    return { kind: 'layout', label: label || '调整布局', layout: waveformEditor?.getLayoutHistorySnapshot?.() || null };
+    return { kind: 'layout', label: label || '调整工作区', layout: waveformEditor?.getLayoutHistorySnapshot?.() || null };
   }
   if (kind === 'gap_remove') {
     return {
@@ -6456,10 +6543,10 @@ function snapshotCurrentForKind(kind, label) {
 function applyHistoryRecord(record) {
   if (record.kind === 'layout') {
     if (!waveformEditor?.restoreLayoutHistorySnapshot?.(record.layout)) {
-      flashHint('布局恢复失败：布局模块尚未加载');
+      flashHint('工作区恢复失败：波形模块尚未加载');
       return false;
     }
-    DATA.layout = waveformEditor.getLayoutData();
+    DATA.workspace = waveformEditor.getLayoutData();
     return true;
   }
   if (record.kind === 'gap_remove') {
@@ -6487,7 +6574,7 @@ function performUndo() {
   const top = editorHistory.peekUndo();
   if (!top) { flashHint('没有可撤销的操作'); return; }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
-    flashHint('布局撤销失败：布局模块尚未加载');
+    flashHint('工作区撤销失败：波形模块尚未加载');
     return;
   }
   if (editingState) finishEdit(false);  // 撤销前丢弃当前编辑（保持快照前后一致）
@@ -6502,7 +6589,7 @@ function performRedo() {
   const top = editorHistory.peekRedo();
   if (!top) { flashHint('没有可重做的操作'); return; }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
-    flashHint('布局重做失败：布局模块尚未加载');
+    flashHint('工作区重做失败：波形模块尚未加载');
     return;
   }
   if (editingState) finishEdit(false);
@@ -6668,6 +6755,27 @@ function applyCueEditorDisplaySettings() {
   cuePanel.classList.toggle('hide-cue-editor-navigation', !EDITOR_SETTINGS.cueEditorShowNavigation);
   cuePanel.classList.toggle('hide-cue-editor-time-actions', !EDITOR_SETTINGS.cueEditorShowTimeActions);
   cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
+}
+
+const EDITOR_DISPLAY_KEYS = [
+  'cueListShowIndex', 'cueListShowTime', 'cueListShowSticker', 'cueListShowCharcount',
+  'cueEditorShowNavigation', 'cueEditorShowTimeActions', 'cueEditorShowSticker',
+];
+
+function getEditorDisplaySettings() {
+  return Object.fromEntries(EDITOR_DISPLAY_KEYS.map((key) => [key, EDITOR_SETTINGS[key]]));
+}
+
+function applyEditorDisplaySettings(value) {
+  if (!value || typeof value !== 'object') return;
+  const patch = {};
+  EDITOR_DISPLAY_KEYS.forEach((key) => {
+    if (typeof value[key] === 'boolean') patch[key] = value[key];
+  });
+  if (!Object.keys(patch).length) return;
+  updateEditorSettings(patch);
+  applyCueListDisplaySettings();
+  applyCueEditorDisplaySettings();
 }
 
 function bindCueEditorDisplayToggle(toggle, key) {
@@ -8432,12 +8540,12 @@ document.addEventListener('keydown', (e) => {
   flashHint(`倍速: ${fmtRate(r)}`);
 });
 
-// A/D：跳转到上一条/下一条字幕的句首并单选。
-// Shift+A/D：保留当前选择，并向前/后追加选择一条字幕。
+// A/D（或 W/S）：跳转到上一条/下一条字幕的句首并单选。W/S 与 A/D 等价，对应上下方向。
+// Shift+A/D（或 Shift+W/S）：保留当前选择，并向前/后追加选择一条字幕。
 // 跳转本身不改变播放状态：播放中会从新位置继续播放，暂停中只移动播放指针。
 document.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
-  if (key !== 'a' && key !== 'd') return;
+  if (key !== 'a' && key !== 'd' && key !== 'w' && key !== 's') return;
   if (editingState) return;
   const a = document.activeElement;
   if (a && (
@@ -8454,7 +8562,7 @@ document.addEventListener('keydown', (e) => {
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-  const direction = key === 'a' ? -1 : 1;
+  const direction = (key === 'a' || key === 'w') ? -1 : 1;
   const next = e.shiftKey
     ? window.AsrEditorUtils.findCueSelectionExtensionTarget(
       DATA.segments,
@@ -9227,16 +9335,25 @@ function buildJson() {
   };
   if (DATA.waveform) out.waveform = DATA.waveform;
   if (DATA.gap_remove) out.gap_remove = normalizedGapRemoveData(DATA.gap_remove);
-  const layout = waveformEditor?.getLayoutData?.() || DATA.layout;
-  if (layout) out.layout = layout;
+  const workspace = buildCurrentWorkspaceData();
+  if (workspace) out.workspace = workspace;
   // 预览几何：始终写入归一化后的当前几何，便于跨机/重开保持位置。
   out.preview = { subtitle: getPreviewGeometry() };
   return JSON.stringify(out, null, 2);
 }
 
-function buildLayoutJson() {
-  const layout = waveformEditor?.getLayoutData?.() || DATA.layout;
-  return JSON.stringify(layout || {}, null, 2);
+function buildWorkspaceJson() {
+  const workspace = buildCurrentWorkspaceData();
+  return JSON.stringify(workspace || {}, null, 2);
+}
+
+function buildCurrentWorkspaceData() {
+  const workspace = waveformEditor?.getLayoutData?.() || DATA.workspace;
+  if (!workspace) return workspace;
+  const selectedPreset = currentServerWorkspaceName
+    ? `saved:${currentServerWorkspaceName}`
+    : currentBuiltinWorkspaceName || workspacePresetSelect?.value || workspace.preset;
+  return { ...workspace, selectedPreset, editorDisplay: getEditorDisplaySettings() };
 }
 
 function buildResolveJson() {
@@ -9756,6 +9873,269 @@ function configureServerProjectSettings() {
   });
 }
 
+// === 工作区库：服务器版可把工作区（窗口布局 + 显示状态）保存到本机设置，跨工程复用 ===
+const BUILTIN_WORKSPACE_IDS = window.AsrWaveform?.builtinWorkspaceIds || ['classic', 'wave-right', 'traditional'];
+let currentServerWorkspaceName = '';
+let currentBuiltinWorkspaceName = '';
+const workspacePresetSelect = document.getElementById('workspace-preset');
+const saveWorkspaceButton = document.getElementById('workspace-save');
+const saveWorkspaceAsButton = document.getElementById('workspace-save-as');
+const deleteWorkspaceButton = document.getElementById('workspace-delete');
+
+function getSavedServerWorkspaces() {
+  return SERVER_CONFIG?.savedWorkspaces && typeof SERVER_CONFIG.savedWorkspaces === 'object'
+    ? SERVER_CONFIG.savedWorkspaces : {};
+}
+
+function getSavedPresetWorkspaces() {
+  return SERVER_CONFIG?.presetWorkspaces && typeof SERVER_CONFIG.presetWorkspaces === 'object'
+    ? SERVER_CONFIG.presetWorkspaces : {};
+}
+
+function currentWorkspaceDisplayName() {
+  const selected = workspacePresetSelect?.selectedOptions?.[0];
+  return selected?.textContent?.trim() || currentServerWorkspaceName || currentBuiltinWorkspaceName || '当前工作区';
+}
+
+function refreshWorkspaceSelect() {
+  if (!workspacePresetSelect) return;
+  const workspaces = getSavedServerWorkspaces();
+  workspacePresetSelect.querySelector('optgroup[data-saved-workspaces]')?.remove();
+  const names = Object.keys(workspaces).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  if (names.length) {
+    const group = document.createElement('optgroup');
+    group.label = '已保存工作区';
+    group.dataset.savedWorkspaces = 'true';
+    names.forEach((name) => group.append(new Option(name, `saved:${name}`)));
+    workspacePresetSelect.append(group);
+  }
+  if (currentServerWorkspaceName && workspaces[currentServerWorkspaceName]) {
+    workspacePresetSelect.value = `saved:${currentServerWorkspaceName}`;
+  }
+}
+
+function syncWorkspaceControls() {
+  const hasServerLibrary = Boolean(SERVER_CONFIG?.settingsUrl && waveformEditor);
+  const isEditing = waveformEditor?.isCustomLayout?.() === true;
+  const hasCustomWorkspace = Boolean(currentServerWorkspaceName && getSavedServerWorkspaces()[currentServerWorkspaceName]);
+  const hasBuiltinWorkspace = Boolean(currentBuiltinWorkspaceName);
+  if (saveWorkspaceButton) saveWorkspaceButton.hidden = !hasServerLibrary || !isEditing || (!hasCustomWorkspace && !hasBuiltinWorkspace);
+  if (saveWorkspaceAsButton) saveWorkspaceAsButton.hidden = !hasServerLibrary || !isEditing;
+  if (deleteWorkspaceButton) deleteWorkspaceButton.hidden = !hasServerLibrary || !isEditing || !hasCustomWorkspace;
+}
+
+function restoreWorkspaceSelection() {
+  const selectedPreset = DATA.workspace?.selectedPreset;
+  if (typeof selectedPreset !== 'string' || !workspacePresetSelect) return;
+  if (selectedPreset.startsWith('saved:')) {
+    const name = selectedPreset.slice('saved:'.length);
+    if (getSavedServerWorkspaces()[name]) {
+      currentServerWorkspaceName = name;
+      currentBuiltinWorkspaceName = '';
+      refreshWorkspaceSelect();
+    }
+    return;
+  }
+  if (BUILTIN_WORKSPACE_IDS.includes(selectedPreset)) {
+    currentServerWorkspaceName = '';
+    currentBuiltinWorkspaceName = selectedPreset;
+    workspacePresetSelect.value = selectedPreset;
+  }
+}
+
+async function updateServerWorkspaceSettings(payload) {
+  const response = await fetch(SERVER_CONFIG.settingsUrl, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.error || `服务器返回 ${response.status}`);
+  SERVER_CONFIG.savedWorkspaces = result.savedWorkspaces || {};
+  SERVER_CONFIG.presetWorkspaces = result.presetWorkspaces || {};
+  SERVER_CONFIG.activeWorkspaceName = result.activeWorkspaceName || '';
+  SERVER_CONFIG.autoOpenLastProject = result.autoOpenLastProject !== false;
+  return result;
+}
+
+async function saveCurrentWorkspace({ saveAs }) {
+  if (!waveformEditor || !SERVER_CONFIG?.settingsUrl) return;
+  let name = currentServerWorkspaceName;
+  if (saveAs) {
+    name = prompt('请输入工作区名称：', '我的工作区')?.trim() || '';
+    if (!name) return;
+  }
+  if (!name && !currentBuiltinWorkspaceName) return;
+  const displayName = saveAs ? name : currentWorkspaceDisplayName();
+  const button = saveAs ? saveWorkspaceAsButton : saveWorkspaceButton;
+  if (button) button.disabled = true;
+  try {
+    const workspace = buildCurrentWorkspaceData();
+    if (saveAs) {
+      await updateServerWorkspaceSettings({ saveWorkspace: { name, workspace, overwrite: false } });
+      SERVER_CONFIG.savedWorkspaces = { ...getSavedServerWorkspaces(), [name]: workspace };
+      currentServerWorkspaceName = name;
+      currentBuiltinWorkspaceName = '';
+    } else if (currentServerWorkspaceName) {
+      await updateServerWorkspaceSettings({ saveWorkspace: { name, workspace, overwrite: true } });
+      SERVER_CONFIG.savedWorkspaces = { ...getSavedServerWorkspaces(), [name]: workspace };
+    } else {
+      await updateServerWorkspaceSettings({ savePresetWorkspace: { preset: currentBuiltinWorkspaceName, workspace } });
+      SERVER_CONFIG.presetWorkspaces = { ...getSavedPresetWorkspaces(), [currentBuiltinWorkspaceName]: workspace };
+    }
+    refreshWorkspaceSelect();
+    syncWorkspaceControls();
+    flashHint(saveAs ? `已另存工作区：${displayName}` : `已保存工作区：${displayName}`);
+  } catch (error) {
+    flashHint(`保存工作区失败：${error.message || error}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function deleteCurrentServerWorkspace() {
+  const name = currentServerWorkspaceName;
+  if (!name || !SERVER_CONFIG?.settingsUrl || !confirm(`确定删除工作区「${name}」吗？`)) return;
+  deleteWorkspaceButton.disabled = true;
+  try {
+    await updateServerWorkspaceSettings({ deleteWorkspaceName: name });
+    currentServerWorkspaceName = '';
+    refreshWorkspaceSelect();
+    syncWorkspaceControls();
+    flashHint(`已删除工作区：${name}`);
+  } catch (error) {
+    flashHint(`删除工作区失败：${error.message || error}`);
+  } finally {
+    deleteWorkspaceButton.disabled = false;
+  }
+}
+
+// 应用一次下拉选择：saved:* 从本机库恢复；内置 id 优先用本机覆盖版，否则用默认定义。
+// 工作区 = 窗口布局 + 显示状态，切换时同时恢复该工作区保存的显示开关。
+function applyWorkspaceSelection(preset) {
+  if (preset.startsWith('saved:')) {
+    const name = preset.slice('saved:'.length);
+    const workspace = getSavedServerWorkspaces()[name];
+    if (!workspace) return;
+    waveformEditor.setLayoutData({ ...workspace, selectedPreset: `saved:${name}` });
+    applyEditorDisplaySettings(workspace.editorDisplay);
+    currentServerWorkspaceName = name;
+    currentBuiltinWorkspaceName = '';
+    refreshWorkspaceSelect();
+    syncWorkspaceControls();
+    void updateServerWorkspaceSettings({ activeWorkspaceName: name }).catch((error) => {
+      flashHint(`记住工作区失败：${error.message || error}`);
+    });
+    flashHint(`已应用工作区：${name}`);
+    return;
+  }
+  if (!BUILTIN_WORKSPACE_IDS.includes(preset)) return;
+  currentServerWorkspaceName = '';
+  currentBuiltinWorkspaceName = preset;
+  const savedPreset = getSavedPresetWorkspaces()[preset];
+  if (savedPreset) waveformEditor.setLayoutData(savedPreset);
+  else waveformEditor.setLayout(preset);
+  applyEditorDisplaySettings(
+    savedPreset?.editorDisplay || window.AsrWaveform?.builtinWorkspaces?.[preset]?.editorDisplay,
+  );
+  workspacePresetSelect.value = preset;
+  refreshWorkspaceSelect();
+  syncWorkspaceControls();
+  void updateServerWorkspaceSettings({ activeWorkspaceName: '' }).catch((error) => {
+    flashHint(`记住工作区失败：${error.message || error}`);
+  });
+}
+
+function configureServerWorkspaceLibrary() {
+  if (!SERVER_CONFIG?.settingsUrl || !waveformEditor) return;
+  const savedSelection = DATA.workspace?.selectedPreset;
+  currentServerWorkspaceName = typeof savedSelection === 'string' && savedSelection.startsWith('saved:')
+    && getSavedServerWorkspaces()[savedSelection.slice('saved:'.length)]
+    ? savedSelection.slice('saved:'.length)
+    : !savedSelection && getSavedServerWorkspaces()[SERVER_CONFIG.activeWorkspaceName]
+      ? SERVER_CONFIG.activeWorkspaceName : '';
+  const initialPreset = typeof savedSelection === 'string' && !savedSelection.startsWith('saved:')
+    ? savedSelection : DATA.workspace?.preset;
+  currentBuiltinWorkspaceName = currentServerWorkspaceName ? ''
+    : BUILTIN_WORKSPACE_IDS.includes(initialPreset) ? initialPreset : 'wave-right';
+  if (!savedSelection && currentBuiltinWorkspaceName && getSavedPresetWorkspaces()[currentBuiltinWorkspaceName]) {
+    waveformEditor.setLayoutData(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName]);
+    if (workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
+  }
+  refreshWorkspaceSelect();
+  restoreWorkspaceSelection();
+  workspacePresetSelect?.addEventListener('change', () => applyWorkspaceSelection(workspacePresetSelect.value));
+  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
+    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
+    if (currentServerWorkspaceName) refreshWorkspaceSelect();
+    else if (currentBuiltinWorkspaceName && workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
+    syncWorkspaceControls();
+  });
+  document.getElementById('layout-reset')?.addEventListener('click', () => {
+    const preset = currentBuiltinWorkspaceName;
+    if (preset) {
+      waveformEditor.setLayout(preset);
+      void updateServerWorkspaceSettings({ resetPresetWorkspace: preset }).then(() => {
+        flashHint(`已恢复「${preset}」默认工作区`);
+      }).catch((error) => {
+        flashHint(`重置工作区失败：${error.message || error}`);
+      });
+    }
+    syncWorkspaceControls();
+  });
+  saveWorkspaceButton?.addEventListener('click', () => { void saveCurrentWorkspace({ saveAs: false }); });
+  saveWorkspaceAsButton?.addEventListener('click', () => { void saveCurrentWorkspace({ saveAs: true }); });
+  deleteWorkspaceButton?.addEventListener('click', () => { void deleteCurrentServerWorkspace(); });
+  syncWorkspaceControls();
+}
+
+function configureWorkspaceTransfer() {
+  if (!waveformEditor) return;
+  // 「工作区配置 ▾」在服务器版与单文件版都可用，便于以文件显式备份/迁移工作区。
+  const transferDropdown = document.getElementById('workspace-transfer-dropdown');
+  const exportButton = document.getElementById('workspace-export');
+  const importButton = document.getElementById('workspace-import');
+  const importFile = document.getElementById('workspace-import-file');
+  if (transferDropdown) transferDropdown.hidden = false;
+  exportButton?.addEventListener('click', async () => {
+    await downloadFile(buildWorkspaceJson(), `${FILENAME_BASE}.workspace.json`, 'application/json', {
+      desc: '编辑器工作区文件', types: { 'application/json': ['.workspace.json', '.json'] },
+    });
+  });
+  importButton?.addEventListener('click', () => {
+    if (!importFile) return;
+    importFile.value = '';
+    importFile.click();
+  });
+  importFile?.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const workspace = data.workspace || data;
+      pushLayoutUndo('导入工作区', waveformEditor.getLayoutHistorySnapshot?.());
+      waveformEditor.setLayoutData(workspace);
+      applyEditorDisplaySettings(workspace?.editorDisplay);
+      DATA.workspace = waveformEditor.getLayoutData();
+      flashHint(`已导入工作区：${file.name}`);
+    } catch (error) {
+      flashHint(`工作区导入失败：${error.message || error}`);
+    }
+  });
+  if (SERVER_CONFIG?.settingsUrl) return;  // 服务器版的下拉选择由工作区库接管
+  // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
+  let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
+  workspacePresetSelect?.addEventListener('change', () => {
+    selectedWorkspaceId = workspacePresetSelect.value;
+    if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) {
+      waveformEditor.setLayout(selectedWorkspaceId);
+      applyEditorDisplaySettings(window.AsrWaveform?.builtinWorkspaces?.[selectedWorkspaceId]?.editorDisplay);
+    }
+  });
+  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
+    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
+    if (workspacePresetSelect) workspacePresetSelect.value = selectedWorkspaceId;
+  });
+}
+
 function markProjectSaved(filename, backupName, { silent = false } = {}) {
   DATA.segments.forEach((segment) => { delete segment._dirty; });
   gapRemoveDirty = false;
@@ -9893,30 +10273,6 @@ document.addEventListener('keydown', (event) => {
     void saveProjectToServer();
   }
 });
-document.getElementById('layout-export')?.addEventListener('click', async () => {
-  await downloadFile(buildLayoutJson(), `${FILENAME_BASE}.layout.json`, 'application/json', {
-    desc: '编辑器布局文件', types: { 'application/json': ['.layout.json', '.json'] }
-  });
-});
-const layoutImportFile = document.getElementById('layout-import-file');
-document.getElementById('layout-import')?.addEventListener('click', () => {
-  if (!layoutImportFile) return;
-  layoutImportFile.value = '';
-  layoutImportFile.click();
-});
-layoutImportFile?.addEventListener('change', async (event) => {
-  const file = event.target.files?.[0];
-  if (!file || !waveformEditor) return;
-  try {
-    const data = JSON.parse(await file.text());
-    pushLayoutUndo('导入布局', waveformEditor.getLayoutHistorySnapshot?.());
-    waveformEditor.setLayoutData(data.layout || data);
-    DATA.layout = waveformEditor.getLayoutData();
-    flashHint(`已导入布局：${file.name}`);
-  } catch (error) {
-    flashHint(`布局导入失败：${error.message}`);
-  }
-});
 document.getElementById('download-resolve-json').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildResolveJson();
@@ -10011,6 +10367,7 @@ bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn
 bindToolbarExportDropdown('extra-export-dropdown', 'extra-export-btn', 'extra-export-menu');
 bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
 bindToolbarExportDropdown('save-project-dropdown', 'save-project-menu-btn', 'save-project-menu');
+bindToolbarExportDropdown('workspace-transfer-dropdown', 'workspace-transfer-btn', 'workspace-transfer-menu');
 
 // === 打开工程 ===
 const openProjectFileInput = document.getElementById('open-project-file');
@@ -10186,7 +10543,7 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     DATA.language = data.language || '';
     DATA.model = data.model || '';
     DATA.waveform = data.waveform || null;
-    DATA.layout = data.layout || null;
+    DATA.workspace = data.workspace || null;
     DATA.gap_remove = data.gap_remove || null;
     gapRemoveDirty = false;
     // 预览几何：归一化后应用；缺失时回退到 legacy 默认，且不弄脏工程。
@@ -10205,7 +10562,10 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     clearSelection();
     lastActive = -1;
     if (waveformEditor) {
-      waveformEditor.setLayoutData(DATA.layout);
+      waveformEditor.setLayoutData(DATA.workspace);
+      applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
+      restoreWorkspaceSelection();
+      syncWorkspaceControls();
       waveformEditor.setPayload(DATA.waveform);
     }
     updateGapRemoveUi();
@@ -11297,7 +11657,8 @@ function initWaveformEditor() {
     onPayload: (payload) => { DATA.waveform = payload; },
   });
   waveformEditor.attachPlayer(player);
-  waveformEditor.setLayoutData(DATA.layout || null);
+  waveformEditor.setLayoutData(DATA.workspace || null);
+  applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
   waveformEditor.setPayload(DATA.waveform || null);
 }
 
@@ -11361,6 +11722,8 @@ configureServerAutoSave();
 configureRecentProjects();
 configureServerProjectSettings();
 initWaveformEditor();
+configureServerWorkspaceLibrary();
+configureWorkspaceTransfer();
 totalCountEl.textContent = DATA.segments.length;
 renderAll();
 updateGapRemoveUi();
