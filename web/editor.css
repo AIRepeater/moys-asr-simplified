@@ -344,11 +344,16 @@
   .editor-settings-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
   .editor-settings-item[hidden] { display: none; }
   .editor-settings-group > label.toggle.editor-settings-item { flex: 0 0 100%; }
-  .editor-settings-list-fields { flex-wrap: nowrap; }
+  .editor-settings-list-fields { flex-wrap: wrap; }
   .editor-settings-display-row { flex: 0 0 100%; }
   .editor-settings-list-fields > span { color: var(--text-muted); }
   .editor-settings-display-row > span,
-  .editor-settings-display-row > .toggle { white-space: nowrap; }
+  .editor-settings-toggle-group > .toggle { white-space: nowrap; }
+  /* 显示开关分组：空间够时与标题同行，不够时整组折到下一行，组内按宽度继续换行。 */
+  .editor-settings-toggle-group {
+    display: inline-flex; flex-wrap: wrap; align-items: center;
+    gap: 3px 12px; flex: 1 1 auto; min-width: 140px;
+  }
   .editor-settings-panel select {
     background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
     border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; cursor: pointer;
@@ -386,7 +391,7 @@
   }
   @media (max-width: 420px) {
     .editor-settings-display-row { gap: 3px; font-size: 11px; }
-    .editor-settings-display-row > .toggle { gap: 2px; }
+    .editor-settings-toggle-group > .toggle { gap: 2px; }
   }
 
   /* === 下拉菜单（导出额外数据）=== */

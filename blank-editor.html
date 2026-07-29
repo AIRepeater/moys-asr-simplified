@@ -79,6 +79,10 @@
     /* 控件高度 —— 工具栏统一 30px */
     --control-h: 30px;
 
+    /* 面板顶部工具栏 / 布局拖拽栏高度 */
+    --panel-toolbar-h: 44px;
+    --dock-handle-h: 23px;
+
     /* 聚焦环 */
     --focus-ring:       0 0 0 2px var(--accent-soft);
     --focus-ring-amber: 0 0 0 2px var(--amber-soft);
@@ -126,16 +130,24 @@
   h1 .json-name.empty { color: var(--text-faint); border-color: var(--border-subtle); background: transparent; cursor: default; pointer-events: none; }
 
   /* === 媒体区 === */
+  /* player-wrap 是媒体预览面板：顶部 .player-toolbar + 下方 .player-stage（视频与预览层）。
+     预览层（字幕/表情包）的几何以 stage 为定位与测量基准，工具栏不参与。 */
   .player-wrap {
     flex: 0 0 auto; margin-bottom: 8px;
-    position: relative; display: inline-block; width: 100%;
+    position: relative; display: flex; flex-direction: column; width: 100%;
   }
+  .player-stage {
+    position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
+  }
+  .player-stage video { display: block; }
   .player-wrap.empty-state {
     min-height: 132px;
     background: var(--bg-wave);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
   }
+  /* 布局编辑模式下让出顶部 dock-handle 的高度。 */
+  .editor-workspace.layout-editing .player-wrap { padding-top: var(--dock-handle-h); }
   .player-empty, .cues-empty {
     position: absolute; inset: 0; z-index: 20;
     display: flex; align-items: center; justify-content: center;
@@ -225,7 +237,6 @@
     margin-bottom: 6px; flex-wrap: wrap; font-size: 12px;
   }
   .toolbar.row-actions { margin-bottom: 6px; }
-  .toolbar.row-subtitle { margin-bottom: 8px; }
   .toolbar input[type=text] {
     background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
     border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; min-width: 200px;
@@ -297,6 +308,28 @@
   .toolbar .right-group { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .toolbar-utility-group { display: inline-flex; align-items: center; gap: 4px; }
 
+  /* 面板内嵌工具栏（媒体预览 / 字幕列表 / 波形顶部）：复用 .toolbar 控件样式，
+     额外固定高度、单行不换行 + 横向滚动，避免与波形 scroll 的 padding 错位。 */
+  .toolbar.player-toolbar,
+  .toolbar.cue-list-toolbar,
+  .toolbar.waveform-toolbar {
+    height: var(--panel-toolbar-h);
+    margin: 0;
+    padding: 6px 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--bg-raised) 92%, black);
+    border-bottom: 1px solid var(--border-subtle);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+  }
+  .toolbar.player-toolbar > *,
+  .toolbar.cue-list-toolbar > *,
+  .toolbar.waveform-toolbar > * { flex: 0 0 auto; }
+  .toolbar.cue-list-toolbar .input-clear input[type=text] { min-width: 140px; width: 20ch; }
+
   .editor-settings-panel {
     flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(190px, 1fr));
     gap: 8px; margin: -2px 0 8px; padding: 10px;
@@ -318,17 +351,29 @@
   .editor-settings-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
   .editor-settings-item[hidden] { display: none; }
   .editor-settings-group > label.toggle.editor-settings-item { flex: 0 0 100%; }
-  .editor-settings-list-fields { flex-wrap: nowrap; }
+  .editor-settings-list-fields { flex-wrap: wrap; }
   .editor-settings-display-row { flex: 0 0 100%; }
   .editor-settings-list-fields > span { color: var(--text-muted); }
   .editor-settings-display-row > span,
-  .editor-settings-display-row > .toggle { white-space: nowrap; }
+  .editor-settings-toggle-group > .toggle { white-space: nowrap; }
+  /* 显示开关分组：空间够时与标题同行，不够时整组折到下一行，组内按宽度继续换行。 */
+  .editor-settings-toggle-group {
+    display: inline-flex; flex-wrap: wrap; align-items: center;
+    gap: 3px 12px; flex: 1 1 auto; min-width: 140px;
+  }
   .editor-settings-panel select {
     background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
     border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; cursor: pointer;
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
   .editor-settings-panel select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .editor-settings-panel input[type=text] {
+    background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; width: 140px;
+    min-height: var(--control-h);
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  .editor-settings-panel input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .editor-settings-panel button {
     min-width: 26px; padding: 3px 7px; color: var(--btn-text); background: var(--btn-bg);
     border: 1px solid var(--btn-border); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
@@ -353,7 +398,7 @@
   }
   @media (max-width: 420px) {
     .editor-settings-display-row { gap: 3px; font-size: 11px; }
-    .editor-settings-display-row > .toggle { gap: 2px; }
+    .editor-settings-toggle-group > .toggle { gap: 2px; }
   }
 
   /* === 下拉菜单（导出额外数据）=== */
@@ -432,6 +477,7 @@
   }
   .current-cue-panel.empty { opacity: 0.62; }
   .current-cue-panel.hide-cue-editor-navigation .cue-panel-navigation,
+  .current-cue-panel.hide-cue-editor-time-actions .cue-panel-time-actions,
   .current-cue-panel.hide-cue-editor-sticker .cue-panel-sticker-wrap { display: none; }
   .cue-panel-navigation, .cue-panel-time-fields, .cue-panel-sticker-wrap { display: flex; gap: 6px; align-items: center; }
   .current-cue-panel button {
@@ -479,11 +525,23 @@
     .current-cue-panel.hide-cue-editor-navigation .cue-panel-layout {
       grid-template-columns: auto minmax(220px, 1fr) auto;
     }
+    .current-cue-panel.hide-cue-editor-time-actions .cue-panel-layout {
+      grid-template-columns: auto minmax(220px, 1fr) auto;
+    }
     .current-cue-panel.hide-cue-editor-sticker .cue-panel-layout {
       grid-template-columns: auto auto minmax(220px, 1fr);
     }
+    .current-cue-panel.hide-cue-editor-navigation.hide-cue-editor-time-actions .cue-panel-layout {
+      grid-template-columns: minmax(220px, 1fr) auto;
+    }
+    .current-cue-panel.hide-cue-editor-time-actions.hide-cue-editor-sticker .cue-panel-layout {
+      grid-template-columns: auto minmax(220px, 1fr);
+    }
     .current-cue-panel.hide-cue-editor-navigation.hide-cue-editor-sticker .cue-panel-layout {
       grid-template-columns: auto minmax(220px, 1fr);
+    }
+    .current-cue-panel.hide-cue-editor-navigation.hide-cue-editor-time-actions.hide-cue-editor-sticker .cue-panel-layout {
+      grid-template-columns: minmax(220px, 1fr);
     }
   }
   @container cue-panel (max-width: 680px) {
@@ -504,7 +562,21 @@
     position: relative;
     container: cue-list / inline-size;
     background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
-    padding: 4px;
+    /* 顶部不留 padding：sticky 工具栏直接顶到容器边缘，避免上方露出空隙。 */
+    padding: 0 4px 4px;
+  }
+  /* 字幕列表顶部工具栏：sticky 固定在滚动区顶部；负边距拉通到容器边框；
+     布局编辑模式下让出 dock-handle 高度。 */
+  .cues-container > .cue-list-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: 0 -4px 4px;
+    border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
+  }
+  .editor-workspace.layout-editing .cues-container > .cue-list-toolbar {
+    top: var(--dock-handle-h);
+    margin-top: var(--dock-handle-h);
   }
   .cue {
     display: flex; align-items: flex-start; gap: 8px;
@@ -850,6 +922,10 @@
     transition: background var(--t-fast), border-color var(--t-fast);
   }
   .gap-remove-panel-footer button:hover:not(:disabled) { color: var(--text-primary); background: var(--btn-bg-hover); }
+  .gap-remove-panel-footer button.danger {
+    color: #ffe4e4; background: #8f3035; border-color: #c44a50;
+  }
+  .gap-remove-panel-footer button.danger:hover:not(:disabled) { color: #fff; background: #ad3b42; border-color: #e35a62; }
   .gap-remove-panel-footer button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
   .gap-remove-panel-footer button:disabled { opacity: .38; cursor: not-allowed; }
   @media (max-width: 560px) {
@@ -950,9 +1026,12 @@
     border: 2px dashed var(--accent);
   }
 
-  /* === 统一细滚动条（字幕列表 / 波形 / 模态预览 / 空隙面板 / 表情网格）=== */
+  /* === 统一细滚动条（字幕列表 / 波形 / 面板工具栏 / 模态预览 / 空隙面板 / 表情网格）=== */
   .cues-container,
   .waveform-scroll,
+  .toolbar.player-toolbar,
+  .toolbar.cue-list-toolbar,
+  .toolbar.waveform-toolbar,
   .modal .preview,
   .gap-remove-list,
   .gap-remove-panel-body,
@@ -962,18 +1041,27 @@
   }
   .cues-container::-webkit-scrollbar,
   .waveform-scroll::-webkit-scrollbar,
+  .toolbar.player-toolbar::-webkit-scrollbar,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar,
+  .toolbar.waveform-toolbar::-webkit-scrollbar,
   .modal .preview::-webkit-scrollbar,
   .gap-remove-list::-webkit-scrollbar,
   .gap-remove-panel-body::-webkit-scrollbar,
   .sticker-grid::-webkit-scrollbar { width: 8px; height: 8px; }
   .cues-container::-webkit-scrollbar-track,
   .waveform-scroll::-webkit-scrollbar-track,
+  .toolbar.player-toolbar::-webkit-scrollbar-track,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar-track,
+  .toolbar.waveform-toolbar::-webkit-scrollbar-track,
   .modal .preview::-webkit-scrollbar-track,
   .gap-remove-list::-webkit-scrollbar-track,
   .gap-remove-panel-body::-webkit-scrollbar-track,
   .sticker-grid::-webkit-scrollbar-track { background: var(--scroll-track); }
   .cues-container::-webkit-scrollbar-thumb,
   .waveform-scroll::-webkit-scrollbar-thumb,
+  .toolbar.player-toolbar::-webkit-scrollbar-thumb,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar-thumb,
+  .toolbar.waveform-toolbar::-webkit-scrollbar-thumb,
   .modal .preview::-webkit-scrollbar-thumb,
   .gap-remove-list::-webkit-scrollbar-thumb,
   .gap-remove-panel-body::-webkit-scrollbar-thumb,
@@ -983,16 +1071,21 @@
   }
   .cues-container::-webkit-scrollbar-thumb:hover,
   .waveform-scroll::-webkit-scrollbar-thumb:hover,
+  .toolbar.player-toolbar::-webkit-scrollbar-thumb:hover,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar-thumb:hover,
+  .toolbar.waveform-toolbar::-webkit-scrollbar-thumb:hover,
   .modal .preview::-webkit-scrollbar-thumb:hover,
   .gap-remove-list::-webkit-scrollbar-thumb:hover,
   .gap-remove-panel-body::-webkit-scrollbar-thumb:hover,
   .sticker-grid::-webkit-scrollbar-thumb:hover { background: var(--scroll-thumb-hover); background-clip: padding-box; }
 /* Waveform-specific styles live here so the same UI can be reused by a desktop shell. */
 
-.toolbar.row-waveform {
+.toolbar.main-toolbar {
   margin-bottom: 8px;
   min-height: 30px;
 }
+/* 主工具栏：左侧依次为 工具切换 / 布局 / 当前状态，「设置·帮助」一组靠右。 */
+.toolbar.main-toolbar .toolbar-utility-group { margin-left: auto; }
 .waveform-mode-switch {
   display: inline-flex;
   border: 1px solid var(--border);
@@ -1079,7 +1172,8 @@
   min-width: 0;
   min-height: 0;
   position: relative;
-  display: block;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 .editor-workspace > .player-wrap video {
@@ -1140,7 +1234,7 @@
 .layout-classic.waveform-multi .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 8px;
+  padding: var(--waveform-content-top) 8px 8px;
 }
 
 .editor-workspace.layout-wave-right {
@@ -1198,9 +1292,8 @@
 .editor-workspace.layout-wave-right .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px 8px 8px;
+  padding: var(--waveform-content-top) 8px 8px;
 }
-.editor-workspace.layout-wave-right .cues-container { padding-top: 28px; }
 
 .editor-workspace.layout-wave-bottom {
   display: grid;
@@ -1219,7 +1312,7 @@
 .editor-workspace.layout-wave-bottom > .current-cue-panel { grid-column: 2; grid-row: 1; }
 .editor-workspace.layout-wave-bottom > .cues-container { grid-column: 1 / 3; grid-row: 3; }
 .editor-workspace.layout-wave-bottom > .waveform-pane { grid-column: 1 / 3; grid-row: 5; display: block; }
-.editor-workspace.layout-wave-bottom .waveform-scroll { overflow-y: auto; overflow-x: hidden; padding: 8px; }
+.editor-workspace.layout-wave-bottom .waveform-scroll { overflow-y: auto; overflow-x: hidden; padding: var(--waveform-content-top) 8px 8px; }
 
 .editor-workspace.layout-free {
   display: flex;
@@ -1299,9 +1392,8 @@
 .layout-free .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 28px 8px 8px;
+  padding: var(--waveform-content-top) 8px 8px;
 }
-.layout-free .cues-container { padding-top: 28px; }
 /* 字幕列表本身始终可滚动；不要被预设/停靠模块的 overflow:hidden 截断。 */
 .editor-workspace.layout-wave-right > .cues-container,
 .editor-workspace.layout-wave-bottom > .cues-container,
@@ -1331,6 +1423,7 @@
 .layout-split-divider-column::after { left: 0; right: 0; top: 2px; height: 3px; }
 
 .waveform-pane {
+  --waveform-content-top: var(--panel-toolbar-h);
   position: relative;
   min-width: 0;
   min-height: 0;
@@ -1341,11 +1434,27 @@
 }
 .waveform-pane.waveform-media-unavailable canvas { filter: saturate(0.2); }
 .waveform-pane:focus { outline: none; }
+/* 波形顶部工具栏：absolute 覆盖在 scroll 之上；布局编辑模式下让出 dock-handle 高度。 */
+.waveform-pane > .waveform-toolbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: color-mix(in srgb, var(--bg-wave) 88%, black);
+}
+.editor-workspace.layout-editing .waveform-pane {
+  --waveform-content-top: calc(var(--dock-handle-h) + var(--panel-toolbar-h));
+}
+.editor-workspace.layout-editing .waveform-pane > .waveform-toolbar {
+  top: var(--dock-handle-h);
+}
 .waveform-scroll {
   position: absolute;
   inset: 0;
   overflow: hidden;
   overscroll-behavior: contain;
+  padding: var(--waveform-content-top) 8px 8px;
 }
 .waveform-content {
   position: relative;
@@ -1354,7 +1463,7 @@
 }
 .waveform-empty {
   position: absolute;
-  inset: 0;
+  inset: var(--waveform-content-top) 0 0;
   z-index: 20;
   display: flex;
   align-items: center;
@@ -1419,7 +1528,7 @@
 .layout-wave-right .layout-resizer-h2 { display: block; }
 
 .dock-handle {
-  display: none; position: absolute; z-index: 40; top: 0; left: 0; right: 0; height: 23px;
+  display: none; position: absolute; z-index: 40; top: 0; left: 0; right: 0; height: var(--dock-handle-h);
   align-items: center; padding: 0 8px; color: var(--text-secondary); background: rgba(21, 29, 36, 0.94);
   border-bottom: 1px solid var(--border-subtle); cursor: grab; user-select: none;
   font: 11px/1 var(--font-mono); letter-spacing: 0.02em;
@@ -1639,12 +1748,13 @@
 /* 分组徽章：放在块上方的行内区域（bottom = 块高35 + 块底7 + 间距2），
    纯视觉提示不遮挡块内文字；left 由 JS 按块位置写入 */
 .waveform-cue-badge {
-  position: absolute; bottom: 44px; z-index: 6;
+  position: absolute; bottom: calc(44px + var(--badge-stack-index, 0) * 16px); z-index: 6;
   font-size: 11px; line-height: 1.3; padding: 1px 5px; white-space: nowrap;
   color: var(--text-secondary); background: rgba(0, 0, 0, 0.65); border-radius: 3px;
   pointer-events: none; font-family: var(--font-mono);
 }
-.waveform-cue-badge.head { color: #ffd54a; }
+.waveform-cue-badge.color { color: #ffd54a; }
+.waveform-cue-badge.sticker { color: #b8d9ff; }
 .waveform-cue-block.selected {
   z-index: 6;
   outline: 2px solid #ffd54a;
@@ -1722,7 +1832,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 14:28</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 16:37</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1753,8 +1863,9 @@
     <span class="dropdown" id="subtitle-export-dropdown" hidden>
       <button id="subtitle-export-btn" title="导出完整字幕或按颜色分别导出字幕">导出字幕 ▾</button>
       <div class="dropdown-menu" id="subtitle-export-menu">
-        <div class="dropdown-item" id="download-full-srt">导出完整字幕</div>
-        <div class="dropdown-item" id="download-color-srt">按颜色导出字幕</div>
+        <div class="dropdown-item" id="download-full-srt">导出完整字幕（SRT）</div>
+        <div class="dropdown-item" id="download-color-srt">按颜色导出字幕（SRT）</div>
+        <div class="dropdown-item" id="download-plain-text">导出纯文本（TXT）</div>
       </div>
     </span>
     <button id="download-json">导出工程</button>
@@ -1779,35 +1890,7 @@
   </span>
 </div>
 
-<div class="toolbar row-subtitle">
-  <span class="info layout-toolbar-label">字幕</span>
-  <span class="input-clear" id="search-wrap">
-    <input type="text" id="search" placeholder="过滤字幕…" autocomplete="off">
-    <span class="clear-x" id="search-clear" title="清空">×</span>
-  </span>
-  <label class="toggle"><input type="checkbox" id="overlay-toggle" checked> 字幕预览</label>
-  <label class="toggle" title="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 表情包预览</label>
-  <span class="info">显示 <b id="visible-count">0</b> / <b id="total-count">0</b></span>
-  <label class="toggle"><input type="checkbox" id="hide-disabled-toggle"> 隐藏禁用</label>
-  <span class="sep"></span>
-  <button id="replace-btn">批量替换…</button>
-  <span class="sep"></span>
-  <span class="info">字数阈值</span>
-  <input type="number" id="charcount-threshold" min="1" max="200" value="16">
-  <button id="filter-over" title="只显示超过阈值的字幕（再次点击关闭）">仅看超长</button>
-  <span class="sep"></span>
-  <span class="info">当前 <b id="now">00:00.000</b></span>
-  <span class="info">已选 <b id="sel-count">0</b></span>
-</div>
-
-<div class="toolbar row-waveform" id="waveform-toolbar">
-  <span class="info">波形</span>
-  <span class="waveform-mode-switch" role="group" aria-label="波形模式">
-    <button type="button" data-waveform-mode="multi">多行</button>
-    <button type="button" data-waveform-mode="basic">基础</button>
-    <button type="button" data-waveform-mode="hidden">隐藏</button>
-  </span>
-  <span class="sep"></span>
+<div class="toolbar main-toolbar">
   <span class="waveform-tool-switch" role="group" aria-label="波形工具">
     <button type="button" data-waveform-tool="select" class="active" title="选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧">
       <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.75 12.25 8 8 9.25 6.25 13.5 3 1.75Z"/><path d="m8.3 9.2 3.2 3.05"/></svg>
@@ -1818,10 +1901,6 @@
       <span>分割</span>
     </button>
   </span>
-  <span class="sep"></span>
-  <button type="button" id="gap-remove-manage" title="打开可拖动的移除静音空隙工具窗" aria-expanded="false" aria-controls="gap-remove-panel">移除静音空隙</button>
-  <label class="toggle gap-skip-toggle" title="播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览"><input type="checkbox" id="gap-skip-playback" checked> 跳过空隙</label>
-  <span class="gap-remove-summary" id="gap-remove-summary">未扫描空隙</span>
   <span class="sep"></span>
   <span class="info layout-toolbar-label">布局</span>
   <select id="layout-preset" title="布局只控制面板摆放，不改变波形基础/多行模式">
@@ -1835,12 +1914,13 @@
   <button type="button" id="layout-export" title="导出当前布局 JSON">导出布局</button>
   <button type="button" id="layout-import" title="导入布局 JSON">导入布局</button>
   <input type="file" id="layout-import-file" accept=".layout.json,.json,application/json" style="display:none">
-  <span class="sep" aria-hidden="true"></span>
+  <span class="sep"></span>
+  <span class="info">当前 <b id="now">00:00.000</b></span>
+  <span class="info">已选 <b id="sel-count">0</b></span>
   <span class="toolbar-utility-group" role="group" aria-label="编辑器工具">
     <button type="button" id="editor-settings-toggle" title="展开字幕、波形与导出设置" aria-expanded="false" aria-controls="editor-settings-panel">🔧 设置</button>
     <button type="button" id="help-toggle" title="查看鼠标操作与键盘快捷键" aria-expanded="false" aria-controls="help-panel">🤔 帮助</button>
   </span>
-  <span class="waveform-status" id="waveform-status">等待波形数据</span>
 </div>
 
 <!-- 可拖动的非模态移除静音空隙工具窗 -->
@@ -1917,7 +1997,7 @@
     <div class="gap-remove-list" id="gap-remove-list" aria-live="polite">尚未扫描空隙。</div>
     <footer class="gap-remove-panel-footer">
       <span>滚轮可调数值 · Esc 关闭</span>
-      <button type="button" id="gap-remove-restore-all">全部恢复</button>
+      <button type="button" id="gap-remove-clear-all" class="danger">全部清理</button>
     </footer>
   </div>
 </aside>
@@ -1927,15 +2007,20 @@
     <span class="editor-settings-title">字幕列表和编辑区</span>
     <div class="editor-settings-item editor-settings-list-fields editor-settings-display-row">
       <span>字幕列表显示</span>
-      <label class="toggle"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
-      <label class="toggle"><input type="checkbox" id="cue-list-show-time" checked> 时间码</label>
-      <label class="toggle"><input type="checkbox" id="cue-list-show-sticker"> 表情包</label>
-      <label class="toggle"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
+      <span class="editor-settings-toggle-group">
+        <label class="toggle"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
+        <label class="toggle"><input type="checkbox" id="cue-list-show-time" checked> 时间码</label>
+        <label class="toggle"><input type="checkbox" id="cue-list-show-sticker"> 表情包</label>
+        <label class="toggle"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
+      </span>
     </div>
     <div class="editor-settings-item editor-settings-list-fields editor-settings-display-row">
       <span>字幕编辑显示</span>
-      <label class="toggle"><input type="checkbox" id="cue-editor-show-navigation" checked> 前后跳转</label>
-      <label class="toggle"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
+      <span class="editor-settings-toggle-group">
+        <label class="toggle"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
+        <label class="toggle"><input type="checkbox" id="cue-editor-show-time-actions" checked> 时间操作</label>
+        <label class="toggle"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
+      </span>
     </div>
     <label class="editor-settings-item" title="编辑字幕时，选择 Enter 或 Ctrl+Enter 在文字光标处拆分；另一个按键用于保存">
       字幕（编辑状态下）拆分按键
@@ -1958,6 +2043,11 @@
     <label class="toggle editor-settings-item" title="开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
       <input type="checkbox" id="select-group-members"> 同时选中分组内项目
     </label>
+    <label class="editor-settings-item" title="合并两条字幕时，中间插入的字符（如果不需要可以留空）">
+      合并字幕时插入字符
+      <input type="text" id="merge-join-text" placeholder="留空则直接拼接">
+    </label>
+    <small class="editor-settings-hint">合并两条字幕时，中间插入的字符（如果不需要可以留空）</small>
   </div>
   <div class="editor-settings-group">
     <span class="editor-settings-title">音频波形区</span>
@@ -2003,11 +2093,11 @@
       </select>
     </label>
     <label class="editor-settings-item" title="移除静音空隙的人工修正方式；Alt+左键始终切换整段；中键拖动默认增加静音，按住 Alt 才恢复声音，边界碰到另一空隙时会合并">
-      空隙操作
+      空隙区段操作方式
       <select id="gap-remove-operation-mode">
         <option value="none">无</option>
-        <option value="boundary_drag">拖动边界</option>
-        <option value="middle_drag" selected>中键拖动</option>
+        <option value="boundary_drag" selected>拖动边界</option>
+        <option value="middle_drag">中键拖动</option>
       </select>
     </label>
   </div>
@@ -2016,8 +2106,18 @@
     <label class="toggle editor-settings-item" title="只影响导出的 SRT，不改动工程或 OTIO 的时间轴">
       <input type="checkbox" id="export-start-at-zero" checked> SRT 首条从 0 开始
     </label>
-    <label class="toggle editor-settings-item" title="勾选后按颜色导出时只选择一次导出文件夹，自动按「文件名_颜色」批量保存；取消勾选则逐个颜色弹出保存对话框">
+    <label class="toggle editor-settings-item" title="勾选后按颜色导出会先选择一个 SRT 文件名作为前缀，再下载「前缀_颜色.srt」；取消勾选则逐个颜色弹出保存对话框">
       <input type="checkbox" id="export-color-unified" checked> 彩色字幕统一导出
+    </label>
+    <small class="editor-settings-hint">选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。</small>
+  </div>
+  <div class="editor-settings-group" id="server-auto-save-settings" hidden>
+    <span class="editor-settings-title">保存</span>
+    <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程 JSON">
+      <input type="checkbox" id="auto-save-project"> 自动保存
+    </label>
+    <label class="editor-settings-item" id="auto-save-interval-field" hidden>自动保存间隔（秒）
+      <input id="auto-save-interval" type="number" min="5" max="3600" step="1" value="30">
     </label>
   </div>
 </section>
@@ -2027,12 +2127,16 @@
     <span class="help-title">字幕操作</span>
     <span><kbd>单击</kbd> 选中</span>
     <span><kbd>双击</kbd> 编辑</span>
+    <span><kbd>Enter</kbd> 进入字幕编辑区（仅单选时）</span>
+    <span><kbd>Esc</kbd> 退出字幕编辑区（文本编辑时）</span>
+    <span><kbd>Esc</kbd> 清除字幕选择（非编辑状态）</span>
     <span><kbd>右键</kbd> 菜单</span>
     <span><kbd>Shift+点击</kbd> 连选</span>
     <span><kbd>Ctrl+点击</kbd> 多选</span>
     <span><kbd>Alt+点击</kbd> 切换字幕禁用</span>
     <span><kbd>C</kbd> 合并所选字幕</span>
     <span><kbd id="help-split-key">Ctrl+Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
+    <span><kbd>Ctrl+A</kbd> 选中所有字幕（非编辑状态）</span>
   </div>
   <div class="help-group">
     <span class="help-title">波形</span>
@@ -2047,7 +2151,7 @@
   <div class="help-group">
     <span class="help-title">静音空隙</span>
     <span><kbd>Alt+点击静音空隙区段</kbd> 切换移除/保留</span>
-    <span class="help-note">设置的空隙操作为「中键拖动」时：</span>
+    <span class="help-note">空隙区段操作方式设为「中键拖动」时：</span>
     <span><kbd>中键拖动</kbd> 增加静音区段</span>
     <span><kbd>Alt+中键拖动</kbd> 增加恢复区段</span>
   </div>
@@ -2068,9 +2172,16 @@
 
 <div class="editor-workspace waveform-basic" id="editor-workspace">
   <div class="player-wrap">
-    <audio id="player" controls preload="metadata" style="width:100%;display:block;"></audio>
-    <div class="player-empty" id="player-empty">加载媒体后显示视频</div>
-    <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。"><span></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
+    <div class="toolbar player-toolbar">
+      <span class="info layout-toolbar-label">媒体</span>
+      <label class="toggle"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
+      <label class="toggle" title="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
+    </div>
+    <div class="player-stage">
+      <audio id="player" controls preload="metadata" style="width:100%;display:block;"></audio>
+      <div class="player-empty" id="player-empty">加载媒体后显示视频</div>
+      <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。"><span></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
+    </div>
   </div>
   <section class="current-cue-panel" id="current-cue-panel" aria-label="当前字幕编辑区">
     <div class="cue-panel-layout">
@@ -2087,7 +2198,7 @@
             <input type="text" id="cue-panel-duration" inputmode="decimal" autocomplete="off">
           </label>
         </div>
-        <button type="button" id="cue-panel-split">在光标处拆分</button>
+        <button type="button" id="cue-panel-split">在光标处拆分（<kbd id="cue-panel-split-key">Ctrl+Enter</kbd>）</button>
       </div>
       <div class="cue-panel-text-wrap">
         <textarea id="cue-panel-text" rows="3" placeholder="选择一条字幕开始编辑…"></textarea>
@@ -2103,6 +2214,20 @@
     </div>
   </section>
   <section class="waveform-pane" id="waveform-pane" aria-label="音频波形" tabindex="-1">
+    <div class="toolbar waveform-toolbar">
+      <span class="info layout-toolbar-label">波形</span>
+      <span class="waveform-mode-switch" role="group" aria-label="波形模式">
+        <button type="button" data-waveform-mode="multi">多行</button>
+        <button type="button" data-waveform-mode="basic">基础</button>
+        <button type="button" data-waveform-mode="hidden">隐藏</button>
+      </span>
+      <span class="sep"></span>
+      <button type="button" id="gap-remove-manage" title="打开可拖动的移除静音空隙工具窗" aria-expanded="false" aria-controls="gap-remove-panel">移除静音空隙</button>
+      <label class="toggle gap-skip-toggle" title="播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览"><input type="checkbox" id="gap-skip-playback" checked> 播放时跳过空隙</label>
+      <span class="gap-remove-summary" id="gap-remove-summary">未扫描空隙</span>
+      <span class="sep"></span>
+      <span class="waveform-status" id="waveform-status">等待波形数据</span>
+    </div>
     <div class="waveform-scroll" id="waveform-scroll">
       <div class="waveform-content" id="waveform-content"></div>
     </div>
@@ -2115,6 +2240,21 @@
   <div class="layout-resizer layout-resizer-h2" id="layout-resizer-h2" data-layout-resizer="row-middle" title="拖动调整当前字幕与字幕列表高度"></div>
   <div class="layout-drop-preview" id="layout-drop-preview" aria-hidden="true"></div>
   <div class="cues-container" id="cues-container">
+    <div class="toolbar cue-list-toolbar">
+      <span class="info layout-toolbar-label">字幕</span>
+      <span class="input-clear" id="search-wrap">
+        <input type="text" id="search" placeholder="过滤字幕…" autocomplete="off">
+        <span class="clear-x" id="search-clear" title="清空">×</span>
+      </span>
+      <span class="info">显示 <b id="visible-count">0</b> / <b id="total-count">0</b></span>
+      <label class="toggle"><input type="checkbox" id="hide-disabled-toggle"> 隐藏禁用</label>
+      <span class="sep"></span>
+      <button id="replace-btn">批量替换…</button>
+      <span class="sep"></span>
+      <span class="info">字数阈值</span>
+      <input type="number" id="charcount-threshold" min="1" max="200" value="16">
+      <button id="filter-over" title="只显示超过阈值的字幕（再次点击关闭）">仅看超长</button>
+    </div>
     <div class="cues-empty" id="cues-empty">加载工程后显示字幕列表</div>
   </div>
 </div>
@@ -2263,6 +2403,10 @@
     const charsPerSecond = durationSeconds > 0
       ? Number((totalLength / durationSeconds).toFixed(2)) : 0;
     return { totalLength, charsPerSecond };
+  }
+
+  function joinSegmentTexts(segments, separator) {
+    return segments.map((segment) => String(segment?.text || '')).join(separator);
   }
 
   function formatHumanDuration(durationMs) {
@@ -2485,9 +2629,12 @@
       ? options.formatTime
       : (timeMs) => String(timeMs);
     const parts = [];
-    source.filter((segment) => (
-      segment && !segment.disabled && (!colorName || effectiveColorName(segment, source) === colorName)
-    )).forEach((segment, index) => {
+    source.filter((segment) => {
+      if (!segment || segment.disabled) return false;
+      if (!colorName) return true;
+      const effectiveName = effectiveColorName(segment, source);
+      return colorName === 'default' ? !effectiveName : effectiveName === colorName;
+    }).forEach((segment, index) => {
       const start = Math.max(0, Math.round(Number(mapTime(segment.start)) || 0));
       const mappedEnd = Math.max(0, Math.round(Number(mapTime(segment.end)) || 0));
       const end = options.ensurePositiveDuration ? Math.max(start + 1, mappedEnd) : mappedEnd;
@@ -2497,6 +2644,13 @@
       parts.push('');
     });
     return parts.join('\n');
+  }
+
+  function buildPlainTextPayload(segments) {
+    return (Array.isArray(segments) ? segments : [])
+      .filter((segment) => segment && !segment.disabled)
+      .map((segment) => String(segment.text || '').replace(/\r\n?/g, '\n'))
+      .join('\n');
   }
 
   function fileBasename(value) {
@@ -2915,6 +3069,7 @@
   window.AsrEditorUtils = {
     buildReplacementPreview,
     cueMetrics,
+    joinSegmentTexts,
     formatHumanDuration,
     formatGapRemoveDuration,
     splitCharOffsetAtTime,
@@ -2925,6 +3080,7 @@
     getSrtExportOffset,
     effectiveColorName,
     buildSrtPayload,
+    buildPlainTextPayload,
     fileBasename,
     findProjectMediaFile,
     normalizeGapRemoveGaps,
@@ -2961,9 +3117,12 @@
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     '打开工程': 'Open project',
     '最近工程': 'Recent projects', '自动打开上次工程': 'Automatically open last project',
-    '加载媒体': 'Load media', '保存工程': 'Save project', '另存为…': 'Save as…',
+    '加载媒体': 'Load media', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save',
+    '自动保存': 'Auto-save', '自动保存间隔（秒）': 'Auto-save interval (seconds)',
     '导出字幕': 'Export subtitles', '导出字幕 ▾': 'Export subtitles ▾',
-    '导出完整字幕': 'Export full subtitles', '按颜色导出字幕': 'Export by color',
+    '导出完整字幕': 'Export full subtitles', '导出完整字幕（SRT）': 'Export full subtitles (SRT)',
+    '按颜色导出字幕': 'Export by color', '按颜色导出字幕（SRT）': 'Export by color (SRT)',
+    '导出纯文本（TXT）': 'Export plain text (TXT)',
     '导出工程': 'Export project', '导出去空隙版本 ▾': 'Export gap-removed version ▾',
     '字幕 SRT': 'Subtitle SRT', '时间线 OTIO 工程': 'Timeline OTIO project',
     'FFconcat 文件': 'FFconcat file', '保留区域 JSON': 'Kept-regions JSON',
@@ -2971,12 +3130,13 @@
     '下载 Resolve JSON': 'Download Resolve JSON',
     '下载表情包 OTIO 工程': 'Download sticker OTIO project',
     '字幕': 'Subtitles', '字幕预览': 'Subtitle preview', '表情包预览': 'Sticker preview', '字幕列表和编辑区': 'Subtitle list & editor',
+    '媒体': 'Media', '预览字幕': 'Subtitle preview', '预览表情包': 'Sticker preview',
     '显示': 'Showing', '隐藏禁用': 'Hide disabled', '批量替换…': 'Batch replace…',
     '字数阈值': 'Character threshold', '仅看超长': 'Long only',
     '当前': 'Current', '已选': 'Selected', '波形': 'Waveform', '音频波形区': 'Audio waveform',
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
-    '跳过空隙': 'Skip gaps', '未扫描空隙': 'Gaps not scanned', '布局': 'Layout',
+    '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '布局': 'Layout',
     '标准堆叠': 'Classic stack', '右侧整列波形': 'Waveform column right',
     '波形在下方': 'Waveform below', '自定义停靠': 'Custom docking',
     '编辑布局': 'Edit layout', '重置布局': 'Reset layout',
@@ -2997,20 +3157,23 @@
     '每段空隙结尾保留的静音，避免下一句贴得太紧': 'Keep this much silence at each gap end so the next line is not too tight',
     '当音频判定为有声时，需要降低到比阈值更低 2 dB 的时候才视作恢复静音。建议 1–3 dB，过高会延迟回到静音': 'After audio becomes active, it must fall 2 dB below the threshold to become silent again. Recommended: 1–3 dB.',
     '滚轮可调数值 · Esc 关闭': 'Use the wheel to adjust values · Esc to close',
-    '全部恢复': 'Restore all', '字幕列表显示': 'Subtitle list fields',
+    '全部清理': 'Clear all', '字幕列表显示': 'Subtitle list fields',
     '序号': 'Index', '时间码': 'Timecode', '表情包': 'Stickers', '字数': 'Characters',
-    '字幕编辑显示': 'Subtitle editor fields', '前后跳转': 'Previous/next navigation',
+    '字幕编辑显示': 'Subtitle editor fields', '跳转按钮': 'Navigation buttons', '前后跳转': 'Navigation buttons', '时间操作': 'Time actions',
     '操作': 'Behavior', '通用操作': 'General', '单击行为': 'Click behavior', '点击字幕块时': 'Click subtitle behavior', '仅选中': 'Select only',
     '选中并跳转': 'Select and seek',
     '「仅选中」时可以用F键功能来跳转并播放字幕': 'In “Select only” mode, press F to seek to and play the subtitle',
+    '合并字幕时插入字符': 'Merge separator', '留空则直接拼接': 'Leave blank to join directly',
+    '合并两条字幕时，中间插入的字符（如果不需要可以留空）': 'Characters inserted between merged subtitles (leave blank to join directly)',
     '字幕编辑拆分按键': 'Subtitle split key', '字幕（编辑状态下）拆分按键': 'Subtitle split key (while editing)',
     '同时选中分组内项目': 'Select all group members',
     '显示窗口': 'Visible window', '振幅': 'Amplitude',
     '5 秒': '5 sec', '10 秒': '10 sec', '20 秒': '20 sec', '30 秒': '30 sec',
     '每行长度': 'Seconds per row', '每行高度': 'Row height',
-    '空隙操作': 'Gap action', 'Alt+点击': 'Alt+click',
+    '空隙区段操作方式': 'Gap region operation', 'Alt+点击': 'Alt+click',
     '中键拖动': 'Middle-button drag', '显示分组标记': 'Show group markers',
     '彩色字幕统一导出': 'Export colored subtitles together',
+    '选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。': 'When enabled, export all color groups as filename_color; otherwise each color opens its own save dialog.',
     'SRT 首条从 0 开始': 'Start first SRT cue at 0',
     '菜单': 'Menu', '显示菜单': 'Show menu', '单击': 'Click',
     'Shift+点击': 'Shift+click', 'Ctrl+点击': 'Ctrl+click',
@@ -3020,6 +3183,8 @@
     '静音空隙': 'Silent gaps', 'Alt+点击静音空隙区段': 'Alt+click a silent-gap region',
     'Alt+中键拖动': 'Alt+middle-button drag',
     '选中': 'Select', '双击': 'Double-click', '编辑': 'Edit',
+    '进入字幕编辑区（仅单选时）': 'Focus subtitle editor (single selection only)', '退出字幕编辑区（文本编辑时）': 'Exit subtitle editor (while editing)', '清除字幕选择（非编辑状态）': 'Clear subtitle selection (when not editing)',
+    '选中所有字幕': 'Select all subtitles', '选中所有字幕（非编辑状态）': 'Select all subtitles (when not editing)',
     '右键': 'Right-click', '字幕操作': 'Subtitle actions',
     '多选': 'Multi-select', '连选': 'Range select',
     '切换字幕禁用': 'Toggle subtitle disabled', '删除所选字幕': 'Delete selected subtitles',
@@ -3033,8 +3198,9 @@
     '倍速 ×0.5/重置/×2': 'Speed ×0.5/reset/×2',
     '双击波形': 'Double-click waveform', '右键波形背景': 'Right-click waveform background',
     '增加静音区段': 'Add silent region',
-    '设置的空隙操作为「中键拖动」时：': 'When gap action is “Middle-button drag”:',
+    '空隙区段操作方式设为「中键拖动」时：': 'When gap region operation is “Middle-button drag”:',
     '增加恢复区段': 'Add restored region', '切换移除/保留': 'Toggle removed/kept',
+    '恢复区段': 'Restore region', '移除区段': 'Remove region', '清理该区段': 'Clear this region',
     '调整时间缩放/每行长度': 'Adjust zoom/seconds per row',
     '调整波形振幅': 'Adjust waveform amplitude',
     '调整每行高度': 'Adjust row height', '拖动边界': 'Drag boundary',
@@ -3055,6 +3221,7 @@
     '取消': 'Cancel', '替换全部': 'Replace all', '分配表情包': 'Assign sticker',
     '清除当前': 'Clear current', '替换': 'Replace', '删除': 'Delete', '关闭': 'Close',
     '设置表情包根目录': 'Set sticker root folder',
+    '仅服务器版编辑器可将改动保存回当前工程 JSON': 'Only the server editor can save changes back to the current project JSON',
     '所有表情包路径都基于此根目录。修改后页面所有缩略图会立刻按新路径加载。': 'All sticker paths are relative to this root. Thumbnails update immediately after it changes.',
     '支持 OS 路径（D:/foo/bar）或 file:// URL。手动改路径只替换前缀；点 📁 浏览选本地文件夹会重新扫描表情包。': 'Supports OS paths (D:/foo/bar) and file:// URLs. Editing the path only changes the prefix; Browse rescans the folder.',
     '当前根目录（绝对路径）': 'Current root folder (absolute path)',
@@ -3140,7 +3307,7 @@
     '多行波形每一行的高度；也可用 Ctrl+Shift+滚轮 在波形上直接调节': 'Height of each multi-row waveform row; Ctrl+Shift+wheel also adjusts it directly',
     '在多行波形中，为成组（颜色/表情包）字幕在块上方显示队长皇冠与组内序号': 'Show a leader crown and member index above grouped color/sticker subtitles in multi-row mode',
     '移除静音空隙的人工修正方式；Alt+左键始终切换整段；中键拖动默认增加静音，按住 Alt 才恢复声音，边界碰到另一空隙时会合并': 'Manual silent-gap correction mode; Alt+click toggles a full region; middle-drag adds silence, Alt restores audio, and touching regions merge',
-    '勾选后按颜色导出时只选择一次导出文件夹，自动按「文件名_颜色」批量保存；取消勾选则逐个颜色弹出保存对话框': 'When enabled, choose one folder and save all color exports as filename_color; otherwise choose each file separately',
+    '勾选后按颜色导出会先选择一个 SRT 文件名作为前缀，再下载「前缀_颜色.srt」；取消勾选则逐个颜色弹出保存对话框': 'When enabled, choose an SRT filename as the prefix, then download prefix_color.srt files; otherwise choose each file separately',
     '拖动调整波形与字幕区域比例': 'Drag to resize waveform and subtitle areas',
     '拖动调整布局区域比例': 'Drag to resize layout areas',
     '拖动调整左右区域宽度': 'Drag to resize left and right areas',
@@ -3421,23 +3588,27 @@
     return Math.max(low, Math.min(high, value));
   }
 
-  // 组序号徽章：按 color/sticker 的 head/ref 结构计算每条字幕的 { ordinal, total, isHead }。
-  // 优先表情包组，其次颜色组；组大小 <2 时不显示。队长（head）恒为 1/total。
+  // 组序号徽章：颜色与表情包分组彼此独立，因此同一条字幕可同时拥有两枚徽章。
+  // 颜色组大小 <2 时不显示；表情包即使只有单条也显示 🦊 作为非视觉化标记。
   function computeGroupBadges(segments) {
     const badges = new Map();
-    const apply = (headField, refField) => {
+    const apply = (type, headField, refField) => {
       segments.forEach((seg, headIdx) => {
-        if (!seg[headField] || badges.has(headIdx)) return;
+        if (!seg[headField]) return;
         const members = [headIdx];
         segments.forEach((candidate, idx) => {
-          if (candidate[refField]?.headIdx === headIdx && !badges.has(idx)) members.push(idx);
+          if (candidate[refField]?.headIdx === headIdx) members.push(idx);
         });
-        if (members.length < 2) return;
-        members.forEach((idx, i) => badges.set(idx, { ordinal: i + 1, total: members.length, isHead: i === 0 }));
+        if (type === 'color' && members.length < 2) return;
+        members.forEach((idx, i) => {
+          const cueBadges = badges.get(idx) || [];
+          cueBadges.push({ type, ordinal: i + 1, total: members.length });
+          badges.set(idx, cueBadges);
+        });
       });
     };
-    apply('sticker', 'sticker_ref');
-    apply('color', 'color_ref');
+    apply('color', 'color', 'color_ref');
+    apply('sticker', 'sticker', 'sticker_ref');
     return badges;
   }
 
@@ -5088,7 +5259,7 @@
       row.appendChild(playhead);
 
       const gaps = this.options.getGapRemoveGaps?.() || [];
-      const gapOperationMode = this.options.getGapOperationMode?.() || 'middle_drag';
+      const gapOperationMode = this.options.getGapOperationMode?.() || 'boundary_drag';
       gaps.forEach((gap, index) => {
         if (!gap || gap.end <= startMs || gap.start >= endMs) return;
         const block = document.createElement('div');
@@ -5151,6 +5322,7 @@
         block.addEventListener('contextmenu', (event) => {
           event.preventDefault();
           event.stopPropagation();
+          this.options.showGapContextMenu?.(event.clientX, event.clientY, index);
         });
         row.appendChild(block);
       });
@@ -5174,21 +5346,26 @@
         label.className = 'waveform-cue-label';
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
-        const badge = this.settings.showGroupBadges !== false ? groupBadges.get(index) : null;
-        if (badge) {
-          // 徽章挂在行上、块上方（不遮挡块内文字）；块过窄时不显示，避免与相邻徽章重叠
+        const badges = this.settings.showGroupBadges !== false ? groupBadges.get(index) : null;
+        if (badges?.length) {
+          // 徽章挂在行上、块上方（不遮挡块内文字）；单个表情包保留较小的显示阈值，
+          // 让它即使不是分组也能作为提示出现。
           const badgeDuration = Math.max(1, endMs - startMs);
           const badgeVisibleStart = Math.max(startMs, segment.start);
           const badgeVisibleEnd = Math.min(endMs, segment.end);
           // 行创建时还未挂载（clientWidth=0），用容器宽度估算块像素宽（行宽=容器宽）
           const blockWidthPx = ((badgeVisibleEnd - badgeVisibleStart) / badgeDuration) * this.content.clientWidth;
-          if (blockWidthPx >= 56) {
+          const hasSingleSticker = badges.some((badge) => badge.type === 'sticker' && badge.total === 1);
+          if (blockWidthPx >= (hasSingleSticker ? 24 : 56)) badges.forEach((badge, badgeIndex) => {
             const badgeEl = document.createElement('span');
-            badgeEl.className = 'waveform-cue-badge' + (badge.isHead ? ' head' : '');
-            badgeEl.textContent = badge.isHead ? `👑 ${badge.ordinal}/${badge.total}` : `${badge.ordinal}/${badge.total}`;
+            badgeEl.className = `waveform-cue-badge ${badge.type}`;
+            badgeEl.textContent = badge.type === 'sticker' && badge.total === 1
+              ? '🦊'
+              : `${badge.type === 'color' ? '🎨' : '🦊'} ${badge.ordinal}/${badge.total}`;
             badgeEl.style.left = `${((badgeVisibleStart - startMs) / badgeDuration) * 100}%`;
+            badgeEl.style.setProperty('--badge-stack-index', String(badgeIndex));
             row.appendChild(badgeEl);
-          }
+          });
         }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
@@ -5967,6 +6144,7 @@
       layoutDropIntent,
       layoutRootDropIntent,
       layoutDropPreviewRect,
+      computeGroupBadges,
     },
   };
 })();
@@ -5985,11 +6163,17 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowTime: true,
   cueListShowSticker: false,
   cueListShowCharcount: true,
-  cueEditorShowNavigation: true,
+  cueEditorShowNavigation: false,
+  cueEditorShowTimeActions: true,
   cueEditorShowSticker: false,
   selectGroupMembers: false,
-  // 按颜色导出 SRT：统一导出只选一次文件夹，按「文件名_颜色」批量保存。
+  // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
+  mergeJoinText: '',
+  // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
   exportColorUnified: true,
+  // 自动保存仅对绑定工程的 localhost 服务器版生效。
+  autoSaveProject: false,
+  autoSaveIntervalSeconds: 30,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
   // 字幕列表单击行为：select-only 仅选中（默认），select-and-seek 选中并跳转播放头。
@@ -6007,16 +6191,25 @@ function readEditorSettings() {
       cueListShowTime: saved.cueListShowTime !== false,
       cueListShowSticker: saved.cueListShowSticker === true,
       cueListShowCharcount: saved.cueListShowCharcount !== false,
-      cueEditorShowNavigation: saved.cueEditorShowNavigation !== false,
+      cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
+      cueEditorShowTimeActions: saved.cueEditorShowTimeActions !== false,
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
       selectGroupMembers: saved.selectGroupMembers === true,
+      mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
       exportColorUnified: saved.exportColorUnified !== false,
+      autoSaveProject: saved.autoSaveProject === true,
+      autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
     };
   } catch (_) {
     return { ...DEFAULT_EDITOR_SETTINGS };
   }
+}
+
+function clampAutoSaveInterval(value) {
+  const seconds = Math.round(Number(value));
+  return Math.min(3600, Math.max(5, Number.isFinite(seconds) ? seconds : 30));
 }
 
 function saveEditorSettings(settings) {
@@ -6048,7 +6241,7 @@ const DEFAULT_GAP_REMOVE_THRESHOLD_DB = -24;
 const DEFAULT_GAP_REMOVE_HYSTERESIS_DB = 2;
 const DEFAULT_GAP_REMOVE_LEAD_IN_MS = 40;
 const DEFAULT_GAP_REMOVE_LEAD_OUT_MS = 80;
-const DEFAULT_GAP_REMOVE_OPERATION_MODE = 'middle_drag';
+const DEFAULT_GAP_REMOVE_OPERATION_MODE = 'boundary_drag';
 const GAP_REMOVE_ADVANCED_OPEN_KEY = 'moy.asr.gap_remove.advanced_open.v1';
 
 function clampGapRemoveMinimum(value) {
@@ -6274,12 +6467,16 @@ const overlayToggle = document.getElementById('overlay-toggle');
 const stickerOverlayToggle = document.getElementById('sticker-overlay-toggle');
 const playerEmpty = document.getElementById('player-empty');
 const playerWrap = document.querySelector('.player-wrap');
+// 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
+const playerStage = playerWrap?.querySelector('.player-stage') || playerWrap;
 const splitKeySel = document.getElementById('split-key');
+const mergeJoinTextInput = document.getElementById('merge-join-text');
 const cueListShowIndexToggle = document.getElementById('cue-list-show-index');
 const cueListShowTimeToggle = document.getElementById('cue-list-show-time');
 const cueListShowStickerToggle = document.getElementById('cue-list-show-sticker');
 const cueListShowCharcountToggle = document.getElementById('cue-list-show-charcount');
 const cueEditorShowNavigationToggle = document.getElementById('cue-editor-show-navigation');
+const cueEditorShowTimeActionsToggle = document.getElementById('cue-editor-show-time-actions');
 const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-sticker');
 const selectGroupMembersToggle = document.getElementById('select-group-members');
 const exportColorUnifiedToggle = document.getElementById('export-color-unified');
@@ -6305,6 +6502,7 @@ const cuePanelCharsPerSecond = document.getElementById('cue-panel-chars-per-seco
 const cuePanelSticker = document.getElementById('cue-panel-sticker');
 const cuePanelAddSticker = document.getElementById('cue-panel-add-sticker');
 const cuePanelSplit = document.getElementById('cue-panel-split');
+const cuePanelSplitKey = document.getElementById('cue-panel-split-key');
 const cuesEmpty = document.getElementById('cues-empty');
 const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
@@ -6314,6 +6512,10 @@ const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown
 const editorSettingsToggle = document.getElementById('editor-settings-toggle');
 const editorSettingsPanel = document.getElementById('editor-settings-panel');
 const exportStartAtZeroToggle = document.getElementById('export-start-at-zero');
+const serverAutoSaveSettings = document.getElementById('server-auto-save-settings');
+const autoSaveProjectToggle = document.getElementById('auto-save-project');
+const autoSaveIntervalField = document.getElementById('auto-save-interval-field');
+const autoSaveIntervalInput = document.getElementById('auto-save-interval');
 const recentProjectsEl = document.getElementById('recent-projects');
 const recentProjectsToggle = document.getElementById('recent-projects-toggle');
 const recentProjectsMenu = document.getElementById('recent-projects-menu');
@@ -6339,7 +6541,7 @@ const gapRemoveOperationMode = document.getElementById('gap-remove-operation-mod
 const gapRemoveScanButton = document.getElementById('gap-remove-scan');
 const gapRemoveSkipPlayback = document.getElementById('gap-skip-playback');
 const gapRemoveList = document.getElementById('gap-remove-list');
-const gapRemoveRestoreAllButton = document.getElementById('gap-remove-restore-all');
+const gapRemoveClearAllButton = document.getElementById('gap-remove-clear-all');
 let gapPreviewRange = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
@@ -6382,8 +6584,10 @@ function bindCueListDisplayToggle(toggle, key) {
 
 function applyCueEditorDisplaySettings() {
   cueEditorShowNavigationToggle.checked = EDITOR_SETTINGS.cueEditorShowNavigation;
+  cueEditorShowTimeActionsToggle.checked = EDITOR_SETTINGS.cueEditorShowTimeActions;
   cueEditorShowStickerToggle.checked = EDITOR_SETTINGS.cueEditorShowSticker;
   cuePanel.classList.toggle('hide-cue-editor-navigation', !EDITOR_SETTINGS.cueEditorShowNavigation);
+  cuePanel.classList.toggle('hide-cue-editor-time-actions', !EDITOR_SETTINGS.cueEditorShowTimeActions);
   cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
 }
 
@@ -6399,15 +6603,23 @@ function splitKeyLabel() {
 }
 
 function refreshSplitKeyHelp() {
-  if (helpSplitKey) helpSplitKey.textContent = splitKeyLabel();
+  const label = splitKeyLabel();
+  if (helpSplitKey) helpSplitKey.textContent = label;
+  if (cuePanelSplitKey) cuePanelSplitKey.textContent = label;
 }
+
+// 切换语言时 i18n 会重置动态文本节点，需重新套用当前拆分按键提示。
+document.addEventListener('mawe:languagechange', () => refreshSplitKeyHelp());
 
 splitKeySel.value = EDITOR_SETTINGS.splitKey;
 refreshSplitKeyHelp();
+if (mergeJoinTextInput) mergeJoinTextInput.value = EDITOR_SETTINGS.mergeJoinText;
 overlayToggle.checked = EDITOR_SETTINGS.overlayEnabled;
 exportStartAtZeroToggle.checked = EDITOR_SETTINGS.exportStartAtZero;
 if (selectGroupMembersToggle) selectGroupMembersToggle.checked = EDITOR_SETTINGS.selectGroupMembers;
 if (exportColorUnifiedToggle) exportColorUnifiedToggle.checked = EDITOR_SETTINGS.exportColorUnified;
+if (autoSaveProjectToggle) autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoSaveProject;
+if (autoSaveIntervalInput) autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
 if (stickerOverlayToggle) stickerOverlayToggle.checked = EDITOR_SETTINGS.stickerOverlayEnabled;
 if (clickBehaviorSelect) clickBehaviorSelect.value = EDITOR_SETTINGS.clickBehavior;
 applyCueListDisplaySettings();
@@ -6423,11 +6635,15 @@ splitKeySel.addEventListener('change', () => {
   updateEditorSettings({ splitKey: splitKeySel.value });
   refreshSplitKeyHelp();
 });
+if (mergeJoinTextInput) mergeJoinTextInput.addEventListener('input', () => {
+  updateEditorSettings({ mergeJoinText: mergeJoinTextInput.value });
+});
 bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
 bindCueListDisplayToggle(cueListShowCharcountToggle, 'cueListShowCharcount');
 bindCueEditorDisplayToggle(cueEditorShowNavigationToggle, 'cueEditorShowNavigation');
+bindCueEditorDisplayToggle(cueEditorShowTimeActionsToggle, 'cueEditorShowTimeActions');
 bindCueEditorDisplayToggle(cueEditorShowStickerToggle, 'cueEditorShowSticker');
 exportStartAtZeroToggle.addEventListener('change', () => {
   updateEditorSettings({ exportStartAtZero: exportStartAtZeroToggle.checked });
@@ -6492,7 +6708,10 @@ function renderGapRemoveList() {
     return;
   }
   if (!gaps.length) {
-    gapRemoveList.textContent = '尚未找到符合门限的音量空隙。';
+    const message = document.createElement('div');
+    message.className = 'gap-remove-total';
+    message.textContent = '尚未找到符合门限的音量空隙。';
+    gapRemoveList.appendChild(message);
     return;
   }
   const removedCount = gaps.filter((gap) => gap.removed).length;
@@ -6526,7 +6745,7 @@ function updateGapRemoveUi() {
     gapRemoveOperationMode.value = state?.operation_mode || DEFAULT_GAP_REMOVE_OPERATION_MODE;
   }
   if (gapRemoveSkipPlayback) gapRemoveSkipPlayback.checked = state?.skip_playback !== false;
-  if (gapRemoveRestoreAllButton) gapRemoveRestoreAllButton.disabled = !gaps.some((gap) => gap.removed);
+  if (gapRemoveClearAllButton) gapRemoveClearAllButton.disabled = !gaps.length;
   if (gapRemovedExportDropdown) {
     gapRemovedExportDropdown.hidden = !gaps.some((gap) => gap.removed);
     if (gapRemovedExportDropdown.hidden) gapRemovedExportDropdown.classList.remove('open');
@@ -6585,6 +6804,17 @@ function toggleGapRemoved(index) {
   flashHint(removed ? '已人工移除静音空隙' : '已人工恢复静音空隙');
 }
 
+function clearGap(index) {
+  const state = getGapRemoveData(false);
+  const gap = state?.gaps?.[index];
+  if (!gap) return;
+  pushGapRemoveUndo('清理空隙区段');
+  state.gaps = state.gaps.filter((_, gapIndex) => gapIndex !== index);
+  state.manual_corrections = state.gaps.length > 0;
+  setGapRemoveData(state);
+  flashHint('已清理空隙区段');
+}
+
 function applyManualGapRange(startMs, endMs, removed) {
   const state = getGapRemoveData(true);
   const sourceGaps = state.detector === 'audio_gate' ? state.gaps : [];
@@ -6613,14 +6843,17 @@ function resizeManualGapBoundary(index, edge, valueMs) {
   flashHint('已人工调整空隙边界');
 }
 
-function restoreAllGaps() {
+function clearAllGaps() {
   const state = getGapRemoveData(false);
-  if (!state?.gaps?.some((gap) => gap.removed)) return;
-  pushGapRemoveUndo('恢复全部空隙');
-  state.gaps = state.gaps.map((gap) => ({ ...gap, removed: false }));
-  state.manual_corrections = true;
+  if (!state?.gaps?.length) return;
+  if (!confirm(
+    `确定要清理全部 ${state.gaps.length} 个空隙区段吗？\n\n这会删除当前所有已移除和已恢复的区段记录。`
+  )) return;
+  pushGapRemoveUndo('清理全部空隙区段');
+  state.gaps = [];
+  state.manual_corrections = false;
   setGapRemoveData(state);
-  flashHint('已恢复全部空隙');
+  flashHint('已清理全部空隙区段');
 }
 
 function gapRemovePanelIsOpen() {
@@ -6782,7 +7015,7 @@ gapRemovePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
 
 gapRemoveManageButton?.addEventListener('click', toggleGapRemovePanel);
 gapRemoveScanButton?.addEventListener('click', scanAndRemoveGaps);
-gapRemoveRestoreAllButton?.addEventListener('click', restoreAllGaps);
+gapRemoveClearAllButton?.addEventListener('click', clearAllGaps);
 gapRemoveCloseButton?.addEventListener('click', closeGapRemovePanel);
 gapRemoveOperationMode?.addEventListener('change', () => {
   const state = getGapRemoveData(true);
@@ -6933,6 +7166,20 @@ function addToSelection(idx) {
   if (waveformEditor) waveformEditor.updateSelection();
   setCurrentCuePanelIndex(idx);
 }
+// 选中全部字幕（跳过「隐藏禁用项」开启时的禁用条目，与其它选择逻辑一致）。
+function selectAll() {
+  clearSelection();
+  DATA.segments.forEach((_, idx) => {
+    if (isHiddenDisabled(idx)) return;
+    selectedIdxs.add(idx);
+    const el = container.querySelector(`.cue[data-idx="${idx}"]`);
+    if (el) el.classList.add('selected');
+  });
+  selCountEl.textContent = String(selectedIdxs.size);
+  if (waveformEditor) waveformEditor.updateSelection();
+  const last = DATA.segments.length - 1;
+  setCurrentCuePanelIndex(last >= 0 && selectedIdxs.has(last) ? last : (selectedIdxs.values().next().value ?? -1));
+}
 // 返回与 idx 同属一个表情包/颜色分组的全部字幕下标（含 idx 自身）。
 // head 持有 sticker/color，成员持 sticker_ref/color_ref 指向 head。
 function groupMemberIdxs(idx) {
@@ -6979,9 +7226,11 @@ function renderAll() {
   // cues-container 同时是字幕列表和停靠模块；重绘列表时不要把布局编辑模式
   // 下的顶部拖拽栏一起清掉。
   const dockHandle = container.querySelector(':scope > .dock-handle');
+  const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
   container.replaceChildren();
   if (dockHandle) container.appendChild(dockHandle);
+  if (cueListToolbar) container.appendChild(cueListToolbar);
   if (emptyState) {
     emptyState.classList.toggle('hidden', DATA.segments.length > 0);
     container.appendChild(emptyState);
@@ -7170,6 +7419,13 @@ function splitCuePanelAtCursor() {
 cuePanelPrev?.addEventListener('click', () => navigateCuePanel(-1));
 cuePanelNext?.addEventListener('click', () => navigateCuePanel(1));
 cuePanelText?.addEventListener('keydown', (event) => {
+  // Esc：退出字幕编辑区（失焦并提交），之后即可用 A/D 等快捷键跳转字幕。
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    cuePanelText.blur();
+    return;
+  }
   const action = getConfiguredEnterAction(event);
   if (!action || action === 'newline') return;
   event.preventDefault();
@@ -7676,7 +7932,7 @@ function mergeSegments(idxs) {
   const merged = {
     start: segs[0].start,
     end: segs[segs.length - 1].end,
-    text: segs.map(s => s.text).join('  '),
+    text: window.AsrEditorUtils.joinSegmentTexts(segs, EDITOR_SETTINGS.mergeJoinText),
     items: segs.flatMap(s => s.items || []),
     sticker: stickerGroup.head,
     sticker_ref: stickerGroup.ref,
@@ -7720,6 +7976,8 @@ function mergeSegments(idxs) {
   });
   syncTimelineGroupRanges();
   renderAll();
+  // 合并完成后选中合并结果，方便继续对这句新字幕操作
+  selectOnly(sorted[0]);
   const el = container.querySelector(`.cue[data-idx="${sorted[0]}"]`);
   if (el) scrollCueToCenter(el);
   flashHint(`已合并 ${sorted.length} 条`);
@@ -7976,6 +8234,27 @@ document.addEventListener('keydown', (e) => {
   else finishEdit(true);
 }, true);
 
+// Esc：非字幕文本编辑状态下清除当前字幕选择；输入框和内联编辑继续保留原生/编辑行为。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || editingState || selectedIdxs.size === 0) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  clearSelection();
+});
+
 function togglePlayback() {
   if (!hasLoadedMedia()) {
     flashHint('请先加载媒体，然后才能预览');
@@ -8129,6 +8408,61 @@ document.addEventListener('keydown', (e) => {
     const promise = player.play();
     if (promise && promise.catch) promise.catch(() => {});
   }
+});
+
+// Ctrl/Cmd+A：选中所有字幕。仅在「非编辑字幕」状态下生效；
+// 焦点在输入框/文本域/可编辑元素或内联编辑态时，保留浏览器原生的「全选文本」行为。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'a' && e.key !== 'A') return;
+  if (!e.ctrlKey && !e.metaKey) return;
+  if (e.altKey || e.shiftKey) return;
+  if (editingState) return;
+  if (e.target === cuePanelText) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  e.preventDefault();
+  selectAll();
+});
+
+// Enter：仅选中单条字幕（列表或波形均可）时，进入字幕编辑区并聚焦文本框，
+// 光标置于末尾，方便直接继续编辑。内联编辑态、已聚焦编辑区或多个模态打开时不触发。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (editingState) return;  // 内联编辑态的 Enter 交给 split/commit 处理
+  if (e.target === cuePanelText) return;  // 已在字幕编辑区
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;  // 仅响应裸 Enter
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.tagName === 'BUTTON'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (selectedIdxs.size !== 1) return;  // 仅单选时进入编辑区
+  const idx = currentCuePanelIdx;
+  if (idx < 0 || !DATA.segments[idx]) return;
+  e.preventDefault();
+  cuePanelText.focus();
+  const end = cuePanelText.value.length;
+  cuePanelText.setSelectionRange(end, end);
 });
 
 // C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
@@ -8337,12 +8671,12 @@ function getTargetGeometry(target) { return target === 'sticker' ? getStickerGeo
 function setTargetGeometry(target, geo) {
   if (target === 'sticker') setStickerGeometry(geo); else setPreviewGeometry(geo);
 }
-function playerWrapRect() {
-  return playerWrap.getBoundingClientRect();
+function playerStageRect() {
+  return playerStage.getBoundingClientRect();
 }
 function beginPreviewGesture(event, handle, target) {
   if (!previewTargetEnabled(target)) return;
-  const rect = playerWrapRect();
+  const rect = playerStageRect();
   if (rect.width <= 0 || rect.height <= 0) return;
   event.preventDefault();
   event.stopPropagation();
@@ -8435,7 +8769,7 @@ if (typeof ResizeObserver === 'function') {
   const previewResizeObserver = new ResizeObserver(() => {
     applyPreviewGeometryToDom(getPreviewGeometry());
   });
-  previewResizeObserver.observe(playerWrap);
+  previewResizeObserver.observe(playerStage);
 }
 
 // === 当前行高亮 + overlay ===
@@ -8538,7 +8872,7 @@ stickerOverlayLayer.appendChild(stickerOverlayContent);
   handle.dataset.handle = h;
   stickerOverlayLayer.appendChild(handle);
 });
-playerWrap.appendChild(stickerOverlayLayer);
+playerStage.appendChild(stickerOverlayLayer);
 bindPreviewBoxPointerEvents(stickerOverlayLayer, 'sticker');
 stickerOverlayLayer.addEventListener('keydown', (event) => handlePreviewBoxKeydown(event, 'sticker'));
 
@@ -8654,9 +8988,12 @@ function buildGapRemovedSrt() {
 
 function usedSubtitleColors() {
   const names = new Set(DATA.segments.filter((segment) => !segment.disabled).map((segment) => (
-    window.AsrEditorUtils.effectiveColorName(segment, DATA.segments)
-  )).filter((name) => COLOR_BY_NAME[name]));
-  return COLOR_PALETTE.filter((color) => names.has(color.name));
+    window.AsrEditorUtils.effectiveColorName(segment, DATA.segments) || 'default'
+  )).filter((name) => name === 'default' || COLOR_BY_NAME[name]));
+  return [
+    ...COLOR_PALETTE.filter((color) => names.has(color.name)),
+    ...(names.has('default') ? [{ name: 'default', label: '默认' }] : []),
+  ];
 }
 
 function updateSubtitleExportUi() {
@@ -8693,35 +9030,40 @@ async function downloadColorSrts(gapRemoved = false) {
     ensurePositiveDuration: gapRemoved,
     formatTime: fmtSrtTime,
   });
-  // 统一导出：只选一次导出文件夹，按「文件名_颜色」批量写入
-  if (EDITOR_SETTINGS.exportColorUnified && window.showDirectoryPicker) {
+  let filenameBase = `${FILENAME_BASE}${gapSuffix}`;
+  // 浏览器不允许从一个文件句柄取得其父目录，因此不再请求文件夹权限。
+  // 先让用户选择一个 SRT 文件名，并把该名称（不含 .srt）作为所有颜色文件的前缀。
+  if (EDITOR_SETTINGS.exportColorUnified && window.showSaveFilePicker) {
     try {
-      const dirHandle = await window.showDirectoryPicker({ id: 'maw-color-srt-export' });
-      for (const color of colors) {
-        const handle = await dirHandle.getFileHandle(
-          `${FILENAME_BASE}${gapSuffix}_${color.name}.srt`,
-          { create: true },
-        );
-        const writable = await handle.createWritable();
-        await writable.write(new Blob([buildPayload(color)], { type: 'text/plain;charset=utf-8' }));
-        await writable.close();
-      }
-      flashHint(`已按颜色导出 ${colors.length} 份字幕`);
-      return;
+      const handle = await window.showSaveFilePicker({
+        id: 'maw-color-srt-export-prefix',
+        suggestedName: `${filenameBase}.srt`,
+        types: [{ description: 'SRT 字幕文件（作为导出前缀）', accept: { 'text/plain': ['.srt'] } }],
+      });
+      filenameBase = handle.name.replace(/\.srt$/i, '') || filenameBase;
     } catch (e) {
-      // 用户取消文件夹选择 — 静默退出，不回退
+      // 用户取消文件名选择 — 静默退出，不回退
       if (e && e.name === 'AbortError') return;
-      // 其他错误（如安全限制）：回退到逐个保存
+      // 其他错误（如安全限制）：回退到默认文件名前缀。
     }
   }
   for (const color of colors) {
-    const saved = await downloadFile(
-      buildPayload(color),
-      `${FILENAME_BASE}${gapSuffix}_${color.name}.srt`,
-      'text/plain',
-      { desc: `${color.label}色字幕 SRT`, types: { 'text/plain': ['.srt'] } },
-    );
-    if (!saved) return;
+    const filename = `${filenameBase}_${color.name}.srt`;
+    if (EDITOR_SETTINGS.exportColorUnified) {
+      const blob = new Blob([buildPayload(color)], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } else {
+      const saved = await downloadFile(
+        buildPayload(color), filename, 'text/plain',
+        { desc: `${color.label}色字幕 SRT`, types: { 'text/plain': ['.srt'] } },
+      );
+      if (!saved) return;
+    }
   }
   flashHint(`已按颜色导出 ${colors.length} 份字幕`);
 }
@@ -9213,6 +9555,44 @@ function configureServerSaveControls() {
   }
 }
 
+let autoSaveTimer = null;
+let projectSaveInFlight = false;
+
+function scheduleAutoSave() {
+  if (autoSaveTimer !== null) {
+    window.clearInterval(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+  if (!serverProjectSavingEnabled() || !EDITOR_SETTINGS.autoSaveProject) return;
+  autoSaveTimer = window.setInterval(() => {
+    if (hasUnsavedProjectChanges() && !projectSaveInFlight) void saveProjectToServer(false, { silent: true });
+  }, EDITOR_SETTINGS.autoSaveIntervalSeconds * 1000);
+}
+
+function configureServerAutoSave() {
+  if (!serverAutoSaveSettings || !autoSaveProjectToggle || !autoSaveIntervalField || !autoSaveIntervalInput) return;
+  const available = serverProjectSavingEnabled();
+  serverAutoSaveSettings.hidden = !available;
+  if (!available) return;
+  const sync = () => {
+    autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoSaveProject;
+    autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
+    autoSaveIntervalField.hidden = !EDITOR_SETTINGS.autoSaveProject;
+  };
+  sync();
+  autoSaveProjectToggle.addEventListener('change', () => {
+    updateEditorSettings({ autoSaveProject: autoSaveProjectToggle.checked });
+    sync();
+    scheduleAutoSave();
+  });
+  autoSaveIntervalInput.addEventListener('change', () => {
+    updateEditorSettings({ autoSaveIntervalSeconds: clampAutoSaveInterval(autoSaveIntervalInput.value) });
+    sync();
+    scheduleAutoSave();
+  });
+  scheduleAutoSave();
+}
+
 function hasUnsavedProjectChanges() {
   return gapRemoveDirty || previewGeometryDirty || DATA.segments.some((segment) => segment._dirty);
 }
@@ -9296,7 +9676,7 @@ function configureServerProjectSettings() {
   });
 }
 
-function markProjectSaved(filename, backupName) {
+function markProjectSaved(filename, backupName, { silent = false } = {}) {
   DATA.segments.forEach((segment) => { delete segment._dirty; });
   gapRemoveDirty = false;
   previewGeometryDirty = false;
@@ -9308,27 +9688,29 @@ function markProjectSaved(filename, backupName) {
     jsonEl.classList.remove('empty');
   }
   renderAll();
-  flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
+  if (!silent) flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
 }
 
-async function saveProjectToServer(saveAs = false) {
+async function saveProjectToServer(saveAs = false, { silent = false } = {}) {
   if (!serverProjectSavingEnabled()) {
-    flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带 JSON 路径重新启动服务器');
-    return;
+    if (!silent) flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带 JSON 路径重新启动服务器');
+    return false;
   }
+  if (projectSaveInFlight) return false;
   if (editingState) finishEdit(true);
   let filename = null;
   if (saveAs) {
     const suggested = `${FILENAME_BASE}.json`;
     const entered = window.prompt('另存为到当前工程目录（仅文件名）：', suggested);
-    if (entered === null) return;
+    if (entered === null) return false;
     filename = entered.trim();
     if (!filename) {
       flashHint('文件名不能为空');
-      return;
+      return false;
     }
   }
   const projectJson = buildJson();
+  projectSaveInFlight = true;
   try {
     const saveUrl = new URL(SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
@@ -9340,7 +9722,8 @@ async function saveProjectToServer(saveAs = false) {
     if (!response.ok || !result.ok) {
       throw new Error(result.error || `服务器返回 ${response.status}`);
     }
-    markProjectSaved(result.filename, result.backup);
+    markProjectSaved(result.filename, result.backup, { silent });
+    return true;
   } catch (error) {
     const detail = error?.message || error;
     flashHint(`保存失败：${detail}`);
@@ -9354,6 +9737,9 @@ async function saveProjectToServer(saveAs = false) {
       });
       if (saved) flashHint('服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续');
     }
+    return false;
+  } finally {
+    projectSaveInFlight = false;
   }
 }
 
@@ -9386,6 +9772,12 @@ document.getElementById('download-full-srt').addEventListener('click', async () 
   });
 });
 document.getElementById('download-color-srt').addEventListener('click', () => downloadColorSrts(false));
+document.getElementById('download-plain-text').addEventListener('click', async () => {
+  if (editingState) finishEdit(true);
+  await downloadFile(window.AsrEditorUtils.buildPlainTextPayload(DATA.segments), `${FILENAME_BASE}.txt`, 'text/plain', {
+    desc: '纯文本字幕文件', types: { 'text/plain': ['.txt'] }
+  });
+});
 document.getElementById('download-json').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   await downloadFile(buildJson(), `${FILENAME_BASE}.json`, 'application/json', {
@@ -10490,6 +10882,34 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
   ctxmenu.style.top = ny + 'px';
 }
 
+function showGapContextMenu(x, y, index) {
+  const gap = getGapRemoveGaps()[index];
+  if (!gap) return;
+  ctxmenu.innerHTML = '';
+  const addItem = (label, fn, { danger = false } = {}) => {
+    const item = document.createElement('div');
+    item.className = 'item' + (danger ? ' danger' : '');
+    const text = document.createElement('span');
+    text.textContent = label;
+    item.appendChild(text);
+    item.addEventListener('click', () => {
+      ctxmenu.classList.remove('show');
+      fn();
+    });
+    ctxmenu.appendChild(item);
+  };
+  addItem(gap.removed === false ? '移除区段' : '恢复区段', () => toggleGapRemoved(index));
+  const separator = document.createElement('div');
+  separator.className = 'sep';
+  ctxmenu.appendChild(separator);
+  addItem('清理该区段', () => clearGap(index), { danger: true });
+
+  ctxmenu.classList.add('show');
+  const rect = ctxmenu.getBoundingClientRect();
+  ctxmenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`;
+  ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
+}
+
 document.addEventListener('click', (e) => {
   if (!ctxmenu.contains(e.target)) ctxmenu.classList.remove('show');
 });
@@ -10641,6 +11061,7 @@ function initWaveformEditor() {
     applyGapRange: applyManualGapRange,
     resizeGapBoundary: resizeManualGapBoundary,
     previewGapAt,
+    showGapContextMenu: (x, y, index) => showGapContextMenu(x, y, index),
     showContextMenu: (x, y, idx, timeMs) => showContextMenu(x, y, idx, timeMs),
     showBlankWaveformMenu: (timeMs, x, y) => showWaveformBlankMenu(timeMs, x, y),
     addCueRange: (startMs, endMs, x, y) => addCueRangeFromWaveform(startMs, endMs, x, y),
@@ -10719,6 +11140,7 @@ window.addEventListener('drop', (e) => {
 // === 启动 ===
 cleanPunctuation();
 configureServerSaveControls();
+configureServerAutoSave();
 configureRecentProjects();
 configureServerProjectSettings();
 initWaveformEditor();
