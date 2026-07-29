@@ -149,8 +149,9 @@ def build_serve_command(
     script = Path(__file__).resolve().parents[1] / "server-editor" / "serve.py"
     command = [exe, "--serve"] if is_frozen else [exe, str(script)]
     if json_path is None:
-        # 无工程时启动空白编辑器，由用户在页面内自行选择 JSON 与媒体
-        command.append("--blank")
+        # 不传位置参数也不加 --blank：由服务器按「自动打开上次工程」设置
+        # 决定恢复最近工程或启动空白编辑器（无记录时同样回落为空白）。
+        pass
     else:
         command.append(str(json_path))
         if media_path:

@@ -434,20 +434,20 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertNotIn("-m", command)
         self.assertEqual(command[command.index("--port") + 1], "8765")
 
-    def test_build_serve_command_without_project_starts_blank_editor(self) -> None:
+    def test_build_serve_command_without_project_leaves_restore_to_server(self) -> None:
         command = build_serve_command(None, None, 8765, executable=Path("python.exe"), frozen=False)
 
         self.assertEqual(command[0], "python.exe")
         self.assertIn("serve.py", command[1])
-        self.assertIn("--blank", command)
+        self.assertNotIn("--blank", command)
         self.assertNotIn("-m", command)
         self.assertEqual(command[command.index("--port") + 1], "8765")
 
-    def test_build_serve_command_blank_frozen_uses_serve_flag_and_blank(self) -> None:
+    def test_build_serve_command_without_project_frozen_uses_serve_flag(self) -> None:
         command = build_serve_command(None, None, 8765, executable=Path("MAW.exe"), frozen=True)
 
         self.assertEqual(command[:2], ["MAW.exe", "--serve"])
-        self.assertIn("--blank", command)
+        self.assertNotIn("--blank", command)
         self.assertEqual(command[command.index("--port") + 1], "8765")
 
     def test_entrypoint_smoke_import_argument_does_not_open_window(self) -> None:

@@ -212,7 +212,7 @@ class LauncherApi:
         json_text = str(payload.get("jsonPath") or "").strip()
         port = _port(payload)
         if not json_text:
-            # 无工程：启动空白编辑器，用户可在页面内自行选择 JSON 与媒体
+            # 无工程：不带 JSON 路径启动，由服务器按「自动打开上次工程」设置恢复最近工程或回落为空白编辑器
             command = build_serve_command(None, None, port)
         else:
             json_path = Path(json_text).expanduser()
