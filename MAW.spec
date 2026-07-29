@@ -93,3 +93,11 @@ coll = COLLECT(
     upx_exclude=[],
     name='MAW',
 )
+
+if sys.platform == 'darwin':
+    app = BUNDLE(
+        coll,
+        name='MAW.app',
+        icon=None,
+        bundle_identifier='com.moy.mawsasrworkflow',
+    )
