@@ -2204,12 +2204,12 @@ document.addEventListener('keydown', (e) => {
   flashHint(`倍速: ${fmtRate(r)}`);
 });
 
-// A/D：跳转到上一条/下一条字幕的句首并单选。
-// Shift+A/D：保留当前选择，并向前/后追加选择一条字幕。
+// A/D（或 W/S）：跳转到上一条/下一条字幕的句首并单选。W/S 与 A/D 等价，对应上下方向。
+// Shift+A/D（或 Shift+W/S）：保留当前选择，并向前/后追加选择一条字幕。
 // 跳转本身不改变播放状态：播放中会从新位置继续播放，暂停中只移动播放指针。
 document.addEventListener('keydown', (e) => {
   const key = e.key.toLowerCase();
-  if (key !== 'a' && key !== 'd') return;
+  if (key !== 'a' && key !== 'd' && key !== 'w' && key !== 's') return;
   if (editingState) return;
   const a = document.activeElement;
   if (a && (
@@ -2226,7 +2226,7 @@ document.addEventListener('keydown', (e) => {
   if (ctxmenu.classList.contains('show')) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
 
-  const direction = key === 'a' ? -1 : 1;
+  const direction = (key === 'a' || key === 'w') ? -1 : 1;
   const next = e.shiftKey
     ? window.AsrEditorUtils.findCueSelectionExtensionTarget(
       DATA.segments,
