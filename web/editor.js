@@ -4299,6 +4299,7 @@ document.getElementById('sticker-preview-close').addEventListener('click', () =>
 stickerPreviewModal.addEventListener('click', (e) => { if (e.target === stickerPreviewModal) stickerPreviewModal.classList.remove('show'); });
 document.getElementById('sticker-preview-delete').addEventListener('click', () => {
   if (previewIdx < 0) return;
+  const hadStickers = DATA.segments.some((segment) => segment.sticker || segment.sticker_ref);
   // 如果删除的是 head，要把所有引用它的 sticker_ref 也清掉
   removeStickerCascade(previewIdx);
   stickerPreviewModal.classList.remove('show');
@@ -4325,6 +4326,12 @@ document.getElementById('sticker-preview-replace').addEventListener('click', () 
 function expandStickerTime(idxs) {
   const sorted = [...idxs].sort((a, b) => a - b);
   // 找选中范围内的 sticker：优先取 head；如果只有 ref，从 ref 回溯到原 head
+  if (!hadStickers && !EDITOR_SETTINGS.cueListShowSticker && !EDITOR_SETTINGS.cueEditorShowSticker
+      && confirm('Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ')) {
+    updateEditorSettings({ cueListShowSticker: true, cueEditorShowSticker: true });
+    applyCueListDisplaySettings();
+    applyCueEditorDisplaySettings();
+  }
   let sourceSticker = null;
   for (const i of sorted) {
     if (DATA.segments[i].sticker) {

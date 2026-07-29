@@ -58,23 +58,27 @@
     return Math.max(low, Math.min(high, value));
   }
 
-  // 组序号徽章：按 color/sticker 的 head/ref 结构计算每条字幕的 { ordinal, total, isHead }。
-  // 优先表情包组，其次颜色组；组大小 <2 时不显示。队长（head）恒为 1/total。
+  // 组序号徽章：颜色与表情包分组彼此独立，因此同一条字幕可同时拥有两枚徽章。
+  // 颜色组大小 <2 时不显示；表情包即使只有单条也显示 🦊 作为非视觉化标记。
   function computeGroupBadges(segments) {
     const badges = new Map();
-    const apply = (headField, refField) => {
+    const apply = (type, headField, refField) => {
       segments.forEach((seg, headIdx) => {
-        if (!seg[headField] || badges.has(headIdx)) return;
+        if (!seg[headField]) return;
         const members = [headIdx];
         segments.forEach((candidate, idx) => {
-          if (candidate[refField]?.headIdx === headIdx && !badges.has(idx)) members.push(idx);
+          if (candidate[refField]?.headIdx === headIdx) members.push(idx);
         });
-        if (members.length < 2) return;
-        members.forEach((idx, i) => badges.set(idx, { ordinal: i + 1, total: members.length, isHead: i === 0 }));
+        if (type === 'color' && members.length < 2) return;
+        members.forEach((idx, i) => {
+          const cueBadges = badges.get(idx) || [];
+          cueBadges.push({ type, ordinal: i + 1, total: members.length });
+          badges.set(idx, cueBadges);
+        });
       });
     };
-    apply('sticker', 'sticker_ref');
-    apply('color', 'color_ref');
+    apply('color', 'color', 'color_ref');
+    apply('sticker', 'sticker', 'sticker_ref');
     return badges;
   }
 
@@ -1812,21 +1816,26 @@
         label.className = 'waveform-cue-label';
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
-        const badge = this.settings.showGroupBadges !== false ? groupBadges.get(index) : null;
-        if (badge) {
-          // 徽章挂在行上、块上方（不遮挡块内文字）；块过窄时不显示，避免与相邻徽章重叠
+        const badges = this.settings.showGroupBadges !== false ? groupBadges.get(index) : null;
+        if (badges?.length) {
+          // 徽章挂在行上、块上方（不遮挡块内文字）；单个表情包保留较小的显示阈值，
+          // 让它即使不是分组也能作为提示出现。
           const badgeDuration = Math.max(1, endMs - startMs);
           const badgeVisibleStart = Math.max(startMs, segment.start);
           const badgeVisibleEnd = Math.min(endMs, segment.end);
           // 行创建时还未挂载（clientWidth=0），用容器宽度估算块像素宽（行宽=容器宽）
           const blockWidthPx = ((badgeVisibleEnd - badgeVisibleStart) / badgeDuration) * this.content.clientWidth;
-          if (blockWidthPx >= 56) {
+          const hasSingleSticker = badges.some((badge) => badge.type === 'sticker' && badge.total === 1);
+          if (blockWidthPx >= (hasSingleSticker ? 24 : 56)) badges.forEach((badge, badgeIndex) => {
             const badgeEl = document.createElement('span');
-            badgeEl.className = 'waveform-cue-badge' + (badge.isHead ? ' head' : '');
-            badgeEl.textContent = badge.isHead ? `👑 ${badge.ordinal}/${badge.total}` : `${badge.ordinal}/${badge.total}`;
+            badgeEl.className = `waveform-cue-badge ${badge.type}`;
+            badgeEl.textContent = badge.type === 'sticker' && badge.total === 1
+              ? '🦊'
+              : `${badge.type === 'color' ? '🎨' : '🦊'} ${badge.ordinal}/${badge.total}`;
             badgeEl.style.left = `${((badgeVisibleStart - startMs) / badgeDuration) * 100}%`;
+            badgeEl.style.setProperty('--badge-stack-index', String(badgeIndex));
             row.appendChild(badgeEl);
-          }
+          });
         }
         if (segment.start >= startMs) {
           const leftHandle = document.createElement('span');
@@ -2605,6 +2614,7 @@
       layoutDropIntent,
       layoutRootDropIntent,
       layoutDropPreviewRect,
+      computeGroupBadges,
     },
   };
 })();
