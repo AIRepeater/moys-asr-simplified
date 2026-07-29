@@ -159,6 +159,9 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('.waveform-cue-block.selected {', page)
         # 选中字幕块只用 outline + 阴影高亮，不再改 border-color
         self.assertIn('outline: 2px solid #ffd54a;', page)
+        # 单行模式徽章位置跟随块高公式，避免嵌进更高的块内
+        self.assertIn('.waveform-basic .waveform-cue-badge {', page)
+        self.assertIn('bottom: calc(9px + max(35px, min(72px, 40%))', page)
         self.assertIn('id="layout-drop-preview"', page)
         self.assertIn('layout-insert-preview', page)
         self.assertIn('insertLayoutModuleAtEdge', page)

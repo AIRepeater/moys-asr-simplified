@@ -675,6 +675,12 @@
 }
 .waveform-cue-badge.color { color: #ffd54a; }
 .waveform-cue-badge.sticker { color: #b8d9ff; }
+/* 单行（基础）模式块高不是固定 35px，而是 max(35px, min(72px, 40%))
+   （见 .waveform-basic .waveform-cue-block）；徽章 bottom 同步按
+   「块底 7 + 实际块高 + 间距 2」计算，否则会嵌进更高的单行块内。 */
+.waveform-basic .waveform-cue-badge {
+  bottom: calc(9px + max(35px, min(72px, 40%)) + var(--badge-stack-index, 0) * 16px);
+}
 .waveform-cue-block.selected {
   z-index: 6;
   outline: 2px solid #ffd54a;
