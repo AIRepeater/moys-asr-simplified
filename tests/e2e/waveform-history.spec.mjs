@@ -290,7 +290,7 @@ test('context-menu subtitle deletion is immediate and undoable', async ({ page }
   await expect(page.locator('.cue')).toHaveCount(6);
 });
 
-test('colored subtitles expose full and per-color SRT downloads with stable names', async ({ page }) => {
+test('colored subtitles export per-color SRT files including the uncolored default group', async ({ page }) => {
   // 关闭「彩色字幕统一导出」，回到逐个下载的行为（默认勾选时会走目录选择器，自动化无法处理）
   await page.addInitScript(() => {
     const key = 'moy.asr.editor.settings.v1';
@@ -312,20 +312,27 @@ test('colored subtitles expose full and per-color SRT downloads with stable name
   await page.locator('#subtitle-export-btn').click();
   await expect(page.locator('#download-full-srt')).toBeVisible();
   await expect(page.locator('#download-color-srt')).toBeVisible();
+  await expect(page.locator('#download-plain-text')).toBeVisible();
 
   const downloads = [];
   page.on('download', (download) => downloads.push(download));
   await page.locator('#download-color-srt').click();
-  await expect.poll(() => downloads.length).toBe(2);
+  await expect.poll(() => downloads.length).toBe(3);
   expect(downloads.map((download) => download.suggestedFilename())).toEqual([
     'project_red.srt',
     'project_blue.srt',
+    'project_default.srt',
   ]);
   expect(await downloads[0].createReadStream().then(async (stream) => {
     const chunks = [];
     for await (const chunk of stream) chunks.push(chunk);
     return Buffer.concat(chunks).toString('utf8');
   })).toContain('Alpha');
+
+  await page.locator('#subtitle-export-btn').click();
+  const textDownload = page.waitForEvent('download');
+  await page.locator('#download-plain-text').click();
+  expect((await textDownload).suggestedFilename()).toBe('project.txt');
 });
 
 test('subtitle export stays direct when only disabled subtitles have colors', async ({ page }) => {

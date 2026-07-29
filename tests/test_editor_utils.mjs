@@ -65,6 +65,11 @@ test('calculates current cue length and characters per second', () => {
   );
 });
 
+test('joins merged subtitle text with the configured separator', () => {
+  assert.equal(helpers.joinSegmentTexts([{ text: '第一句' }, { text: '第二句' }], '  '), '第一句  第二句');
+  assert.equal(helpers.joinSegmentTexts([{ text: '第一句' }, { text: '第二句' }], ''), '第一句第二句');
+});
+
 test('formats removed silence duration and media share for the summary', () => {
   assert.equal(helpers.formatHumanDuration(45_890), '45秒');
   assert.equal(helpers.formatHumanDuration(1_455_890), '24分15秒');
@@ -220,6 +225,26 @@ test('builds a color SRT on the shared full-export timeline and excludes disable
     'member',
     '',
   ].join('\n'));
+});
+
+test('builds the default-color SRT from enabled subtitles without a color', () => {
+  const segments = [
+    { start: 0, end: 500, text: 'plain' },
+    { start: 500, end: 1000, text: 'red', color: { name: 'red' } },
+    { start: 1000, end: 1500, text: 'disabled plain', disabled: true },
+  ];
+  assert.equal(helpers.buildSrtPayload(segments, {
+    colorName: 'default',
+    formatTime: (timeMs) => `${timeMs}ms`,
+  }), ['1', '0ms --> 500ms', 'plain', ''].join('\n'));
+});
+
+test('builds plain text as enabled subtitle lines', () => {
+  assert.equal(helpers.buildPlainTextPayload([
+    { text: '第一行' },
+    { text: '第二行\n续行' },
+    { text: '不导出', disabled: true },
+  ]), '第一行\n第二行\n续行');
 });
 
 

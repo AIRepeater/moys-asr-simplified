@@ -52,6 +52,10 @@
     return { totalLength, charsPerSecond };
   }
 
+  function joinSegmentTexts(segments, separator) {
+    return segments.map((segment) => String(segment?.text || '')).join(separator);
+  }
+
   function formatHumanDuration(durationMs) {
     const totalSeconds = Math.max(0, Math.floor(Number(durationMs) / 1000) || 0);
     const seconds = totalSeconds % 60;
@@ -272,9 +276,12 @@
       ? options.formatTime
       : (timeMs) => String(timeMs);
     const parts = [];
-    source.filter((segment) => (
-      segment && !segment.disabled && (!colorName || effectiveColorName(segment, source) === colorName)
-    )).forEach((segment, index) => {
+    source.filter((segment) => {
+      if (!segment || segment.disabled) return false;
+      if (!colorName) return true;
+      const effectiveName = effectiveColorName(segment, source);
+      return colorName === 'default' ? !effectiveName : effectiveName === colorName;
+    }).forEach((segment, index) => {
       const start = Math.max(0, Math.round(Number(mapTime(segment.start)) || 0));
       const mappedEnd = Math.max(0, Math.round(Number(mapTime(segment.end)) || 0));
       const end = options.ensurePositiveDuration ? Math.max(start + 1, mappedEnd) : mappedEnd;
@@ -284,6 +291,13 @@
       parts.push('');
     });
     return parts.join('\n');
+  }
+
+  function buildPlainTextPayload(segments) {
+    return (Array.isArray(segments) ? segments : [])
+      .filter((segment) => segment && !segment.disabled)
+      .map((segment) => String(segment.text || '').replace(/\r\n?/g, '\n'))
+      .join('\n');
   }
 
   function fileBasename(value) {
@@ -702,6 +716,7 @@
   window.AsrEditorUtils = {
     buildReplacementPreview,
     cueMetrics,
+    joinSegmentTexts,
     formatHumanDuration,
     formatGapRemoveDuration,
     splitCharOffsetAtTime,
@@ -712,6 +727,7 @@
     getSrtExportOffset,
     effectiveColorName,
     buildSrtPayload,
+    buildPlainTextPayload,
     fileBasename,
     findProjectMediaFile,
     normalizeGapRemoveGaps,

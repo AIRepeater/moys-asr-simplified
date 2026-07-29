@@ -13,10 +13,13 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowTime: true,
   cueListShowSticker: false,
   cueListShowCharcount: true,
-  cueEditorShowNavigation: true,
+  cueEditorShowNavigation: false,
+  cueEditorShowTimeActions: true,
   cueEditorShowSticker: false,
   selectGroupMembers: false,
-  // 按颜色导出 SRT：统一导出只选一次文件夹，按「文件名_颜色」批量保存。
+  // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
+  mergeJoinText: '',
+  // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
   exportColorUnified: true,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
@@ -35,9 +38,11 @@ function readEditorSettings() {
       cueListShowTime: saved.cueListShowTime !== false,
       cueListShowSticker: saved.cueListShowSticker === true,
       cueListShowCharcount: saved.cueListShowCharcount !== false,
-      cueEditorShowNavigation: saved.cueEditorShowNavigation !== false,
+      cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
+      cueEditorShowTimeActions: saved.cueEditorShowTimeActions !== false,
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
       selectGroupMembers: saved.selectGroupMembers === true,
+      mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
       exportColorUnified: saved.exportColorUnified !== false,
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
@@ -302,12 +307,16 @@ const overlayToggle = document.getElementById('overlay-toggle');
 const stickerOverlayToggle = document.getElementById('sticker-overlay-toggle');
 const playerEmpty = document.getElementById('player-empty');
 const playerWrap = document.querySelector('.player-wrap');
+// 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
+const playerStage = playerWrap?.querySelector('.player-stage') || playerWrap;
 const splitKeySel = document.getElementById('split-key');
+const mergeJoinTextInput = document.getElementById('merge-join-text');
 const cueListShowIndexToggle = document.getElementById('cue-list-show-index');
 const cueListShowTimeToggle = document.getElementById('cue-list-show-time');
 const cueListShowStickerToggle = document.getElementById('cue-list-show-sticker');
 const cueListShowCharcountToggle = document.getElementById('cue-list-show-charcount');
 const cueEditorShowNavigationToggle = document.getElementById('cue-editor-show-navigation');
+const cueEditorShowTimeActionsToggle = document.getElementById('cue-editor-show-time-actions');
 const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-sticker');
 const selectGroupMembersToggle = document.getElementById('select-group-members');
 const exportColorUnifiedToggle = document.getElementById('export-color-unified');
@@ -333,6 +342,7 @@ const cuePanelCharsPerSecond = document.getElementById('cue-panel-chars-per-seco
 const cuePanelSticker = document.getElementById('cue-panel-sticker');
 const cuePanelAddSticker = document.getElementById('cue-panel-add-sticker');
 const cuePanelSplit = document.getElementById('cue-panel-split');
+const cuePanelSplitKey = document.getElementById('cue-panel-split-key');
 const cuesEmpty = document.getElementById('cues-empty');
 const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
@@ -410,8 +420,10 @@ function bindCueListDisplayToggle(toggle, key) {
 
 function applyCueEditorDisplaySettings() {
   cueEditorShowNavigationToggle.checked = EDITOR_SETTINGS.cueEditorShowNavigation;
+  cueEditorShowTimeActionsToggle.checked = EDITOR_SETTINGS.cueEditorShowTimeActions;
   cueEditorShowStickerToggle.checked = EDITOR_SETTINGS.cueEditorShowSticker;
   cuePanel.classList.toggle('hide-cue-editor-navigation', !EDITOR_SETTINGS.cueEditorShowNavigation);
+  cuePanel.classList.toggle('hide-cue-editor-time-actions', !EDITOR_SETTINGS.cueEditorShowTimeActions);
   cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
 }
 
@@ -427,11 +439,17 @@ function splitKeyLabel() {
 }
 
 function refreshSplitKeyHelp() {
-  if (helpSplitKey) helpSplitKey.textContent = splitKeyLabel();
+  const label = splitKeyLabel();
+  if (helpSplitKey) helpSplitKey.textContent = label;
+  if (cuePanelSplitKey) cuePanelSplitKey.textContent = label;
 }
+
+// 切换语言时 i18n 会重置动态文本节点，需重新套用当前拆分按键提示。
+document.addEventListener('mawe:languagechange', () => refreshSplitKeyHelp());
 
 splitKeySel.value = EDITOR_SETTINGS.splitKey;
 refreshSplitKeyHelp();
+if (mergeJoinTextInput) mergeJoinTextInput.value = EDITOR_SETTINGS.mergeJoinText;
 overlayToggle.checked = EDITOR_SETTINGS.overlayEnabled;
 exportStartAtZeroToggle.checked = EDITOR_SETTINGS.exportStartAtZero;
 if (selectGroupMembersToggle) selectGroupMembersToggle.checked = EDITOR_SETTINGS.selectGroupMembers;
@@ -451,11 +469,15 @@ splitKeySel.addEventListener('change', () => {
   updateEditorSettings({ splitKey: splitKeySel.value });
   refreshSplitKeyHelp();
 });
+if (mergeJoinTextInput) mergeJoinTextInput.addEventListener('input', () => {
+  updateEditorSettings({ mergeJoinText: mergeJoinTextInput.value });
+});
 bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
 bindCueListDisplayToggle(cueListShowCharcountToggle, 'cueListShowCharcount');
 bindCueEditorDisplayToggle(cueEditorShowNavigationToggle, 'cueEditorShowNavigation');
+bindCueEditorDisplayToggle(cueEditorShowTimeActionsToggle, 'cueEditorShowTimeActions');
 bindCueEditorDisplayToggle(cueEditorShowStickerToggle, 'cueEditorShowSticker');
 exportStartAtZeroToggle.addEventListener('change', () => {
   updateEditorSettings({ exportStartAtZero: exportStartAtZeroToggle.checked });
@@ -626,6 +648,7 @@ function clearGap(index) {
   setGapRemoveData(state);
   flashHint('已清理空隙区段');
 }
+
 function applyManualGapRange(startMs, endMs, removed) {
   const state = getGapRemoveData(true);
   const sourceGaps = state.detector === 'audio_gate' ? state.gaps : [];
@@ -977,6 +1000,20 @@ function addToSelection(idx) {
   if (waveformEditor) waveformEditor.updateSelection();
   setCurrentCuePanelIndex(idx);
 }
+// 选中全部字幕（跳过「隐藏禁用项」开启时的禁用条目，与其它选择逻辑一致）。
+function selectAll() {
+  clearSelection();
+  DATA.segments.forEach((_, idx) => {
+    if (isHiddenDisabled(idx)) return;
+    selectedIdxs.add(idx);
+    const el = container.querySelector(`.cue[data-idx="${idx}"]`);
+    if (el) el.classList.add('selected');
+  });
+  selCountEl.textContent = String(selectedIdxs.size);
+  if (waveformEditor) waveformEditor.updateSelection();
+  const last = DATA.segments.length - 1;
+  setCurrentCuePanelIndex(last >= 0 && selectedIdxs.has(last) ? last : (selectedIdxs.values().next().value ?? -1));
+}
 // 返回与 idx 同属一个表情包/颜色分组的全部字幕下标（含 idx 自身）。
 // head 持有 sticker/color，成员持 sticker_ref/color_ref 指向 head。
 function groupMemberIdxs(idx) {
@@ -1023,9 +1060,11 @@ function renderAll() {
   // cues-container 同时是字幕列表和停靠模块；重绘列表时不要把布局编辑模式
   // 下的顶部拖拽栏一起清掉。
   const dockHandle = container.querySelector(':scope > .dock-handle');
+  const cueListToolbar = container.querySelector(':scope > .cue-list-toolbar');
   const emptyState = cuesEmpty;
   container.replaceChildren();
   if (dockHandle) container.appendChild(dockHandle);
+  if (cueListToolbar) container.appendChild(cueListToolbar);
   if (emptyState) {
     emptyState.classList.toggle('hidden', DATA.segments.length > 0);
     container.appendChild(emptyState);
@@ -1214,6 +1253,13 @@ function splitCuePanelAtCursor() {
 cuePanelPrev?.addEventListener('click', () => navigateCuePanel(-1));
 cuePanelNext?.addEventListener('click', () => navigateCuePanel(1));
 cuePanelText?.addEventListener('keydown', (event) => {
+  // Esc：退出字幕编辑区（失焦并提交），之后即可用 A/D 等快捷键跳转字幕。
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    event.stopPropagation();
+    cuePanelText.blur();
+    return;
+  }
   const action = getConfiguredEnterAction(event);
   if (!action || action === 'newline') return;
   event.preventDefault();
@@ -1720,7 +1766,7 @@ function mergeSegments(idxs) {
   const merged = {
     start: segs[0].start,
     end: segs[segs.length - 1].end,
-    text: segs.map(s => s.text).join('  '),
+    text: window.AsrEditorUtils.joinSegmentTexts(segs, EDITOR_SETTINGS.mergeJoinText),
     items: segs.flatMap(s => s.items || []),
     sticker: stickerGroup.head,
     sticker_ref: stickerGroup.ref,
@@ -1764,6 +1810,8 @@ function mergeSegments(idxs) {
   });
   syncTimelineGroupRanges();
   renderAll();
+  // 合并完成后选中合并结果，方便继续对这句新字幕操作
+  selectOnly(sorted[0]);
   const el = container.querySelector(`.cue[data-idx="${sorted[0]}"]`);
   if (el) scrollCueToCenter(el);
   flashHint(`已合并 ${sorted.length} 条`);
@@ -2020,6 +2068,27 @@ document.addEventListener('keydown', (e) => {
   else finishEdit(true);
 }, true);
 
+// Esc：非字幕文本编辑状态下清除当前字幕选择；输入框和内联编辑继续保留原生/编辑行为。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape' || editingState || selectedIdxs.size === 0) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  e.preventDefault();
+  e.stopPropagation();
+  clearSelection();
+});
+
 function togglePlayback() {
   if (!hasLoadedMedia()) {
     flashHint('请先加载媒体，然后才能预览');
@@ -2173,6 +2242,61 @@ document.addEventListener('keydown', (e) => {
     const promise = player.play();
     if (promise && promise.catch) promise.catch(() => {});
   }
+});
+
+// Ctrl/Cmd+A：选中所有字幕。仅在「非编辑字幕」状态下生效；
+// 焦点在输入框/文本域/可编辑元素或内联编辑态时，保留浏览器原生的「全选文本」行为。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'a' && e.key !== 'A') return;
+  if (!e.ctrlKey && !e.metaKey) return;
+  if (e.altKey || e.shiftKey) return;
+  if (editingState) return;
+  if (e.target === cuePanelText) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  e.preventDefault();
+  selectAll();
+});
+
+// Enter：仅选中单条字幕（列表或波形均可）时，进入字幕编辑区并聚焦文本框，
+// 光标置于末尾，方便直接继续编辑。内联编辑态、已聚焦编辑区或多个模态打开时不触发。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Enter') return;
+  if (editingState) return;  // 内联编辑态的 Enter 交给 split/commit 处理
+  if (e.target === cuePanelText) return;  // 已在字幕编辑区
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;  // 仅响应裸 Enter
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.tagName === 'BUTTON'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (selectedIdxs.size !== 1) return;  // 仅单选时进入编辑区
+  const idx = currentCuePanelIdx;
+  if (idx < 0 || !DATA.segments[idx]) return;
+  e.preventDefault();
+  cuePanelText.focus();
+  const end = cuePanelText.value.length;
+  cuePanelText.setSelectionRange(end, end);
 });
 
 // C：合并连续选中的字幕块。少于两条时只提示，不改动工程。
@@ -2381,12 +2505,12 @@ function getTargetGeometry(target) { return target === 'sticker' ? getStickerGeo
 function setTargetGeometry(target, geo) {
   if (target === 'sticker') setStickerGeometry(geo); else setPreviewGeometry(geo);
 }
-function playerWrapRect() {
-  return playerWrap.getBoundingClientRect();
+function playerStageRect() {
+  return playerStage.getBoundingClientRect();
 }
 function beginPreviewGesture(event, handle, target) {
   if (!previewTargetEnabled(target)) return;
-  const rect = playerWrapRect();
+  const rect = playerStageRect();
   if (rect.width <= 0 || rect.height <= 0) return;
   event.preventDefault();
   event.stopPropagation();
@@ -2479,7 +2603,7 @@ if (typeof ResizeObserver === 'function') {
   const previewResizeObserver = new ResizeObserver(() => {
     applyPreviewGeometryToDom(getPreviewGeometry());
   });
-  previewResizeObserver.observe(playerWrap);
+  previewResizeObserver.observe(playerStage);
 }
 
 // === 当前行高亮 + overlay ===
@@ -2582,7 +2706,7 @@ stickerOverlayLayer.appendChild(stickerOverlayContent);
   handle.dataset.handle = h;
   stickerOverlayLayer.appendChild(handle);
 });
-playerWrap.appendChild(stickerOverlayLayer);
+playerStage.appendChild(stickerOverlayLayer);
 bindPreviewBoxPointerEvents(stickerOverlayLayer, 'sticker');
 stickerOverlayLayer.addEventListener('keydown', (event) => handlePreviewBoxKeydown(event, 'sticker'));
 
@@ -2698,9 +2822,12 @@ function buildGapRemovedSrt() {
 
 function usedSubtitleColors() {
   const names = new Set(DATA.segments.filter((segment) => !segment.disabled).map((segment) => (
-    window.AsrEditorUtils.effectiveColorName(segment, DATA.segments)
-  )).filter((name) => COLOR_BY_NAME[name]));
-  return COLOR_PALETTE.filter((color) => names.has(color.name));
+    window.AsrEditorUtils.effectiveColorName(segment, DATA.segments) || 'default'
+  )).filter((name) => name === 'default' || COLOR_BY_NAME[name]));
+  return [
+    ...COLOR_PALETTE.filter((color) => names.has(color.name)),
+    ...(names.has('default') ? [{ name: 'default', label: '默认' }] : []),
+  ];
 }
 
 function updateSubtitleExportUi() {
@@ -2737,35 +2864,40 @@ async function downloadColorSrts(gapRemoved = false) {
     ensurePositiveDuration: gapRemoved,
     formatTime: fmtSrtTime,
   });
-  // 统一导出：只选一次导出文件夹，按「文件名_颜色」批量写入
-  if (EDITOR_SETTINGS.exportColorUnified && window.showDirectoryPicker) {
+  let filenameBase = `${FILENAME_BASE}${gapSuffix}`;
+  // 浏览器不允许从一个文件句柄取得其父目录，因此不再请求文件夹权限。
+  // 先让用户选择一个 SRT 文件名，并把该名称（不含 .srt）作为所有颜色文件的前缀。
+  if (EDITOR_SETTINGS.exportColorUnified && window.showSaveFilePicker) {
     try {
-      const dirHandle = await window.showDirectoryPicker({ id: 'maw-color-srt-export' });
-      for (const color of colors) {
-        const handle = await dirHandle.getFileHandle(
-          `${FILENAME_BASE}${gapSuffix}_${color.name}.srt`,
-          { create: true },
-        );
-        const writable = await handle.createWritable();
-        await writable.write(new Blob([buildPayload(color)], { type: 'text/plain;charset=utf-8' }));
-        await writable.close();
-      }
-      flashHint(`已按颜色导出 ${colors.length} 份字幕`);
-      return;
+      const handle = await window.showSaveFilePicker({
+        id: 'maw-color-srt-export-prefix',
+        suggestedName: `${filenameBase}.srt`,
+        types: [{ description: 'SRT 字幕文件（作为导出前缀）', accept: { 'text/plain': ['.srt'] } }],
+      });
+      filenameBase = handle.name.replace(/\.srt$/i, '') || filenameBase;
     } catch (e) {
-      // 用户取消文件夹选择 — 静默退出，不回退
+      // 用户取消文件名选择 — 静默退出，不回退
       if (e && e.name === 'AbortError') return;
-      // 其他错误（如安全限制）：回退到逐个保存
+      // 其他错误（如安全限制）：回退到默认文件名前缀。
     }
   }
   for (const color of colors) {
-    const saved = await downloadFile(
-      buildPayload(color),
-      `${FILENAME_BASE}${gapSuffix}_${color.name}.srt`,
-      'text/plain',
-      { desc: `${color.label}色字幕 SRT`, types: { 'text/plain': ['.srt'] } },
-    );
-    if (!saved) return;
+    const filename = `${filenameBase}_${color.name}.srt`;
+    if (EDITOR_SETTINGS.exportColorUnified) {
+      const blob = new Blob([buildPayload(color)], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = filename;
+      document.body.appendChild(anchor); anchor.click(); document.body.removeChild(anchor);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } else {
+      const saved = await downloadFile(
+        buildPayload(color), filename, 'text/plain',
+        { desc: `${color.label}色字幕 SRT`, types: { 'text/plain': ['.srt'] } },
+      );
+      if (!saved) return;
+    }
   }
   flashHint(`已按颜色导出 ${colors.length} 份字幕`);
 }
@@ -3430,6 +3562,12 @@ document.getElementById('download-full-srt').addEventListener('click', async () 
   });
 });
 document.getElementById('download-color-srt').addEventListener('click', () => downloadColorSrts(false));
+document.getElementById('download-plain-text').addEventListener('click', async () => {
+  if (editingState) finishEdit(true);
+  await downloadFile(window.AsrEditorUtils.buildPlainTextPayload(DATA.segments), `${FILENAME_BASE}.txt`, 'text/plain', {
+    desc: '纯文本字幕文件', types: { 'text/plain': ['.txt'] }
+  });
+});
 document.getElementById('download-json').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   await downloadFile(buildJson(), `${FILENAME_BASE}.json`, 'application/json', {
@@ -4561,6 +4699,7 @@ function showGapContextMenu(x, y, index) {
   ctxmenu.style.left = `${Math.max(4, Math.min(x, window.innerWidth - rect.width - 4))}px`;
   ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
 }
+
 document.addEventListener('click', (e) => {
   if (!ctxmenu.contains(e.target)) ctxmenu.classList.remove('show');
 });

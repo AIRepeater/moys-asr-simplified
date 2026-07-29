@@ -72,6 +72,10 @@
     /* 控件高度 —— 工具栏统一 30px */
     --control-h: 30px;
 
+    /* 面板顶部工具栏 / 布局拖拽栏高度 */
+    --panel-toolbar-h: 44px;
+    --dock-handle-h: 23px;
+
     /* 聚焦环 */
     --focus-ring:       0 0 0 2px var(--accent-soft);
     --focus-ring-amber: 0 0 0 2px var(--amber-soft);
@@ -119,16 +123,24 @@
   h1 .json-name.empty { color: var(--text-faint); border-color: var(--border-subtle); background: transparent; cursor: default; pointer-events: none; }
 
   /* === 媒体区 === */
+  /* player-wrap 是媒体预览面板：顶部 .player-toolbar + 下方 .player-stage（视频与预览层）。
+     预览层（字幕/表情包）的几何以 stage 为定位与测量基准，工具栏不参与。 */
   .player-wrap {
     flex: 0 0 auto; margin-bottom: 8px;
-    position: relative; display: inline-block; width: 100%;
+    position: relative; display: flex; flex-direction: column; width: 100%;
   }
+  .player-stage {
+    position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
+  }
+  .player-stage video { display: block; }
   .player-wrap.empty-state {
     min-height: 132px;
     background: var(--bg-wave);
     border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md);
   }
+  /* 布局编辑模式下让出顶部 dock-handle 的高度。 */
+  .editor-workspace.layout-editing .player-wrap { padding-top: var(--dock-handle-h); }
   .player-empty, .cues-empty {
     position: absolute; inset: 0; z-index: 20;
     display: flex; align-items: center; justify-content: center;
@@ -218,7 +230,6 @@
     margin-bottom: 6px; flex-wrap: wrap; font-size: 12px;
   }
   .toolbar.row-actions { margin-bottom: 6px; }
-  .toolbar.row-subtitle { margin-bottom: 8px; }
   .toolbar input[type=text] {
     background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
     border-radius: var(--radius-sm); padding: 4px 8px; font-size: 13px; min-width: 200px;
@@ -290,6 +301,28 @@
   .toolbar .right-group { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .toolbar-utility-group { display: inline-flex; align-items: center; gap: 4px; }
 
+  /* 面板内嵌工具栏（媒体预览 / 字幕列表 / 波形顶部）：复用 .toolbar 控件样式，
+     额外固定高度、单行不换行 + 横向滚动，避免与波形 scroll 的 padding 错位。 */
+  .toolbar.player-toolbar,
+  .toolbar.cue-list-toolbar,
+  .toolbar.waveform-toolbar {
+    height: var(--panel-toolbar-h);
+    margin: 0;
+    padding: 6px 8px;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: center;
+    gap: 6px;
+    background: color-mix(in srgb, var(--bg-raised) 92%, black);
+    border-bottom: 1px solid var(--border-subtle);
+    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+  }
+  .toolbar.player-toolbar > *,
+  .toolbar.cue-list-toolbar > *,
+  .toolbar.waveform-toolbar > * { flex: 0 0 auto; }
+  .toolbar.cue-list-toolbar .input-clear input[type=text] { min-width: 140px; width: 20ch; }
+
   .editor-settings-panel {
     flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(190px, 1fr));
     gap: 8px; margin: -2px 0 8px; padding: 10px;
@@ -322,6 +355,13 @@
     transition: border-color var(--t-fast), box-shadow var(--t-fast);
   }
   .editor-settings-panel select:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+  .editor-settings-panel input[type=text] {
+    background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 4px 6px; font-size: 12px; width: 140px;
+    min-height: var(--control-h);
+    transition: border-color var(--t-fast), box-shadow var(--t-fast);
+  }
+  .editor-settings-panel input[type=text]:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
   .editor-settings-panel button {
     min-width: 26px; padding: 3px 7px; color: var(--btn-text); background: var(--btn-bg);
     border: 1px solid var(--btn-border); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
@@ -425,6 +465,7 @@
   }
   .current-cue-panel.empty { opacity: 0.62; }
   .current-cue-panel.hide-cue-editor-navigation .cue-panel-navigation,
+  .current-cue-panel.hide-cue-editor-time-actions .cue-panel-time-actions,
   .current-cue-panel.hide-cue-editor-sticker .cue-panel-sticker-wrap { display: none; }
   .cue-panel-navigation, .cue-panel-time-fields, .cue-panel-sticker-wrap { display: flex; gap: 6px; align-items: center; }
   .current-cue-panel button {
@@ -472,11 +513,23 @@
     .current-cue-panel.hide-cue-editor-navigation .cue-panel-layout {
       grid-template-columns: auto minmax(220px, 1fr) auto;
     }
+    .current-cue-panel.hide-cue-editor-time-actions .cue-panel-layout {
+      grid-template-columns: auto minmax(220px, 1fr) auto;
+    }
     .current-cue-panel.hide-cue-editor-sticker .cue-panel-layout {
       grid-template-columns: auto auto minmax(220px, 1fr);
     }
+    .current-cue-panel.hide-cue-editor-navigation.hide-cue-editor-time-actions .cue-panel-layout {
+      grid-template-columns: minmax(220px, 1fr) auto;
+    }
+    .current-cue-panel.hide-cue-editor-time-actions.hide-cue-editor-sticker .cue-panel-layout {
+      grid-template-columns: auto minmax(220px, 1fr);
+    }
     .current-cue-panel.hide-cue-editor-navigation.hide-cue-editor-sticker .cue-panel-layout {
       grid-template-columns: auto minmax(220px, 1fr);
+    }
+    .current-cue-panel.hide-cue-editor-navigation.hide-cue-editor-time-actions.hide-cue-editor-sticker .cue-panel-layout {
+      grid-template-columns: minmax(220px, 1fr);
     }
   }
   @container cue-panel (max-width: 680px) {
@@ -497,7 +550,21 @@
     position: relative;
     container: cue-list / inline-size;
     background: var(--bg-raised); border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
-    padding: 4px;
+    /* 顶部不留 padding：sticky 工具栏直接顶到容器边缘，避免上方露出空隙。 */
+    padding: 0 4px 4px;
+  }
+  /* 字幕列表顶部工具栏：sticky 固定在滚动区顶部；负边距拉通到容器边框；
+     布局编辑模式下让出 dock-handle 高度。 */
+  .cues-container > .cue-list-toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    margin: 0 -4px 4px;
+    border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
+  }
+  .editor-workspace.layout-editing .cues-container > .cue-list-toolbar {
+    top: var(--dock-handle-h);
+    margin-top: var(--dock-handle-h);
   }
   .cue {
     display: flex; align-items: flex-start; gap: 8px;
@@ -947,9 +1014,12 @@
     border: 2px dashed var(--accent);
   }
 
-  /* === 统一细滚动条（字幕列表 / 波形 / 模态预览 / 空隙面板 / 表情网格）=== */
+  /* === 统一细滚动条（字幕列表 / 波形 / 面板工具栏 / 模态预览 / 空隙面板 / 表情网格）=== */
   .cues-container,
   .waveform-scroll,
+  .toolbar.player-toolbar,
+  .toolbar.cue-list-toolbar,
+  .toolbar.waveform-toolbar,
   .modal .preview,
   .gap-remove-list,
   .gap-remove-panel-body,
@@ -959,18 +1029,27 @@
   }
   .cues-container::-webkit-scrollbar,
   .waveform-scroll::-webkit-scrollbar,
+  .toolbar.player-toolbar::-webkit-scrollbar,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar,
+  .toolbar.waveform-toolbar::-webkit-scrollbar,
   .modal .preview::-webkit-scrollbar,
   .gap-remove-list::-webkit-scrollbar,
   .gap-remove-panel-body::-webkit-scrollbar,
   .sticker-grid::-webkit-scrollbar { width: 8px; height: 8px; }
   .cues-container::-webkit-scrollbar-track,
   .waveform-scroll::-webkit-scrollbar-track,
+  .toolbar.player-toolbar::-webkit-scrollbar-track,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar-track,
+  .toolbar.waveform-toolbar::-webkit-scrollbar-track,
   .modal .preview::-webkit-scrollbar-track,
   .gap-remove-list::-webkit-scrollbar-track,
   .gap-remove-panel-body::-webkit-scrollbar-track,
   .sticker-grid::-webkit-scrollbar-track { background: var(--scroll-track); }
   .cues-container::-webkit-scrollbar-thumb,
   .waveform-scroll::-webkit-scrollbar-thumb,
+  .toolbar.player-toolbar::-webkit-scrollbar-thumb,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar-thumb,
+  .toolbar.waveform-toolbar::-webkit-scrollbar-thumb,
   .modal .preview::-webkit-scrollbar-thumb,
   .gap-remove-list::-webkit-scrollbar-thumb,
   .gap-remove-panel-body::-webkit-scrollbar-thumb,
@@ -980,6 +1059,9 @@
   }
   .cues-container::-webkit-scrollbar-thumb:hover,
   .waveform-scroll::-webkit-scrollbar-thumb:hover,
+  .toolbar.player-toolbar::-webkit-scrollbar-thumb:hover,
+  .toolbar.cue-list-toolbar::-webkit-scrollbar-thumb:hover,
+  .toolbar.waveform-toolbar::-webkit-scrollbar-thumb:hover,
   .modal .preview::-webkit-scrollbar-thumb:hover,
   .gap-remove-list::-webkit-scrollbar-thumb:hover,
   .gap-remove-panel-body::-webkit-scrollbar-thumb:hover,
