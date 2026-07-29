@@ -21,6 +21,9 @@ const DEFAULT_EDITOR_SETTINGS = {
   mergeJoinText: '',
   // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
   exportColorUnified: true,
+  // 自动保存仅对绑定工程的 localhost 服务器版生效。
+  autoSaveProject: true,
+  autoSaveIntervalSeconds: 30,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
   // 字幕列表单击行为：select-only 仅选中（默认），select-and-seek 选中并跳转播放头。
@@ -44,12 +47,19 @@ function readEditorSettings() {
       selectGroupMembers: saved.selectGroupMembers === true,
       mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
       exportColorUnified: saved.exportColorUnified !== false,
+      autoSaveProject: saved.autoSaveProject !== false,
+      autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
     };
   } catch (_) {
     return { ...DEFAULT_EDITOR_SETTINGS };
   }
+}
+
+function clampAutoSaveInterval(value) {
+  const seconds = Math.round(Number(value));
+  return Math.min(3600, Math.max(5, Number.isFinite(seconds) ? seconds : 30));
 }
 
 function saveEditorSettings(settings) {
@@ -346,12 +356,17 @@ const cuePanelSplitKey = document.getElementById('cue-panel-split-key');
 const cuesEmpty = document.getElementById('cues-empty');
 const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
+const saveProjectDropdown = document.getElementById('save-project-dropdown');
 const gapRemovedExportDropdown = document.getElementById('gap-removed-export-dropdown');
 const downloadSrtButton = document.getElementById('download-srt');
 const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown');
 const editorSettingsToggle = document.getElementById('editor-settings-toggle');
 const editorSettingsPanel = document.getElementById('editor-settings-panel');
 const exportStartAtZeroToggle = document.getElementById('export-start-at-zero');
+const serverAutoSaveSettings = document.getElementById('server-auto-save-settings');
+const autoSaveProjectToggle = document.getElementById('auto-save-project');
+const autoSaveIntervalField = document.getElementById('auto-save-interval-field');
+const autoSaveIntervalInput = document.getElementById('auto-save-interval');
 const recentProjectsEl = document.getElementById('recent-projects');
 const recentProjectsToggle = document.getElementById('recent-projects-toggle');
 const recentProjectsMenu = document.getElementById('recent-projects-menu');
@@ -454,6 +469,8 @@ overlayToggle.checked = EDITOR_SETTINGS.overlayEnabled;
 exportStartAtZeroToggle.checked = EDITOR_SETTINGS.exportStartAtZero;
 if (selectGroupMembersToggle) selectGroupMembersToggle.checked = EDITOR_SETTINGS.selectGroupMembers;
 if (exportColorUnifiedToggle) exportColorUnifiedToggle.checked = EDITOR_SETTINGS.exportColorUnified;
+if (autoSaveProjectToggle) autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoSaveProject;
+if (autoSaveIntervalInput) autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
 if (stickerOverlayToggle) stickerOverlayToggle.checked = EDITOR_SETTINGS.stickerOverlayEnabled;
 if (clickBehaviorSelect) clickBehaviorSelect.value = EDITOR_SETTINGS.clickBehavior;
 applyCueListDisplaySettings();
@@ -3367,26 +3384,65 @@ function copyText(text, hint) {
   );
 }
 
+let projectLoadedFromSrt = false;
+
 function serverProjectSavingEnabled() {
-  return !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl && SERVER_CONFIG.canSave);
+  return !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl && SERVER_CONFIG.canSave && !projectLoadedFromSrt);
 }
 
 function configureServerSaveControls() {
   const hasServer = !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl);
-  [saveProjectButton, saveProjectAsButton].forEach((button) => {
+  if (saveProjectDropdown) saveProjectDropdown.hidden = !hasServer;
+  [saveProjectButton, document.getElementById('save-project-menu-btn')].forEach((button) => {
     if (!button) return;
-    button.hidden = !hasServer;
     button.disabled = !serverProjectSavingEnabled();
-    if (!serverProjectSavingEnabled()) {
-      button.title = '请用带 JSON 工程路径的服务器命令启动，才能直接保存';
-    }
+    if (!serverProjectSavingEnabled()) button.title = '请用带 JSON 工程路径的服务器命令启动，才能直接保存';
   });
   if (saveProjectButton && serverProjectSavingEnabled()) {
     saveProjectButton.title = '保存回当前工程 JSON（Ctrl/Cmd+S）';
   }
-  if (saveProjectAsButton && serverProjectSavingEnabled()) {
-    saveProjectAsButton.title = '另存为到当前工程目录（Ctrl/Cmd+Shift+S）';
+  // 另存为走系统文件对话框，不依赖服务器绑定，始终可用。
+  if (saveProjectAsButton) {
+    saveProjectAsButton.title = '另存为 JSON 文件（Ctrl/Cmd+Shift+S）';
   }
+}
+
+let autoSaveTimer = null;
+let projectSaveInFlight = false;
+
+function scheduleAutoSave() {
+  if (autoSaveTimer !== null) {
+    window.clearInterval(autoSaveTimer);
+    autoSaveTimer = null;
+  }
+  if (!serverProjectSavingEnabled() || !EDITOR_SETTINGS.autoSaveProject) return;
+  autoSaveTimer = window.setInterval(() => {
+    if (hasUnsavedProjectChanges() && !projectSaveInFlight) void saveProjectToServer({ silent: true });
+  }, EDITOR_SETTINGS.autoSaveIntervalSeconds * 1000);
+}
+
+function configureServerAutoSave() {
+  if (!serverAutoSaveSettings || !autoSaveProjectToggle || !autoSaveIntervalField || !autoSaveIntervalInput) return;
+  const available = serverProjectSavingEnabled();
+  serverAutoSaveSettings.hidden = !available;
+  if (!available) return;
+  const sync = () => {
+    autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoSaveProject;
+    autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
+    autoSaveIntervalField.hidden = !EDITOR_SETTINGS.autoSaveProject;
+  };
+  sync();
+  autoSaveProjectToggle.addEventListener('change', () => {
+    updateEditorSettings({ autoSaveProject: autoSaveProjectToggle.checked });
+    sync();
+    scheduleAutoSave();
+  });
+  autoSaveIntervalInput.addEventListener('change', () => {
+    updateEditorSettings({ autoSaveIntervalSeconds: clampAutoSaveInterval(autoSaveIntervalInput.value) });
+    sync();
+    scheduleAutoSave();
+  });
+  scheduleAutoSave();
 }
 
 function hasUnsavedProjectChanges() {
@@ -3472,7 +3528,7 @@ function configureServerProjectSettings() {
   });
 }
 
-function markProjectSaved(filename, backupName) {
+function markProjectSaved(filename, backupName, { silent = false } = {}) {
   DATA.segments.forEach((segment) => { delete segment._dirty; });
   gapRemoveDirty = false;
   previewGeometryDirty = false;
@@ -3484,39 +3540,31 @@ function markProjectSaved(filename, backupName) {
     jsonEl.classList.remove('empty');
   }
   renderAll();
-  flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
+  if (!silent) flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
 }
 
-async function saveProjectToServer(saveAs = false) {
+async function saveProjectToServer({ silent = false } = {}) {
   if (!serverProjectSavingEnabled()) {
-    flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带 JSON 路径重新启动服务器');
-    return;
+    if (!silent) flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带 JSON 路径重新启动服务器');
+    return false;
   }
+  if (projectSaveInFlight) return false;
   if (editingState) finishEdit(true);
-  let filename = null;
-  if (saveAs) {
-    const suggested = `${FILENAME_BASE}.json`;
-    const entered = window.prompt('另存为到当前工程目录（仅文件名）：', suggested);
-    if (entered === null) return;
-    filename = entered.trim();
-    if (!filename) {
-      flashHint('文件名不能为空');
-      return;
-    }
-  }
   const projectJson = buildJson();
+  projectSaveInFlight = true;
   try {
     const saveUrl = new URL(SERVER_CONFIG.saveUrl, window.location.href);
     const response = await fetch(saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: JSON.parse(projectJson), filename }),
+      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) {
       throw new Error(result.error || `服务器返回 ${response.status}`);
     }
-    markProjectSaved(result.filename, result.backup);
+    markProjectSaved(result.filename, result.backup, { silent });
+    return true;
   } catch (error) {
     const detail = error?.message || error;
     flashHint(`保存失败：${detail}`);
@@ -3525,11 +3573,41 @@ async function saveProjectToServer(saveAs = false) {
     // completed edits, while making clear that the bound JSON was not overwritten.
     if (error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？')) {
-      const saved = await downloadFile(projectJson, `${filename || FILENAME_BASE + '.json'}`, 'application/json', {
+      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.json`, 'application/json', {
         desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
       });
       if (saved) flashHint('服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续');
     }
+    return false;
+  } finally {
+    projectSaveInFlight = false;
+  }
+}
+
+// 另存为：打开系统文件浏览对话框把工程 JSON 保存到用户选择的位置。
+// 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新）。
+async function saveProjectAsToFile() {
+  if (editingState) finishEdit(true);
+  const suggested = `${FILENAME_BASE}.json`;
+  // 无原生保存对话框的浏览器：退化为普通下载（文件名不可考，标题保持不变）。
+  if (!window.showSaveFilePicker) {
+    await downloadFile(buildJson(), suggested, 'application/json', {
+      desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+    });
+    return;
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: suggested,
+      types: [{ description: '编辑器工程文件', accept: { 'application/json': ['.json'] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(new Blob([buildJson()], { type: 'application/json;charset=utf-8' }));
+    await writable.close();
+    markProjectSaved(handle.name, null);
+  } catch (error) {
+    if (error && error.name === 'AbortError') return;  // 用户取消保存对话框
+    flashHint(`保存失败：${error?.message || error}`);
   }
 }
 
@@ -3574,14 +3652,18 @@ document.getElementById('download-json').addEventListener('click', async () => {
     desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
   });
 });
-saveProjectButton?.addEventListener('click', () => saveProjectToServer(false));
-saveProjectAsButton?.addEventListener('click', () => saveProjectToServer(true));
+saveProjectButton?.addEventListener('click', () => saveProjectToServer());
+saveProjectAsButton?.addEventListener('click', () => saveProjectAsToFile());
 // Project-level save shortcuts intentionally override the browser page-save
 // command. finishEdit() inside saveProjectToServer commits an active text edit.
 document.addEventListener('keydown', (event) => {
   if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 's') return;
   event.preventDefault();
-  saveProjectToServer(event.shiftKey);
+  if (event.shiftKey) {
+    void saveProjectAsToFile();
+  } else {
+    void saveProjectToServer();
+  }
 });
 document.getElementById('layout-export')?.addEventListener('click', async () => {
   await downloadFile(buildLayoutJson(), `${FILENAME_BASE}.layout.json`, 'application/json', {
@@ -3699,10 +3781,13 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId) {
 bindToolbarExportDropdown('subtitle-export-dropdown', 'subtitle-export-btn', 'subtitle-export-menu');
 bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn', 'gap-removed-export-menu');
 bindToolbarExportDropdown('extra-export-dropdown', 'extra-export-btn', 'extra-export-menu');
+bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
+bindToolbarExportDropdown('save-project-dropdown', 'save-project-menu-btn', 'save-project-menu');
 
 // === 打开工程 ===
 const openProjectFileInput = document.getElementById('open-project-file');
 const loadMediaFileInput = document.getElementById('load-media-file');
+const loadSrtFileInput = document.getElementById('load-srt-file');
 let currentMediaBlobUrl = null;  // 跟踪 blob URL，便于切换时 revoke 防泄漏
 let pendingProjectMediaSelection = null;
 
@@ -3774,12 +3859,96 @@ function resetLoadedMedia() {
   syncPlayerPlaceholder();
 }
 
+function isMawProject(data) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.segments)) return false;
+  let previousEnd = 0;
+  return data.segments.every((segment) => {
+    if (!segment || typeof segment !== 'object'
+        || !Number.isInteger(segment.start) || !Number.isInteger(segment.end)
+        || segment.start < 0 || segment.end <= segment.start || segment.start < previousEnd
+        || typeof segment.text !== 'string') return false;
+    previousEnd = segment.end;
+    if (!Array.isArray(segment.items)) return segment.items === undefined;
+    let itemEnd = segment.start;
+    return segment.items.every((item) => {
+      if (!item || typeof item !== 'object'
+          || !Number.isInteger(item.start) || !Number.isInteger(item.end)
+          || item.start < segment.start || item.end > segment.end || item.end <= item.start
+          || item.start < itemEnd || typeof item.text !== 'string') return false;
+      itemEnd = item.end;
+      return true;
+    });
+  });
+}
+
+function parseSrtTimestamp(value) {
+  const match = /^(\d+):(\d{2}):(\d{2})[,.](\d{1,3})$/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  const milliseconds = Number(match[4].padEnd(3, '0'));
+  if (minutes >= 60 || seconds >= 60) return null;
+  return (((hours * 60 + minutes) * 60) + seconds) * 1000 + milliseconds;
+}
+
+function parseSrtSegments(text) {
+  const blocks = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim().split(/\n{2,}/);
+  const segments = [];
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    if (/^\d+$/.test(lines[0]?.trim() || '')) lines.shift();
+    const timing = /^\s*(.+?)\s*-->\s*(.+?)(?:\s+.*)?$/.exec(lines.shift() || '');
+    if (!timing) throw new Error('缺少有效时间码');
+    const start = parseSrtTimestamp(timing[1]);
+    const end = parseSrtTimestamp(timing[2]);
+    const cueText = lines.join('\n').trim();
+    if (start === null || end === null || end <= start || !cueText) throw new Error('包含无效字幕段');
+    const previous = segments[segments.length - 1];
+    if (previous && start < previous.end) throw new Error('字幕时间重叠');
+    segments.push({ start, end, text: cueText });
+  }
+  if (!segments.length) throw new Error('没有可导入的字幕');
+  return segments;
+}
+
+async function openSrtFile(file) {
+  try {
+    const segments = parseSrtSegments(await file.text());
+    DATA.segments.length = 0;
+    segments.forEach((segment) => DATA.segments.push(segment));
+    DATA.gap_remove = null;
+    gapRemoveDirty = false;
+    projectLoadedFromSrt = true;
+    editorHistory.clear();
+    updateUndoRedoButtons();
+    clearSelection();
+    lastActive = -1;
+    updateGapRemoveUi();
+    renderAll();
+    FILENAME_BASE = file.name.replace(/\.srt$/i, '');
+    const jsonEl = document.getElementById('json-name');
+    if (jsonEl) {
+      jsonEl.textContent = `导入字幕：${file.name}`;
+      jsonEl.title = 'SRT 字幕只能通过导出下载保存为工程 JSON';
+      jsonEl.classList.add('empty');
+    }
+    configureServerSaveControls();
+    scheduleAutoSave();
+    flashHint(`已加载字幕：${file.name}（${segments.length} 条）`);
+    return true;
+  } catch (error) {
+    flashHint(`加载字幕失败：${error.message || error}`);
+    return false;
+  }
+}
+
 async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    if (!data.segments || !Array.isArray(data.segments)) {
-      flashHint('文件格式不对，缺少 segments 字段');
+    if (!isMawProject(data)) {
+      flashHint('打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。');
       if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
       return false;
     }
@@ -3800,6 +3969,9 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     if (data.sticker_root) STICKER_ROOT = data.sticker_root;
     DATA.segments.length = 0;
     data.segments.forEach((segment) => DATA.segments.push(segment));
+    projectLoadedFromSrt = false;
+    configureServerSaveControls();
+    scheduleAutoSave();
     editorHistory.clear();
     updateUndoRedoButtons();
     clearSelection();
@@ -3850,7 +4022,9 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     return true;
   } catch (error) {
     if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
-    flashHint(`加载失败：${error.message}`);
+    flashHint(error instanceof SyntaxError
+      ? '打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。'
+      : `加载失败：${error.message}`);
     console.error(error);
     return false;
   }
@@ -3889,6 +4063,17 @@ document.getElementById('load-media').addEventListener('click', () => {
   pendingProjectMediaSelection = null;
   loadMediaFileInput.value = '';
   loadMediaFileInput.click();
+});
+document.getElementById('load-srt').addEventListener('click', () => {
+  if (hasUnsavedProjectChanges()
+      && !confirm('当前有未保存的改动，是否确定加载字幕？将替换当前字幕。')) return;
+  loadSrtFileInput.value = '';
+  loadSrtFileInput.click();
+});
+
+loadSrtFileInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (file) await openSrtFile(file);
 });
 
 async function loadMediaFile(file) {
@@ -4239,6 +4424,7 @@ function renderStickerGrid(filter) {
 }
 
 function assignSticker(sticker) {
+  const hadStickers = DATA.segments.some((segment) => segment.sticker || segment.sticker_ref);
   pushUndo('分配表情包');
   if (stickerTargetMode === 'multi' && stickerTargetIdxs.length > 1) {
     const sorted = [...stickerTargetIdxs].sort((a, b) => a - b);
@@ -4265,6 +4451,12 @@ function assignSticker(sticker) {
     DATA.segments[idx].sticker_ref = null;
   }
   stickerModal.classList.remove('show');
+  if (!hadStickers && !EDITOR_SETTINGS.cueListShowSticker && !EDITOR_SETTINGS.cueEditorShowSticker
+      && confirm('Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ')) {
+    updateEditorSettings({ cueListShowSticker: true, cueEditorShowSticker: true });
+    applyCueListDisplaySettings();
+    applyCueEditorDisplaySettings();
+  }
   renderAll();
   flashHint(`已分配「${sticker.name}」`);
 }
@@ -4299,7 +4491,6 @@ document.getElementById('sticker-preview-close').addEventListener('click', () =>
 stickerPreviewModal.addEventListener('click', (e) => { if (e.target === stickerPreviewModal) stickerPreviewModal.classList.remove('show'); });
 document.getElementById('sticker-preview-delete').addEventListener('click', () => {
   if (previewIdx < 0) return;
-  const hadStickers = DATA.segments.some((segment) => segment.sticker || segment.sticker_ref);
   // 如果删除的是 head，要把所有引用它的 sticker_ref 也清掉
   removeStickerCascade(previewIdx);
   stickerPreviewModal.classList.remove('show');
@@ -4326,12 +4517,6 @@ document.getElementById('sticker-preview-replace').addEventListener('click', () 
 function expandStickerTime(idxs) {
   const sorted = [...idxs].sort((a, b) => a - b);
   // 找选中范围内的 sticker：优先取 head；如果只有 ref，从 ref 回溯到原 head
-  if (!hadStickers && !EDITOR_SETTINGS.cueListShowSticker && !EDITOR_SETTINGS.cueEditorShowSticker
-      && confirm('Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ')) {
-    updateEditorSettings({ cueListShowSticker: true, cueEditorShowSticker: true });
-    applyCueListDisplaySettings();
-    applyCueEditorDisplaySettings();
-  }
   let sourceSticker = null;
   for (const i of sorted) {
     if (DATA.segments[i].sticker) {
@@ -4888,17 +5073,21 @@ function initWaveformEditor() {
   waveformEditor.setPayload(DATA.waveform || null);
 }
 
-// === Drag & Drop：拖入视频/音频/JSON 自动加载 ===
+// === Drag & Drop：拖入视频/音频/JSON/SRT 自动加载 ===
 const dragOverlay = document.getElementById('drag-overlay');
 function isJsonFile(f) {
   return f.type === 'application/json' || f.name.toLowerCase().endsWith('.json');
+}
+function isSrtFile(f) {
+  return f.name.toLowerCase().endsWith('.srt');
 }
 async function handleDroppedFiles(files) {
   if (!files.length) return;
   const mediaFile = files.find(isMediaFile);
   const jsonFile = files.find(isJsonFile);
-  if (!mediaFile && !jsonFile) {
-    flashHint('不支持的文件类型（仅支持视频 / 音频 / JSON）');
+  const srtFile = files.find(isSrtFile);
+  if (!mediaFile && !jsonFile && !srtFile) {
+    flashHint('不支持的文件类型（仅支持视频 / 音频 / JSON / SRT）');
     return;
   }
   // JSON 工程会重置 DATA，先检查未保存改动（与「打开工程」按钮一致）
@@ -4909,7 +5098,10 @@ async function handleDroppedFiles(files) {
     await openProjectFile(jsonFile, mediaFile ? [mediaFile] : []);
     return;
   }
-  await loadMediaFile(mediaFile);
+  if (srtFile && hasUnsavedProjectChanges()
+      && !confirm('当前有未保存的改动，是否确定加载字幕？将替换当前字幕。')) return;
+  if (mediaFile) await loadMediaFile(mediaFile);
+  if (srtFile) await openSrtFile(srtFile);
 }
 let dragCounter = 0;  // dragenter/leave 计数，避免子元素进出导致遮罩闪烁
 window.addEventListener('dragenter', (e) => {
@@ -4937,6 +5129,7 @@ window.addEventListener('drop', (e) => {
 // === 启动 ===
 cleanPunctuation();
 configureServerSaveControls();
+configureServerAutoSave();
 configureRecentProjects();
 configureServerProjectSettings();
 initWaveformEditor();

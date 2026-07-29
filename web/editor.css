@@ -283,6 +283,11 @@
   .toolbar button:disabled:hover { background: var(--btn-bg); border-color: var(--btn-border); }
   .toolbar .undo-redo-group { display: inline-flex; gap: 4px; align-items: center; }
   .toolbar .undo-redo-group button { min-width: 32px; }
+  /* 分段按钮（主按钮 + ▾）：必须保持 inline-flex，否则两瓣之间会出现空白缝隙。
+     注意要比 .toolbar .dropdown 的 display:inline-block 更具体。 */
+  .toolbar .dropdown.button-split { display: inline-flex; }
+  .toolbar .button-split > button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .toolbar .button-split > .split-caret { min-width: 28px; padding: 4px 7px; border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
   .toolbar button.dirty { background: var(--amber-tint); border-color: var(--amber); color: var(--amber-hover); }
   .toolbar button.dirty:hover { background: var(--amber-soft); border-color: var(--amber-hover); }
   .toolbar button.danger { background: var(--red-soft); border-color: var(--red); color: var(--red-hover); }
@@ -344,6 +349,12 @@
   .editor-settings-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
   .editor-settings-item[hidden] { display: none; }
   .editor-settings-group > label.toggle.editor-settings-item { flex: 0 0 100%; }
+  /* 「保存」归入导出分组，但其标题、开关和间隔各占一行。 */
+  #server-auto-save-settings {
+    display: flex; flex: 0 0 100%; flex-direction: column; align-items: flex-start; gap: 8px;
+  }
+  #server-auto-save-settings .editor-settings-title,
+  #server-auto-save-settings .editor-settings-item { width: 100%; }
   .editor-settings-list-fields { flex-wrap: wrap; }
   .editor-settings-display-row { flex: 0 0 100%; }
   .editor-settings-list-fields > span { color: var(--text-muted); }
@@ -404,6 +415,12 @@
     border-radius: var(--radius-md); padding: 4px 0; min-width: 240px;
     box-shadow: var(--shadow-3); z-index: 200;
   }
+  /* 第一行左侧的工程下拉：菜单与按钮左对齐、宽度随内容收缩，
+     避免 right:0 把菜单推出视口左缘或显得过宽。 */
+  .row-actions > .dropdown > .dropdown-menu {
+    left: 0; right: auto;
+    width: max-content; min-width: 100%; max-width: 320px;
+  }
   .toolbar .dropdown.open .dropdown-menu { display: block; }
   .toolbar .dropdown-item {
     padding: 7px 14px; cursor: pointer; user-select: none;
@@ -411,6 +428,7 @@
     transition: background var(--t-fast), color var(--t-fast);
   }
   .toolbar .dropdown-item:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .toolbar .dropdown-item.disabled { opacity: .42; cursor: not-allowed; pointer-events: none; }
   .toolbar .dropdown-separator { height: 1px; margin: 4px 8px; background: var(--border-subtle); }
   .toolbar .recent-project-setting {
     display: flex;

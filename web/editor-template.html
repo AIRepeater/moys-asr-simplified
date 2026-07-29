@@ -17,11 +17,14 @@ __WAVEFORM_CSS__
   <span class="json-name __JSON_NAME_CLASS__" id="json-name" title="点击复制 JSON 文件名">__JSON_DISPLAY__</span>
 </h1>
 <div class="toolbar row-actions">
-  <span class="undo-redo-group" role="group" aria-label="撤销重做">
-    <button type="button" id="undo-btn" title="撤销 (Ctrl/Cmd+Z)" disabled>↶ 撤销</button>
-    <button type="button" id="redo-btn" title="重做 (Ctrl/Cmd+Shift+Z)" disabled>↷ 重做</button>
+  <span class="dropdown button-split" id="open-project-dropdown">
+    <button id="open-project" title="可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体">打开工程</button>
+    <button type="button" id="open-project-menu-btn" class="split-caret" aria-label="打开更多文件">▾</button>
+    <div class="dropdown-menu" id="open-project-menu">
+      <div class="dropdown-item" id="load-media" role="menuitem" tabindex="0">加载媒体</div>
+      <div class="dropdown-item" id="load-srt" role="menuitem" tabindex="0">加载字幕</div>
+    </div>
   </span>
-  <button id="open-project" title="可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体">打开工程</button>
   <div class="dropdown" id="recent-projects" hidden>
     <button type="button" id="recent-projects-toggle" title="打开本机最近使用的工程">最近工程</button>
     <div class="dropdown-menu" id="recent-projects-menu">
@@ -33,13 +36,20 @@ __WAVEFORM_CSS__
       <div id="recent-projects-list"></div>
     </div>
   </div>
-  <button id="load-media" title="选择本地媒体文件并加载到播放器">加载媒体</button>
-  <button id="save-project" title="保存回服务器启动时指定的工程 JSON" hidden>保存工程</button>
-  <button id="save-project-as" title="另存为到当前工程目录" hidden>另存为…</button>
-  <button id="sticker-root-btn" title="设置表情包根目录" style="font-size:16px;line-height:1;padding:2px 8px;">🦊</button>
+  <span class="dropdown button-split" id="save-project-dropdown" hidden>
+    <button id="save-project" title="保存回服务器启动时指定的工程 JSON">保存工程</button>
+    <button type="button" id="save-project-menu-btn" class="split-caret" aria-label="保存工程的更多选项">▾</button>
+    <div class="dropdown-menu" id="save-project-menu">
+      <div class="dropdown-item" id="save-project-as" role="menuitem" tabindex="0">另存为…</div>
+    </div>
+  </span>
+  <button id="sticker-root-btn" title="设置表情包根目录">🦊 表情包</button>
+  <span class="undo-redo-group" role="group" aria-label="撤销重做">
+    <button type="button" id="undo-btn" title="撤销 (Ctrl/Cmd+Z)" disabled>↶ 撤销</button>
+    <button type="button" id="redo-btn" title="重做 (Ctrl/Cmd+Shift+Z)" disabled>↷ 重做</button>
+  </span>
 
   <span class="right-group">
-    <button type="button" id="language-toggle" class="language-toggle" title="Switch to English">EN</button>
     <button id="download-srt">导出字幕</button>
     <span class="dropdown" id="subtitle-export-dropdown" hidden>
       <button id="subtitle-export-btn" title="导出完整字幕或按颜色分别导出字幕">导出字幕 ▾</button>
@@ -99,6 +109,7 @@ __WAVEFORM_CSS__
   <span class="info">当前 <b id="now">00:00.000</b></span>
   <span class="info">已选 <b id="sel-count">0</b></span>
   <span class="toolbar-utility-group" role="group" aria-label="编辑器工具">
+    <button type="button" id="language-toggle" class="language-toggle" title="Switch to English">🌐English</button>
     <button type="button" id="editor-settings-toggle" title="展开字幕、波形与导出设置" aria-expanded="false" aria-controls="editor-settings-panel">🔧 设置</button>
     <button type="button" id="help-toggle" title="查看鼠标操作与键盘快捷键" aria-expanded="false" aria-controls="help-panel">🤔 帮助</button>
   </span>
@@ -281,6 +292,9 @@ __WAVEFORM_CSS__
         <option value="middle_drag">中键拖动</option>
       </select>
     </label>
+    <label class="toggle editor-settings-item" title="启用后，在波形空白区域按住左键拖动时，播放指针会实时跟随鼠标位置">
+      <input type="checkbox" id="waveform-drag-playhead" checked> 允许拖动指针
+    </label>
   </div>
   <div class="editor-settings-group">
     <span class="editor-settings-title">导出</span>
@@ -291,15 +305,15 @@ __WAVEFORM_CSS__
       <input type="checkbox" id="export-color-unified" checked> 彩色字幕统一导出
     </label>
     <small class="editor-settings-hint">选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。</small>
-  </div>
-  <div class="editor-settings-group" id="server-auto-save-settings" hidden>
-    <span class="editor-settings-title">保存</span>
-    <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程 JSON">
-      <input type="checkbox" id="auto-save-project"> 自动保存
-    </label>
-    <label class="editor-settings-item" id="auto-save-interval-field" hidden>自动保存间隔（秒）
-      <input id="auto-save-interval" type="number" min="5" max="3600" step="1" value="30">
-    </label>
+    <div id="server-auto-save-settings" hidden>
+      <span class="editor-settings-title">保存</span>
+      <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程 JSON">
+        <input type="checkbox" id="auto-save-project" checked> 自动保存
+      </label>
+      <label class="editor-settings-item" id="auto-save-interval-field" hidden>自动保存间隔（秒）
+        <input id="auto-save-interval" type="number" min="5" max="3600" step="1" value="30">
+      </label>
+    </div>
   </div>
 </section>
 
@@ -350,6 +364,7 @@ __WAVEFORM_CSS__
 
 <input type="file" id="open-project-file" accept=".json,application/json,video/*,audio/*" multiple style="display:none">
 <input type="file" id="load-media-file" accept="video/*,audio/*" style="display:none">
+<input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
 <div class="editor-workspace waveform-basic" id="editor-workspace">
   <div class="player-wrap">
@@ -529,7 +544,7 @@ __WAVEFORM_CSS__
 <div class="ctxmenu" id="ctxmenu"></div>
 
 <!-- 拖拽加载遮罩 -->
-<div class="drag-overlay" id="drag-overlay"><div class="drag-hint">📥 松开以加载文件（视频 / 音频 / JSON）</div></div>
+<div class="drag-overlay" id="drag-overlay"><div class="drag-hint">📥 松开以加载文件（视频 / 音频 / JSON / SRT）</div></div>
 
 <script>
 __EDITOR_UTILS_JS__

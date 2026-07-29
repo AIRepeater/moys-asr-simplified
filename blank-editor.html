@@ -290,6 +290,11 @@
   .toolbar button:disabled:hover { background: var(--btn-bg); border-color: var(--btn-border); }
   .toolbar .undo-redo-group { display: inline-flex; gap: 4px; align-items: center; }
   .toolbar .undo-redo-group button { min-width: 32px; }
+  /* 分段按钮（主按钮 + ▾）：必须保持 inline-flex，否则两瓣之间会出现空白缝隙。
+     注意要比 .toolbar .dropdown 的 display:inline-block 更具体。 */
+  .toolbar .dropdown.button-split { display: inline-flex; }
+  .toolbar .button-split > button:first-child { border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+  .toolbar .button-split > .split-caret { min-width: 28px; padding: 4px 7px; border-left: 0; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
   .toolbar button.dirty { background: var(--amber-tint); border-color: var(--amber); color: var(--amber-hover); }
   .toolbar button.dirty:hover { background: var(--amber-soft); border-color: var(--amber-hover); }
   .toolbar button.danger { background: var(--red-soft); border-color: var(--red); color: var(--red-hover); }
@@ -351,6 +356,12 @@
   .editor-settings-item { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 12px; }
   .editor-settings-item[hidden] { display: none; }
   .editor-settings-group > label.toggle.editor-settings-item { flex: 0 0 100%; }
+  /* 「保存」归入导出分组，但其标题、开关和间隔各占一行。 */
+  #server-auto-save-settings {
+    display: flex; flex: 0 0 100%; flex-direction: column; align-items: flex-start; gap: 8px;
+  }
+  #server-auto-save-settings .editor-settings-title,
+  #server-auto-save-settings .editor-settings-item { width: 100%; }
   .editor-settings-list-fields { flex-wrap: wrap; }
   .editor-settings-display-row { flex: 0 0 100%; }
   .editor-settings-list-fields > span { color: var(--text-muted); }
@@ -411,6 +422,12 @@
     border-radius: var(--radius-md); padding: 4px 0; min-width: 240px;
     box-shadow: var(--shadow-3); z-index: 200;
   }
+  /* 第一行左侧的工程下拉：菜单与按钮左对齐、宽度随内容收缩，
+     避免 right:0 把菜单推出视口左缘或显得过宽。 */
+  .row-actions > .dropdown > .dropdown-menu {
+    left: 0; right: auto;
+    width: max-content; min-width: 100%; max-width: 320px;
+  }
   .toolbar .dropdown.open .dropdown-menu { display: block; }
   .toolbar .dropdown-item {
     padding: 7px 14px; cursor: pointer; user-select: none;
@@ -418,6 +435,7 @@
     transition: background var(--t-fast), color var(--t-fast);
   }
   .toolbar .dropdown-item:hover { background: var(--accent-tint); color: var(--text-primary); }
+  .toolbar .dropdown-item.disabled { opacity: .42; cursor: not-allowed; pointer-events: none; }
   .toolbar .dropdown-separator { height: 1px; margin: 4px 8px; background: var(--border-subtle); }
   .toolbar .recent-project-setting {
     display: flex;
@@ -1832,15 +1850,18 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 16:37</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 17:15</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
-  <span class="undo-redo-group" role="group" aria-label="撤销重做">
-    <button type="button" id="undo-btn" title="撤销 (Ctrl/Cmd+Z)" disabled>↶ 撤销</button>
-    <button type="button" id="redo-btn" title="重做 (Ctrl/Cmd+Shift+Z)" disabled>↷ 重做</button>
+  <span class="dropdown button-split" id="open-project-dropdown">
+    <button id="open-project" title="可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体">打开工程</button>
+    <button type="button" id="open-project-menu-btn" class="split-caret" aria-label="打开更多文件">▾</button>
+    <div class="dropdown-menu" id="open-project-menu">
+      <div class="dropdown-item" id="load-media" role="menuitem" tabindex="0">加载媒体</div>
+      <div class="dropdown-item" id="load-srt" role="menuitem" tabindex="0">加载字幕</div>
+    </div>
   </span>
-  <button id="open-project" title="可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体">打开工程</button>
   <div class="dropdown" id="recent-projects" hidden>
     <button type="button" id="recent-projects-toggle" title="打开本机最近使用的工程">最近工程</button>
     <div class="dropdown-menu" id="recent-projects-menu">
@@ -1852,13 +1873,20 @@
       <div id="recent-projects-list"></div>
     </div>
   </div>
-  <button id="load-media" title="选择本地媒体文件并加载到播放器">加载媒体</button>
-  <button id="save-project" title="保存回服务器启动时指定的工程 JSON" hidden>保存工程</button>
-  <button id="save-project-as" title="另存为到当前工程目录" hidden>另存为…</button>
-  <button id="sticker-root-btn" title="设置表情包根目录" style="font-size:16px;line-height:1;padding:2px 8px;">🦊</button>
+  <span class="dropdown button-split" id="save-project-dropdown" hidden>
+    <button id="save-project" title="保存回服务器启动时指定的工程 JSON">保存工程</button>
+    <button type="button" id="save-project-menu-btn" class="split-caret" aria-label="保存工程的更多选项">▾</button>
+    <div class="dropdown-menu" id="save-project-menu">
+      <div class="dropdown-item" id="save-project-as" role="menuitem" tabindex="0">另存为…</div>
+    </div>
+  </span>
+  <button id="sticker-root-btn" title="设置表情包根目录">🦊 表情包</button>
+  <span class="undo-redo-group" role="group" aria-label="撤销重做">
+    <button type="button" id="undo-btn" title="撤销 (Ctrl/Cmd+Z)" disabled>↶ 撤销</button>
+    <button type="button" id="redo-btn" title="重做 (Ctrl/Cmd+Shift+Z)" disabled>↷ 重做</button>
+  </span>
 
   <span class="right-group">
-    <button type="button" id="language-toggle" class="language-toggle" title="Switch to English">EN</button>
     <button id="download-srt">导出字幕</button>
     <span class="dropdown" id="subtitle-export-dropdown" hidden>
       <button id="subtitle-export-btn" title="导出完整字幕或按颜色分别导出字幕">导出字幕 ▾</button>
@@ -1918,6 +1946,7 @@
   <span class="info">当前 <b id="now">00:00.000</b></span>
   <span class="info">已选 <b id="sel-count">0</b></span>
   <span class="toolbar-utility-group" role="group" aria-label="编辑器工具">
+    <button type="button" id="language-toggle" class="language-toggle" title="Switch to English">🌐English</button>
     <button type="button" id="editor-settings-toggle" title="展开字幕、波形与导出设置" aria-expanded="false" aria-controls="editor-settings-panel">🔧 设置</button>
     <button type="button" id="help-toggle" title="查看鼠标操作与键盘快捷键" aria-expanded="false" aria-controls="help-panel">🤔 帮助</button>
   </span>
@@ -2100,6 +2129,9 @@
         <option value="middle_drag">中键拖动</option>
       </select>
     </label>
+    <label class="toggle editor-settings-item" title="启用后，在波形空白区域按住左键拖动时，播放指针会实时跟随鼠标位置">
+      <input type="checkbox" id="waveform-drag-playhead" checked> 允许拖动指针
+    </label>
   </div>
   <div class="editor-settings-group">
     <span class="editor-settings-title">导出</span>
@@ -2110,15 +2142,15 @@
       <input type="checkbox" id="export-color-unified" checked> 彩色字幕统一导出
     </label>
     <small class="editor-settings-hint">选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。</small>
-  </div>
-  <div class="editor-settings-group" id="server-auto-save-settings" hidden>
-    <span class="editor-settings-title">保存</span>
-    <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程 JSON">
-      <input type="checkbox" id="auto-save-project"> 自动保存
-    </label>
-    <label class="editor-settings-item" id="auto-save-interval-field" hidden>自动保存间隔（秒）
-      <input id="auto-save-interval" type="number" min="5" max="3600" step="1" value="30">
-    </label>
+    <div id="server-auto-save-settings" hidden>
+      <span class="editor-settings-title">保存</span>
+      <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程 JSON">
+        <input type="checkbox" id="auto-save-project" checked> 自动保存
+      </label>
+      <label class="editor-settings-item" id="auto-save-interval-field" hidden>自动保存间隔（秒）
+        <input id="auto-save-interval" type="number" min="5" max="3600" step="1" value="30">
+      </label>
+    </div>
   </div>
 </section>
 
@@ -2169,6 +2201,7 @@
 
 <input type="file" id="open-project-file" accept=".json,application/json,video/*,audio/*" multiple style="display:none">
 <input type="file" id="load-media-file" accept="video/*,audio/*" style="display:none">
+<input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
 <div class="editor-workspace waveform-basic" id="editor-workspace">
   <div class="player-wrap">
@@ -2348,7 +2381,7 @@
 <div class="ctxmenu" id="ctxmenu"></div>
 
 <!-- 拖拽加载遮罩 -->
-<div class="drag-overlay" id="drag-overlay"><div class="drag-hint">📥 松开以加载文件（视频 / 音频 / JSON）</div></div>
+<div class="drag-overlay" id="drag-overlay"><div class="drag-hint">📥 松开以加载文件（视频 / 音频 / JSON / SRT）</div></div>
 
 <script>
 // Pure editor helpers kept separate so replacement behavior can be tested
@@ -3117,7 +3150,8 @@
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     '打开工程': 'Open project',
     '最近工程': 'Recent projects', '自动打开上次工程': 'Automatically open last project',
-    '加载媒体': 'Load media', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save',
+    '加载媒体': 'Load media', '加载字幕': 'Load subtitles', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save',
+    '📥 松开以加载文件（视频 / 音频 / JSON / SRT）': '📥 Drop to load files (video / audio / JSON / SRT)',
     '自动保存': 'Auto-save', '自动保存间隔（秒）': 'Auto-save interval (seconds)',
     '导出字幕': 'Export subtitles', '导出字幕 ▾': 'Export subtitles ▾',
     '导出完整字幕': 'Export full subtitles', '导出完整字幕（SRT）': 'Export full subtitles (SRT)',
@@ -3171,9 +3205,10 @@
     '5 秒': '5 sec', '10 秒': '10 sec', '20 秒': '20 sec', '30 秒': '30 sec',
     '每行长度': 'Seconds per row', '每行高度': 'Row height',
     '空隙区段操作方式': 'Gap region operation', 'Alt+点击': 'Alt+click',
-    '中键拖动': 'Middle-button drag', '显示分组标记': 'Show group markers',
+    '中键拖动': 'Middle-button drag', '显示分组标记': 'Show group markers', '允许拖动指针': 'Drag to move playhead',
     '彩色字幕统一导出': 'Export colored subtitles together',
     '选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。': 'When enabled, export all color groups as filename_color; otherwise each color opens its own save dialog.',
+    'Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ': 'Oi! You added a sticker. Would you like to enable sticker display in the subtitle list and editor under Settings?   ヾ(´･ω･｀)ﾉ',
     'SRT 首条从 0 开始': 'Start first SRT cue at 0',
     '菜单': 'Menu', '显示菜单': 'Show menu', '单击': 'Click',
     'Shift+点击': 'Shift+click', 'Ctrl+点击': 'Ctrl+click',
@@ -3255,6 +3290,8 @@
     '保存回服务器启动时指定的工程 JSON': 'Save to the project JSON bound when the server started',
     '保存回当前工程 JSON（Ctrl/Cmd+S）': 'Save to the current project JSON (Ctrl/Cmd+S)',
     '另存为到当前工程目录': 'Save as in the current project folder',
+    '另存为 JSON 文件（Ctrl/Cmd+Shift+S）': 'Save as JSON file (Ctrl/Cmd+Shift+S)',
+    '🦊 表情包': '🦊 Stickers',
     '另存为到当前工程目录（Ctrl/Cmd+Shift+S）': 'Save as in the current project folder (Ctrl/Cmd+Shift+S)',
     '选择本地媒体文件并加载到播放器': 'Choose a local media file and load it in the player',
     '可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体': 'Choose project JSON and media together; choosing only JSON will prompt for related media',
@@ -3306,6 +3343,7 @@
     '开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条': 'When enabled, clicking a sticker/color group member selects the whole group; otherwise only that subtitle is selected',
     '多行波形每一行的高度；也可用 Ctrl+Shift+滚轮 在波形上直接调节': 'Height of each multi-row waveform row; Ctrl+Shift+wheel also adjusts it directly',
     '在多行波形中，为成组（颜色/表情包）字幕在块上方显示队长皇冠与组内序号': 'Show a leader crown and member index above grouped color/sticker subtitles in multi-row mode',
+    '启用后，在波形空白区域按住左键拖动时，播放指针会实时跟随鼠标位置': 'When enabled, dragging with the left button on empty waveform areas moves the playhead along with the mouse',
     '移除静音空隙的人工修正方式；Alt+左键始终切换整段；中键拖动默认增加静音，按住 Alt 才恢复声音，边界碰到另一空隙时会合并': 'Manual silent-gap correction mode; Alt+click toggles a full region; middle-drag adds silence, Alt restores audio, and touching regions merge',
     '勾选后按颜色导出会先选择一个 SRT 文件名作为前缀，再下载「前缀_颜色.srt」；取消勾选则逐个颜色弹出保存对话框': 'When enabled, choose an SRT filename as the prefix, then download prefix_color.srt files; otherwise choose each file separately',
     '拖动调整波形与字幕区域比例': 'Drag to resize waveform and subtitle areas',
@@ -3468,8 +3506,8 @@
   function refreshToggle() {
     const button = document.getElementById('language-toggle');
     if (!button) return;
-    button.textContent = language === ZH ? 'EN' : 'ZH';
-    button.title = language === ZH ? 'Switch to English' : 'Switch to Chinese';
+    button.textContent = language === ZH ? '🌐English' : '🌐中文';
+    button.title = language === ZH ? 'Switch to English' : '切换为中文';
     button.setAttribute('aria-label', button.title);
   }
 
@@ -3575,6 +3613,7 @@
     waveformScale: 1,
     disabledDisplay: 'dim',
     showGroupBadges: true,
+    dragPlayhead: true,
   };
   const PALETTE = {
     red: '#e74c3c',
@@ -3903,6 +3942,7 @@
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
         disabledDisplay: parsed.disabledDisplay === 'hidden' ? 'hidden' : 'dim',
         showGroupBadges: parsed.showGroupBadges !== false,
+        dragPlayhead: parsed.dragPlayhead !== false,
       };
     } catch (_) {
       return {
@@ -4175,6 +4215,7 @@
       this.secondsPerRowSelect = document.getElementById('waveform-seconds-per-row');
       this.rowHeightSelect = document.getElementById('waveform-row-height');
       this.showGroupBadgesToggle = document.getElementById('waveform-show-group-badges');
+      this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.sideSelect = document.getElementById('waveform-side');
       this.disabledDisplaySelect = document.getElementById('waveform-disabled-display');
       this.layoutPresetSelect = document.getElementById('layout-preset');
@@ -4234,6 +4275,11 @@
         this.settings.showGroupBadges = this.showGroupBadgesToggle.checked;
         saveSettings(this.settings);
         this.render();
+      });
+      if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
+      this.dragPlayheadToggle?.addEventListener('change', () => {
+        this.settings.dragPlayhead = this.dragPlayheadToggle.checked;
+        saveSettings(this.settings);
       });
       this.sideSelect?.addEventListener('change', () => {
         this.settings.side = this.sideSelect.value === 'right' ? 'right' : 'left';
@@ -5403,6 +5449,8 @@
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
         this.seekFromPointer(event, row);
+        // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
+        if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row);
       });
       row.addEventListener('auxclick', (event) => {
         if (event.button === 1 && gapOperationMode === 'middle_drag') event.preventDefault();
@@ -5560,6 +5608,36 @@
       const startMs = Number(row.dataset.startMs);
       const endMs = Number(row.dataset.endMs);
       return startMs + ratio * (endMs - startMs);
+    }
+
+    // 「允许拖动指针」：在波形空白区域按住左键拖动时，播放指针实时跟随鼠标
+    // 所在位置。高回报率指针事件用 rAF 合并，每帧最多 seek 一次；松开时以
+    // 最终位置再 seek 一次保证落点精确。指针捕获让拖出行范围时按行边界钳制。
+    beginPlayheadDrag(event, row) {
+      row.setPointerCapture?.(event.pointerId);
+      let frame = 0;
+      let lastEvent = null;
+      const flush = () => {
+        frame = 0;
+        if (lastEvent) this.seekFromPointer(lastEvent, row);
+        lastEvent = null;
+      };
+      const cleanup = () => {
+        window.removeEventListener('pointermove', onMove);
+        if (frame) { cancelAnimationFrame(frame); frame = 0; }
+        lastEvent = null;
+      };
+      const onMove = (moveEvent) => {
+        if (!(moveEvent.buttons & 1)) { cleanup(); return; }
+        lastEvent = moveEvent;
+        if (!frame) frame = requestAnimationFrame(flush);
+      };
+      const onUp = (upEvent) => {
+        cleanup();
+        this.seekFromPointer(upEvent, row);
+      };
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp, { once: true });
     }
 
     handleWheel(event) {
@@ -6172,7 +6250,7 @@ const DEFAULT_EDITOR_SETTINGS = {
   // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
   exportColorUnified: true,
   // 自动保存仅对绑定工程的 localhost 服务器版生效。
-  autoSaveProject: false,
+  autoSaveProject: true,
   autoSaveIntervalSeconds: 30,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
@@ -6197,7 +6275,7 @@ function readEditorSettings() {
       selectGroupMembers: saved.selectGroupMembers === true,
       mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
       exportColorUnified: saved.exportColorUnified !== false,
-      autoSaveProject: saved.autoSaveProject === true,
+      autoSaveProject: saved.autoSaveProject !== false,
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
@@ -6506,6 +6584,7 @@ const cuePanelSplitKey = document.getElementById('cue-panel-split-key');
 const cuesEmpty = document.getElementById('cues-empty');
 const saveProjectButton = document.getElementById('save-project');
 const saveProjectAsButton = document.getElementById('save-project-as');
+const saveProjectDropdown = document.getElementById('save-project-dropdown');
 const gapRemovedExportDropdown = document.getElementById('gap-removed-export-dropdown');
 const downloadSrtButton = document.getElementById('download-srt');
 const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown');
@@ -9533,25 +9612,26 @@ function copyText(text, hint) {
   );
 }
 
+let projectLoadedFromSrt = false;
+
 function serverProjectSavingEnabled() {
-  return !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl && SERVER_CONFIG.canSave);
+  return !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl && SERVER_CONFIG.canSave && !projectLoadedFromSrt);
 }
 
 function configureServerSaveControls() {
   const hasServer = !!(SERVER_CONFIG && SERVER_CONFIG.saveUrl);
-  [saveProjectButton, saveProjectAsButton].forEach((button) => {
+  if (saveProjectDropdown) saveProjectDropdown.hidden = !hasServer;
+  [saveProjectButton, document.getElementById('save-project-menu-btn')].forEach((button) => {
     if (!button) return;
-    button.hidden = !hasServer;
     button.disabled = !serverProjectSavingEnabled();
-    if (!serverProjectSavingEnabled()) {
-      button.title = '请用带 JSON 工程路径的服务器命令启动，才能直接保存';
-    }
+    if (!serverProjectSavingEnabled()) button.title = '请用带 JSON 工程路径的服务器命令启动，才能直接保存';
   });
   if (saveProjectButton && serverProjectSavingEnabled()) {
     saveProjectButton.title = '保存回当前工程 JSON（Ctrl/Cmd+S）';
   }
-  if (saveProjectAsButton && serverProjectSavingEnabled()) {
-    saveProjectAsButton.title = '另存为到当前工程目录（Ctrl/Cmd+Shift+S）';
+  // 另存为走系统文件对话框，不依赖服务器绑定，始终可用。
+  if (saveProjectAsButton) {
+    saveProjectAsButton.title = '另存为 JSON 文件（Ctrl/Cmd+Shift+S）';
   }
 }
 
@@ -9565,7 +9645,7 @@ function scheduleAutoSave() {
   }
   if (!serverProjectSavingEnabled() || !EDITOR_SETTINGS.autoSaveProject) return;
   autoSaveTimer = window.setInterval(() => {
-    if (hasUnsavedProjectChanges() && !projectSaveInFlight) void saveProjectToServer(false, { silent: true });
+    if (hasUnsavedProjectChanges() && !projectSaveInFlight) void saveProjectToServer({ silent: true });
   }, EDITOR_SETTINGS.autoSaveIntervalSeconds * 1000);
 }
 
@@ -9691,24 +9771,13 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   if (!silent) flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
 }
 
-async function saveProjectToServer(saveAs = false, { silent = false } = {}) {
+async function saveProjectToServer({ silent = false } = {}) {
   if (!serverProjectSavingEnabled()) {
     if (!silent) flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带 JSON 路径重新启动服务器');
     return false;
   }
   if (projectSaveInFlight) return false;
   if (editingState) finishEdit(true);
-  let filename = null;
-  if (saveAs) {
-    const suggested = `${FILENAME_BASE}.json`;
-    const entered = window.prompt('另存为到当前工程目录（仅文件名）：', suggested);
-    if (entered === null) return false;
-    filename = entered.trim();
-    if (!filename) {
-      flashHint('文件名不能为空');
-      return false;
-    }
-  }
   const projectJson = buildJson();
   projectSaveInFlight = true;
   try {
@@ -9716,7 +9785,7 @@ async function saveProjectToServer(saveAs = false, { silent = false } = {}) {
     const response = await fetch(saveUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ project: JSON.parse(projectJson), filename }),
+      body: JSON.stringify({ project: JSON.parse(projectJson), filename: null }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok || !result.ok) {
@@ -9732,7 +9801,7 @@ async function saveProjectToServer(saveAs = false, { silent = false } = {}) {
     // completed edits, while making clear that the bound JSON was not overwritten.
     if (error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？')) {
-      const saved = await downloadFile(projectJson, `${filename || FILENAME_BASE + '.json'}`, 'application/json', {
+      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.json`, 'application/json', {
         desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
       });
       if (saved) flashHint('服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续');
@@ -9740,6 +9809,33 @@ async function saveProjectToServer(saveAs = false, { silent = false } = {}) {
     return false;
   } finally {
     projectSaveInFlight = false;
+  }
+}
+
+// 另存为：打开系统文件浏览对话框把工程 JSON 保存到用户选择的位置。
+// 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新）。
+async function saveProjectAsToFile() {
+  if (editingState) finishEdit(true);
+  const suggested = `${FILENAME_BASE}.json`;
+  // 无原生保存对话框的浏览器：退化为普通下载（文件名不可考，标题保持不变）。
+  if (!window.showSaveFilePicker) {
+    await downloadFile(buildJson(), suggested, 'application/json', {
+      desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+    });
+    return;
+  }
+  try {
+    const handle = await window.showSaveFilePicker({
+      suggestedName: suggested,
+      types: [{ description: '编辑器工程文件', accept: { 'application/json': ['.json'] } }],
+    });
+    const writable = await handle.createWritable();
+    await writable.write(new Blob([buildJson()], { type: 'application/json;charset=utf-8' }));
+    await writable.close();
+    markProjectSaved(handle.name, null);
+  } catch (error) {
+    if (error && error.name === 'AbortError') return;  // 用户取消保存对话框
+    flashHint(`保存失败：${error?.message || error}`);
   }
 }
 
@@ -9784,14 +9880,18 @@ document.getElementById('download-json').addEventListener('click', async () => {
     desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
   });
 });
-saveProjectButton?.addEventListener('click', () => saveProjectToServer(false));
-saveProjectAsButton?.addEventListener('click', () => saveProjectToServer(true));
+saveProjectButton?.addEventListener('click', () => saveProjectToServer());
+saveProjectAsButton?.addEventListener('click', () => saveProjectAsToFile());
 // Project-level save shortcuts intentionally override the browser page-save
 // command. finishEdit() inside saveProjectToServer commits an active text edit.
 document.addEventListener('keydown', (event) => {
   if (!(event.ctrlKey || event.metaKey) || event.altKey || event.key.toLowerCase() !== 's') return;
   event.preventDefault();
-  saveProjectToServer(event.shiftKey);
+  if (event.shiftKey) {
+    void saveProjectAsToFile();
+  } else {
+    void saveProjectToServer();
+  }
 });
 document.getElementById('layout-export')?.addEventListener('click', async () => {
   await downloadFile(buildLayoutJson(), `${FILENAME_BASE}.layout.json`, 'application/json', {
@@ -9909,10 +10009,13 @@ function bindToolbarExportDropdown(dropdownId, buttonId, menuId) {
 bindToolbarExportDropdown('subtitle-export-dropdown', 'subtitle-export-btn', 'subtitle-export-menu');
 bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn', 'gap-removed-export-menu');
 bindToolbarExportDropdown('extra-export-dropdown', 'extra-export-btn', 'extra-export-menu');
+bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
+bindToolbarExportDropdown('save-project-dropdown', 'save-project-menu-btn', 'save-project-menu');
 
 // === 打开工程 ===
 const openProjectFileInput = document.getElementById('open-project-file');
 const loadMediaFileInput = document.getElementById('load-media-file');
+const loadSrtFileInput = document.getElementById('load-srt-file');
 let currentMediaBlobUrl = null;  // 跟踪 blob URL，便于切换时 revoke 防泄漏
 let pendingProjectMediaSelection = null;
 
@@ -9984,12 +10087,96 @@ function resetLoadedMedia() {
   syncPlayerPlaceholder();
 }
 
+function isMawProject(data) {
+  if (!data || typeof data !== 'object' || !Array.isArray(data.segments)) return false;
+  let previousEnd = 0;
+  return data.segments.every((segment) => {
+    if (!segment || typeof segment !== 'object'
+        || !Number.isInteger(segment.start) || !Number.isInteger(segment.end)
+        || segment.start < 0 || segment.end <= segment.start || segment.start < previousEnd
+        || typeof segment.text !== 'string') return false;
+    previousEnd = segment.end;
+    if (!Array.isArray(segment.items)) return segment.items === undefined;
+    let itemEnd = segment.start;
+    return segment.items.every((item) => {
+      if (!item || typeof item !== 'object'
+          || !Number.isInteger(item.start) || !Number.isInteger(item.end)
+          || item.start < segment.start || item.end > segment.end || item.end <= item.start
+          || item.start < itemEnd || typeof item.text !== 'string') return false;
+      itemEnd = item.end;
+      return true;
+    });
+  });
+}
+
+function parseSrtTimestamp(value) {
+  const match = /^(\d+):(\d{2}):(\d{2})[,.](\d{1,3})$/.exec(value.trim());
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  const seconds = Number(match[3]);
+  const milliseconds = Number(match[4].padEnd(3, '0'));
+  if (minutes >= 60 || seconds >= 60) return null;
+  return (((hours * 60 + minutes) * 60) + seconds) * 1000 + milliseconds;
+}
+
+function parseSrtSegments(text) {
+  const blocks = text.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n').trim().split(/\n{2,}/);
+  const segments = [];
+  for (const block of blocks) {
+    const lines = block.split('\n');
+    if (/^\d+$/.test(lines[0]?.trim() || '')) lines.shift();
+    const timing = /^\s*(.+?)\s*-->\s*(.+?)(?:\s+.*)?$/.exec(lines.shift() || '');
+    if (!timing) throw new Error('缺少有效时间码');
+    const start = parseSrtTimestamp(timing[1]);
+    const end = parseSrtTimestamp(timing[2]);
+    const cueText = lines.join('\n').trim();
+    if (start === null || end === null || end <= start || !cueText) throw new Error('包含无效字幕段');
+    const previous = segments[segments.length - 1];
+    if (previous && start < previous.end) throw new Error('字幕时间重叠');
+    segments.push({ start, end, text: cueText });
+  }
+  if (!segments.length) throw new Error('没有可导入的字幕');
+  return segments;
+}
+
+async function openSrtFile(file) {
+  try {
+    const segments = parseSrtSegments(await file.text());
+    DATA.segments.length = 0;
+    segments.forEach((segment) => DATA.segments.push(segment));
+    DATA.gap_remove = null;
+    gapRemoveDirty = false;
+    projectLoadedFromSrt = true;
+    editorHistory.clear();
+    updateUndoRedoButtons();
+    clearSelection();
+    lastActive = -1;
+    updateGapRemoveUi();
+    renderAll();
+    FILENAME_BASE = file.name.replace(/\.srt$/i, '');
+    const jsonEl = document.getElementById('json-name');
+    if (jsonEl) {
+      jsonEl.textContent = `导入字幕：${file.name}`;
+      jsonEl.title = 'SRT 字幕只能通过导出下载保存为工程 JSON';
+      jsonEl.classList.add('empty');
+    }
+    configureServerSaveControls();
+    scheduleAutoSave();
+    flashHint(`已加载字幕：${file.name}（${segments.length} 条）`);
+    return true;
+  } catch (error) {
+    flashHint(`加载字幕失败：${error.message || error}`);
+    return false;
+  }
+}
+
 async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
-    if (!data.segments || !Array.isArray(data.segments)) {
-      flashHint('文件格式不对，缺少 segments 字段');
+    if (!isMawProject(data)) {
+      flashHint('打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。');
       if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
       return false;
     }
@@ -10010,6 +10197,9 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     if (data.sticker_root) STICKER_ROOT = data.sticker_root;
     DATA.segments.length = 0;
     data.segments.forEach((segment) => DATA.segments.push(segment));
+    projectLoadedFromSrt = false;
+    configureServerSaveControls();
+    scheduleAutoSave();
     editorHistory.clear();
     updateUndoRedoButtons();
     clearSelection();
@@ -10060,7 +10250,9 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     return true;
   } catch (error) {
     if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
-    flashHint(`加载失败：${error.message}`);
+    flashHint(error instanceof SyntaxError
+      ? '打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。'
+      : `加载失败：${error.message}`);
     console.error(error);
     return false;
   }
@@ -10099,6 +10291,17 @@ document.getElementById('load-media').addEventListener('click', () => {
   pendingProjectMediaSelection = null;
   loadMediaFileInput.value = '';
   loadMediaFileInput.click();
+});
+document.getElementById('load-srt').addEventListener('click', () => {
+  if (hasUnsavedProjectChanges()
+      && !confirm('当前有未保存的改动，是否确定加载字幕？将替换当前字幕。')) return;
+  loadSrtFileInput.value = '';
+  loadSrtFileInput.click();
+});
+
+loadSrtFileInput.addEventListener('change', async (event) => {
+  const file = event.target.files?.[0];
+  if (file) await openSrtFile(file);
 });
 
 async function loadMediaFile(file) {
@@ -10449,6 +10652,7 @@ function renderStickerGrid(filter) {
 }
 
 function assignSticker(sticker) {
+  const hadStickers = DATA.segments.some((segment) => segment.sticker || segment.sticker_ref);
   pushUndo('分配表情包');
   if (stickerTargetMode === 'multi' && stickerTargetIdxs.length > 1) {
     const sorted = [...stickerTargetIdxs].sort((a, b) => a - b);
@@ -10475,6 +10679,12 @@ function assignSticker(sticker) {
     DATA.segments[idx].sticker_ref = null;
   }
   stickerModal.classList.remove('show');
+  if (!hadStickers && !EDITOR_SETTINGS.cueListShowSticker && !EDITOR_SETTINGS.cueEditorShowSticker
+      && confirm('Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ')) {
+    updateEditorSettings({ cueListShowSticker: true, cueEditorShowSticker: true });
+    applyCueListDisplaySettings();
+    applyCueEditorDisplaySettings();
+  }
   renderAll();
   flashHint(`已分配「${sticker.name}」`);
 }
@@ -11091,17 +11301,21 @@ function initWaveformEditor() {
   waveformEditor.setPayload(DATA.waveform || null);
 }
 
-// === Drag & Drop：拖入视频/音频/JSON 自动加载 ===
+// === Drag & Drop：拖入视频/音频/JSON/SRT 自动加载 ===
 const dragOverlay = document.getElementById('drag-overlay');
 function isJsonFile(f) {
   return f.type === 'application/json' || f.name.toLowerCase().endsWith('.json');
+}
+function isSrtFile(f) {
+  return f.name.toLowerCase().endsWith('.srt');
 }
 async function handleDroppedFiles(files) {
   if (!files.length) return;
   const mediaFile = files.find(isMediaFile);
   const jsonFile = files.find(isJsonFile);
-  if (!mediaFile && !jsonFile) {
-    flashHint('不支持的文件类型（仅支持视频 / 音频 / JSON）');
+  const srtFile = files.find(isSrtFile);
+  if (!mediaFile && !jsonFile && !srtFile) {
+    flashHint('不支持的文件类型（仅支持视频 / 音频 / JSON / SRT）');
     return;
   }
   // JSON 工程会重置 DATA，先检查未保存改动（与「打开工程」按钮一致）
@@ -11112,7 +11326,10 @@ async function handleDroppedFiles(files) {
     await openProjectFile(jsonFile, mediaFile ? [mediaFile] : []);
     return;
   }
-  await loadMediaFile(mediaFile);
+  if (srtFile && hasUnsavedProjectChanges()
+      && !confirm('当前有未保存的改动，是否确定加载字幕？将替换当前字幕。')) return;
+  if (mediaFile) await loadMediaFile(mediaFile);
+  if (srtFile) await openSrtFile(srtFile);
 }
 let dragCounter = 0;  // dragenter/leave 计数，避免子元素进出导致遮罩闪烁
 window.addEventListener('dragenter', (e) => {

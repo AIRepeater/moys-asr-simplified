@@ -12,7 +12,9 @@
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     '打开工程': 'Open project',
     '最近工程': 'Recent projects', '自动打开上次工程': 'Automatically open last project',
-    '加载媒体': 'Load media', '保存工程': 'Save project', '另存为…': 'Save as…',
+    '加载媒体': 'Load media', '加载字幕': 'Load subtitles', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save',
+    '📥 松开以加载文件（视频 / 音频 / JSON / SRT）': '📥 Drop to load files (video / audio / JSON / SRT)',
+    '自动保存': 'Auto-save', '自动保存间隔（秒）': 'Auto-save interval (seconds)',
     '导出字幕': 'Export subtitles', '导出字幕 ▾': 'Export subtitles ▾',
     '导出完整字幕': 'Export full subtitles', '导出完整字幕（SRT）': 'Export full subtitles (SRT)',
     '按颜色导出字幕': 'Export by color', '按颜色导出字幕（SRT）': 'Export by color (SRT)',
@@ -65,11 +67,11 @@
     '5 秒': '5 sec', '10 秒': '10 sec', '20 秒': '20 sec', '30 秒': '30 sec',
     '每行长度': 'Seconds per row', '每行高度': 'Row height',
     '空隙区段操作方式': 'Gap region operation', 'Alt+点击': 'Alt+click',
-    '中键拖动': 'Middle-button drag', '显示分组标记': 'Show group markers',
+    '中键拖动': 'Middle-button drag', '显示分组标记': 'Show group markers', '允许拖动指针': 'Drag to move playhead',
     '彩色字幕统一导出': 'Export colored subtitles together',
     '选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。': 'When enabled, export all color groups as filename_color; otherwise each color opens its own save dialog.',
-    'SRT 首条从 0 开始': 'Start first SRT cue at 0',
     'Oi！检测到你添加了表情包，是否需要帮你打开「设置」中的字幕列表/编辑区的表情包显示开关？   ヾ(´･ω･｀)ﾉ': 'Oi! You added a sticker. Would you like to enable sticker display in the subtitle list and editor under Settings?   ヾ(´･ω･｀)ﾉ',
+    'SRT 首条从 0 开始': 'Start first SRT cue at 0',
     '菜单': 'Menu', '显示菜单': 'Show menu', '单击': 'Click',
     'Shift+点击': 'Shift+click', 'Ctrl+点击': 'Ctrl+click',
     'Shift+滚轮': 'Shift+wheel', 'Ctrl+滚轮': 'Ctrl+wheel',
@@ -116,6 +118,7 @@
     '取消': 'Cancel', '替换全部': 'Replace all', '分配表情包': 'Assign sticker',
     '清除当前': 'Clear current', '替换': 'Replace', '删除': 'Delete', '关闭': 'Close',
     '设置表情包根目录': 'Set sticker root folder',
+    '仅服务器版编辑器可将改动保存回当前工程 JSON': 'Only the server editor can save changes back to the current project JSON',
     '所有表情包路径都基于此根目录。修改后页面所有缩略图会立刻按新路径加载。': 'All sticker paths are relative to this root. Thumbnails update immediately after it changes.',
     '支持 OS 路径（D:/foo/bar）或 file:// URL。手动改路径只替换前缀；点 📁 浏览选本地文件夹会重新扫描表情包。': 'Supports OS paths (D:/foo/bar) and file:// URLs. Editing the path only changes the prefix; Browse rescans the folder.',
     '当前根目录（绝对路径）': 'Current root folder (absolute path)',
@@ -149,6 +152,8 @@
     '保存回服务器启动时指定的工程 JSON': 'Save to the project JSON bound when the server started',
     '保存回当前工程 JSON（Ctrl/Cmd+S）': 'Save to the current project JSON (Ctrl/Cmd+S)',
     '另存为到当前工程目录': 'Save as in the current project folder',
+    '另存为 JSON 文件（Ctrl/Cmd+Shift+S）': 'Save as JSON file (Ctrl/Cmd+Shift+S)',
+    '🦊 表情包': '🦊 Stickers',
     '另存为到当前工程目录（Ctrl/Cmd+Shift+S）': 'Save as in the current project folder (Ctrl/Cmd+Shift+S)',
     '选择本地媒体文件并加载到播放器': 'Choose a local media file and load it in the player',
     '可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体': 'Choose project JSON and media together; choosing only JSON will prompt for related media',
@@ -200,6 +205,7 @@
     '开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条': 'When enabled, clicking a sticker/color group member selects the whole group; otherwise only that subtitle is selected',
     '多行波形每一行的高度；也可用 Ctrl+Shift+滚轮 在波形上直接调节': 'Height of each multi-row waveform row; Ctrl+Shift+wheel also adjusts it directly',
     '在多行波形中，为成组（颜色/表情包）字幕在块上方显示队长皇冠与组内序号': 'Show a leader crown and member index above grouped color/sticker subtitles in multi-row mode',
+    '启用后，在波形空白区域按住左键拖动时，播放指针会实时跟随鼠标位置': 'When enabled, dragging with the left button on empty waveform areas moves the playhead along with the mouse',
     '移除静音空隙的人工修正方式；Alt+左键始终切换整段；中键拖动默认增加静音，按住 Alt 才恢复声音，边界碰到另一空隙时会合并': 'Manual silent-gap correction mode; Alt+click toggles a full region; middle-drag adds silence, Alt restores audio, and touching regions merge',
     '勾选后按颜色导出会先选择一个 SRT 文件名作为前缀，再下载「前缀_颜色.srt」；取消勾选则逐个颜色弹出保存对话框': 'When enabled, choose an SRT filename as the prefix, then download prefix_color.srt files; otherwise choose each file separately',
     '拖动调整波形与字幕区域比例': 'Drag to resize waveform and subtitle areas',
@@ -362,8 +368,8 @@
   function refreshToggle() {
     const button = document.getElementById('language-toggle');
     if (!button) return;
-    button.textContent = language === ZH ? 'EN' : 'ZH';
-    button.title = language === ZH ? 'Switch to English' : 'Switch to Chinese';
+    button.textContent = language === ZH ? '🌐English' : '🌐中文';
+    button.title = language === ZH ? 'Switch to English' : '切换为中文';
     button.setAttribute('aria-label', button.title);
   }
 
