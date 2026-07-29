@@ -385,13 +385,13 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(result["stickerDir"], str(stickers))
         self.assertIn(f"STICKER_DIR={stickers}", self.env_path.read_text(encoding="utf-8"))
 
+    @unittest.skipUnless(os.name == "nt", "os.startfile 仅 Windows 可用；os.name 补丁会让 pathlib 选择 WindowsPath")
     def test_open_output_folder_uses_startfile_on_windows(self) -> None:
         folder = self.root / "out"
         folder.mkdir()
         self.api.result = mock.Mock(srt_path=folder / "a.srt", html_path=None)
 
         with mock.patch("maw.gui_web.os.name", "nt"):
-            # os.startfile 仅 Windows 存在；create=True 让其他平台也能验证该分支
             with mock.patch("maw.gui_web.os.startfile", create=True) as startfile:
                 result = self.api.open_output_folder()
 
