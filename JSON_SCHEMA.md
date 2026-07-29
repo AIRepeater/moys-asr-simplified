@@ -33,7 +33,7 @@
 | `sticker_root` | `string` | 否 | 表情包根目录绝对路径。打开工程时会覆盖编辑器内的 `STICKER_ROOT` |
 | `waveform` | `object` | 否 | 可丢弃的紧凑波形缓存。由 `edit.py` 或浏览器自动生成；不影响字幕语义 |
 | `gap_remove` | `object` | 否 | 可逆的空隙移除决定。保留原始媒体/字幕时间，仅描述导出与跳过播放时使用的派生时间轴 |
-| `layout` | `object` | 否 | 编辑器四个功能区的布局与尺寸；可单独导出/导入，不影响字幕和波形缓存 |
+| `workspace` | `object` | 否 | 编辑器工作区：四个功能区的窗口布局与显示状态；不影响字幕和波形缓存。服务器版也可使用独立的本机命名工作区库跨工程复用 |
 | `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（字幕预览框）与 `preview.sticker`（表情包预览层）两个归一化几何。不影响字幕时间与文本 |
 
 ### 1.1 waveform 波形缓存
@@ -63,18 +63,21 @@
 - Qwen/Soniox 命令行生成器默认不内嵌波形；加 `--with-waveform` 时可在转写生成工程 JSON 时把同一 payload 写入顶层 `waveform`。GUI 转写默认开启该模式。
 - 编辑器首次打开缺少有效 `waveform` 的工程时，仍可能在媒体旁写入 `<媒体名>.waveform.json` sidecar；它使用同一 `source` 签名，可被后续工程复用。sidecar 不属于字幕真源，删除后可重新提取。
 
-### 1.2 layout 布局
+### 1.2 workspace 工作区
 
-`layout` 使用独立 schema `moy.asr.editor.layout.v1`。它只记录“视频、当前字幕编辑区、字幕列表、波形”四个功能区的停靠方式与尺寸；波形的“隐藏 / 基础 / 多行”显示模式仍是独立开关。
+`workspace` 使用独立 schema `moy.asr.editor.workspace.v1`。一个工作区 = **窗口布局**（“视频、当前字幕编辑区、字幕列表、波形”四个功能区的停靠方式与尺寸）+ **显示状态**（波形显示模式与偏好、字幕列表/编辑区的显示开关）。保存或恢复工作区时两部分一起生效。
 
 ```json
 {
-  "schema": "moy.asr.editor.layout.v1",
-  "preset": "free",
+  "schema": "moy.asr.editor.workspace.v1",
+  "preset": "custom",
+  "selectedPreset": "traditional",
+  "waveformMode": "basic",
+  "waveformSettings": { "visibleSeconds": 20, "secondsPerRow": 10, "rowHeight": 120, "waveformScale": 1, "side": "left", "disabledDisplay": "dim", "showGroupBadges": true, "dragPlayhead": true },
+  "editorDisplay": { "cueListShowIndex": true, "cueListShowTime": true, "cueListShowSticker": false, "cueListShowCharcount": true, "cueEditorShowNavigation": false, "cueEditorShowTimeActions": true, "cueEditorShowSticker": false },
   "splitPercent": 60,
   "columnPercent": 58,
   "rows": [42, 27, 31],
-  "freeOrder": ["player", "panel", "cues", "wave"],
   "tree": {
     "type": "split",
     "direction": "row",
@@ -103,15 +106,18 @@
 }
 ```
 
-- `preset` 可为 `classic`（标准堆叠）、`wave-right`（右侧整列波形）、`wave-bottom`（波形在下方）或 `free`（自定义停靠）。未知值会回退到默认布局。
-- `splitPercent` 是标准堆叠的多行波形与字幕列表比例，范围会被限制在 35–75；它与布局预设一起导出，因此拖动后可撤销、复用。
-- `columnPercent` 是自定义停靠布局左右区域的比例，范围会被限制在 30–75。
-- `rows` 是自定义停靠布局左侧“视频 / 当前字幕 / 字幕列表”的相对高度，编辑器会自动归一化并保证每区可用的最小高度。
-- `tree` 是自定义停靠布局的二叉 split tree。`type: "module"` 是功能区叶子；`type: "split"` 的 `direction` 为 `row`（左右）或 `column`（上下），`ratio` 是第一个子区的比例。
-- `freeOrder` 是旧版四槽位格式，仍会被读取，也会作为扁平化兼容字段导出；新布局以 `tree` 为准。
+- `preset` 是**渲染器**，决定这份窗口布局如何绘制：`classic`（标准堆叠，专属网格）、`wave-right`（右侧整列波形，专属网格）或 `custom`（由 `tree` 渲染；「传统字幕编辑器」与用户自定义工作区都走这条路）。未知值回退到 `wave-right`。
+- `selectedPreset` 记录用户最后在**工作区下拉框**选择的项：内置工作区为 `classic` / `wave-right` / `traditional`（传统字幕编辑器），本机命名工作区为 `saved:<名称>`。它与 `tree` 一起保存，使内部以 `custom` 渲染的工作区在重开工程后仍显示用户所见的名称。
+- `waveformMode` 可为 `multi`（多行）或 `basic`（单行）。工作区中存在该字段时随恢复一并切换；缺失时保持当前浏览器设置。
+- `waveformSettings` 保存波形区数值与显示偏好：基础模式窗口长度、多行每行长度及高度、振幅、左右侧、禁用字幕显示、分组徽章与拖动播放头。字段缺失时保持浏览器本机设置。
+- `editorDisplay` 保存“字幕列表显示”和“字幕编辑显示”两组开关。它只包含工作区可见性，不包含导出、自动保存或快捷键等全局偏好。
+- `splitPercent` 是标准堆叠的多行波形与字幕列表比例，范围会被限制在 35–75；它与工作区一起导出，因此拖动后可撤销、复用。
+- `columnPercent` 是 `custom` 渲染器最外层左右分栏的比例，范围会被限制在 30–75。
+- `rows` 是左侧“视频 / 当前字幕 / 字幕列表”的相对高度，编辑器会自动归一化并保证每区可用的最小高度。
+- `tree` 是 `custom` 渲染器的二叉 split tree。`type: "module"` 是功能区叶子；`type: "split"` 的 `direction` 为 `row`（左右）或 `column`（上下），`ratio` 是第一个子区的比例。
 - 布局编辑模式拖动标题条时，中央区域会显示“对换”预览；靠近上/下/左/右边沿会显示对应半区的“插入”预览。松开后目标叶子会被拆成新的横向或纵向 split，可继续嵌套。
-- 工程 JSON 导出会包含 `layout`；“导出布局”按钮也可以只导出这段 JSON，之后用“导入布局”复用到其他工程。
-- 拖动模块、拖动任一布局分隔条、导入布局和重置布局都会进入统一的 `Ctrl/Cmd+Z` 撤销栈；“编辑布局”中可用“重置布局”恢复默认右侧整列波形布局，不会改变波形的基础/多行模式。
+- 工程 JSON 导出会包含 `workspace`。单文件 HTML 在「工作区配置 ▾」提供“导出工作区配置 / 导入工作区配置”，以 `.workspace.json` 文件显式迁移该结构；服务器版的「保存工作区」则把同一结构保存到用户本机：内置工作区保存为该预设的本机覆盖版（可重置回默认），自定义工作区保存到命名工作区库（可另存、删除），均可供其他工程复用；该操作不会写回工程 JSON。
+- 拖动模块、拖动任一布局分隔条、导入和重置工作区都会进入统一的 `Ctrl/Cmd+Z` 撤销栈；「编辑布局」中可用「重置工作区」恢复当前内置工作区的默认状态。
 
 ### 1.3 gap_remove 空隙移除
 

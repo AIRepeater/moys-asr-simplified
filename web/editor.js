@@ -176,7 +176,7 @@ function pushUndo(label) {
 }
 function pushLayoutUndo(label, snapshot) {
   if (!snapshot) return;
-  editorHistory.push({ kind: 'layout', label: label || '调整布局', layout: snapshot });
+  editorHistory.push({ kind: 'layout', label: label || '调整工作区', layout: snapshot });
   updateUndoRedoButtons();
 }
 function pushGapRemoveUndo(label) {
@@ -211,7 +211,7 @@ function applyPreviewState(state) {
 // 按记录 kind 拍下当前状态，作为对端栈的镜像（label 沿用原记录）
 function snapshotCurrentForKind(kind, label) {
   if (kind === 'layout') {
-    return { kind: 'layout', label: label || '调整布局', layout: waveformEditor?.getLayoutHistorySnapshot?.() || null };
+    return { kind: 'layout', label: label || '调整工作区', layout: waveformEditor?.getLayoutHistorySnapshot?.() || null };
   }
   if (kind === 'gap_remove') {
     return {
@@ -228,10 +228,10 @@ function snapshotCurrentForKind(kind, label) {
 function applyHistoryRecord(record) {
   if (record.kind === 'layout') {
     if (!waveformEditor?.restoreLayoutHistorySnapshot?.(record.layout)) {
-      flashHint('布局恢复失败：布局模块尚未加载');
+      flashHint('工作区恢复失败：波形模块尚未加载');
       return false;
     }
-    DATA.layout = waveformEditor.getLayoutData();
+    DATA.workspace = waveformEditor.getLayoutData();
     return true;
   }
   if (record.kind === 'gap_remove') {
@@ -259,7 +259,7 @@ function performUndo() {
   const top = editorHistory.peekUndo();
   if (!top) { flashHint('没有可撤销的操作'); return; }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
-    flashHint('布局撤销失败：布局模块尚未加载');
+    flashHint('工作区撤销失败：波形模块尚未加载');
     return;
   }
   if (editingState) finishEdit(false);  // 撤销前丢弃当前编辑（保持快照前后一致）
@@ -274,7 +274,7 @@ function performRedo() {
   const top = editorHistory.peekRedo();
   if (!top) { flashHint('没有可重做的操作'); return; }
   if (top.kind === 'layout' && typeof waveformEditor?.restoreLayoutHistorySnapshot !== 'function') {
-    flashHint('布局重做失败：布局模块尚未加载');
+    flashHint('工作区重做失败：波形模块尚未加载');
     return;
   }
   if (editingState) finishEdit(false);
@@ -440,6 +440,27 @@ function applyCueEditorDisplaySettings() {
   cuePanel.classList.toggle('hide-cue-editor-navigation', !EDITOR_SETTINGS.cueEditorShowNavigation);
   cuePanel.classList.toggle('hide-cue-editor-time-actions', !EDITOR_SETTINGS.cueEditorShowTimeActions);
   cuePanel.classList.toggle('hide-cue-editor-sticker', !EDITOR_SETTINGS.cueEditorShowSticker);
+}
+
+const EDITOR_DISPLAY_KEYS = [
+  'cueListShowIndex', 'cueListShowTime', 'cueListShowSticker', 'cueListShowCharcount',
+  'cueEditorShowNavigation', 'cueEditorShowTimeActions', 'cueEditorShowSticker',
+];
+
+function getEditorDisplaySettings() {
+  return Object.fromEntries(EDITOR_DISPLAY_KEYS.map((key) => [key, EDITOR_SETTINGS[key]]));
+}
+
+function applyEditorDisplaySettings(value) {
+  if (!value || typeof value !== 'object') return;
+  const patch = {};
+  EDITOR_DISPLAY_KEYS.forEach((key) => {
+    if (typeof value[key] === 'boolean') patch[key] = value[key];
+  });
+  if (!Object.keys(patch).length) return;
+  updateEditorSettings(patch);
+  applyCueListDisplaySettings();
+  applyCueEditorDisplaySettings();
 }
 
 function bindCueEditorDisplayToggle(toggle, key) {
@@ -2999,16 +3020,25 @@ function buildJson() {
   };
   if (DATA.waveform) out.waveform = DATA.waveform;
   if (DATA.gap_remove) out.gap_remove = normalizedGapRemoveData(DATA.gap_remove);
-  const layout = waveformEditor?.getLayoutData?.() || DATA.layout;
-  if (layout) out.layout = layout;
+  const workspace = buildCurrentWorkspaceData();
+  if (workspace) out.workspace = workspace;
   // 预览几何：始终写入归一化后的当前几何，便于跨机/重开保持位置。
   out.preview = { subtitle: getPreviewGeometry() };
   return JSON.stringify(out, null, 2);
 }
 
-function buildLayoutJson() {
-  const layout = waveformEditor?.getLayoutData?.() || DATA.layout;
-  return JSON.stringify(layout || {}, null, 2);
+function buildWorkspaceJson() {
+  const workspace = buildCurrentWorkspaceData();
+  return JSON.stringify(workspace || {}, null, 2);
+}
+
+function buildCurrentWorkspaceData() {
+  const workspace = waveformEditor?.getLayoutData?.() || DATA.workspace;
+  if (!workspace) return workspace;
+  const selectedPreset = currentServerWorkspaceName
+    ? `saved:${currentServerWorkspaceName}`
+    : currentBuiltinWorkspaceName || workspacePresetSelect?.value || workspace.preset;
+  return { ...workspace, selectedPreset, editorDisplay: getEditorDisplaySettings() };
 }
 
 function buildResolveJson() {
@@ -3528,6 +3558,259 @@ function configureServerProjectSettings() {
   });
 }
 
+// === 工作区库：服务器版可把工作区（窗口布局 + 显示状态）保存到本机设置，跨工程复用 ===
+const BUILTIN_WORKSPACE_IDS = window.AsrWaveform?.builtinWorkspaceIds || ['classic', 'wave-right', 'traditional'];
+let currentServerWorkspaceName = '';
+let currentBuiltinWorkspaceName = '';
+const workspacePresetSelect = document.getElementById('workspace-preset');
+const saveWorkspaceButton = document.getElementById('workspace-save');
+const saveWorkspaceAsButton = document.getElementById('workspace-save-as');
+const deleteWorkspaceButton = document.getElementById('workspace-delete');
+
+function getSavedServerWorkspaces() {
+  return SERVER_CONFIG?.savedWorkspaces && typeof SERVER_CONFIG.savedWorkspaces === 'object'
+    ? SERVER_CONFIG.savedWorkspaces : {};
+}
+
+function getSavedPresetWorkspaces() {
+  return SERVER_CONFIG?.presetWorkspaces && typeof SERVER_CONFIG.presetWorkspaces === 'object'
+    ? SERVER_CONFIG.presetWorkspaces : {};
+}
+
+function currentWorkspaceDisplayName() {
+  const selected = workspacePresetSelect?.selectedOptions?.[0];
+  return selected?.textContent?.trim() || currentServerWorkspaceName || currentBuiltinWorkspaceName || '当前工作区';
+}
+
+function refreshWorkspaceSelect() {
+  if (!workspacePresetSelect) return;
+  const workspaces = getSavedServerWorkspaces();
+  workspacePresetSelect.querySelector('optgroup[data-saved-workspaces]')?.remove();
+  const names = Object.keys(workspaces).sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  if (names.length) {
+    const group = document.createElement('optgroup');
+    group.label = '已保存工作区';
+    group.dataset.savedWorkspaces = 'true';
+    names.forEach((name) => group.append(new Option(name, `saved:${name}`)));
+    workspacePresetSelect.append(group);
+  }
+  if (currentServerWorkspaceName && workspaces[currentServerWorkspaceName]) {
+    workspacePresetSelect.value = `saved:${currentServerWorkspaceName}`;
+  }
+}
+
+function syncWorkspaceControls() {
+  const hasServerLibrary = Boolean(SERVER_CONFIG?.settingsUrl && waveformEditor);
+  const isEditing = waveformEditor?.isCustomLayout?.() === true;
+  const hasCustomWorkspace = Boolean(currentServerWorkspaceName && getSavedServerWorkspaces()[currentServerWorkspaceName]);
+  const hasBuiltinWorkspace = Boolean(currentBuiltinWorkspaceName);
+  if (saveWorkspaceButton) saveWorkspaceButton.hidden = !hasServerLibrary || !isEditing || (!hasCustomWorkspace && !hasBuiltinWorkspace);
+  if (saveWorkspaceAsButton) saveWorkspaceAsButton.hidden = !hasServerLibrary || !isEditing;
+  if (deleteWorkspaceButton) deleteWorkspaceButton.hidden = !hasServerLibrary || !isEditing || !hasCustomWorkspace;
+}
+
+function restoreWorkspaceSelection() {
+  const selectedPreset = DATA.workspace?.selectedPreset;
+  if (typeof selectedPreset !== 'string' || !workspacePresetSelect) return;
+  if (selectedPreset.startsWith('saved:')) {
+    const name = selectedPreset.slice('saved:'.length);
+    if (getSavedServerWorkspaces()[name]) {
+      currentServerWorkspaceName = name;
+      currentBuiltinWorkspaceName = '';
+      refreshWorkspaceSelect();
+    }
+    return;
+  }
+  if (BUILTIN_WORKSPACE_IDS.includes(selectedPreset)) {
+    currentServerWorkspaceName = '';
+    currentBuiltinWorkspaceName = selectedPreset;
+    workspacePresetSelect.value = selectedPreset;
+  }
+}
+
+async function updateServerWorkspaceSettings(payload) {
+  const response = await fetch(SERVER_CONFIG.settingsUrl, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  });
+  const result = await response.json();
+  if (!response.ok || !result.ok) throw new Error(result.error || `服务器返回 ${response.status}`);
+  SERVER_CONFIG.savedWorkspaces = result.savedWorkspaces || {};
+  SERVER_CONFIG.presetWorkspaces = result.presetWorkspaces || {};
+  SERVER_CONFIG.activeWorkspaceName = result.activeWorkspaceName || '';
+  SERVER_CONFIG.autoOpenLastProject = result.autoOpenLastProject !== false;
+  return result;
+}
+
+async function saveCurrentWorkspace({ saveAs }) {
+  if (!waveformEditor || !SERVER_CONFIG?.settingsUrl) return;
+  let name = currentServerWorkspaceName;
+  if (saveAs) {
+    name = prompt('请输入工作区名称：', '我的工作区')?.trim() || '';
+    if (!name) return;
+  }
+  if (!name && !currentBuiltinWorkspaceName) return;
+  const displayName = saveAs ? name : currentWorkspaceDisplayName();
+  const button = saveAs ? saveWorkspaceAsButton : saveWorkspaceButton;
+  if (button) button.disabled = true;
+  try {
+    const workspace = buildCurrentWorkspaceData();
+    if (saveAs) {
+      await updateServerWorkspaceSettings({ saveWorkspace: { name, workspace, overwrite: false } });
+      SERVER_CONFIG.savedWorkspaces = { ...getSavedServerWorkspaces(), [name]: workspace };
+      currentServerWorkspaceName = name;
+      currentBuiltinWorkspaceName = '';
+    } else if (currentServerWorkspaceName) {
+      await updateServerWorkspaceSettings({ saveWorkspace: { name, workspace, overwrite: true } });
+      SERVER_CONFIG.savedWorkspaces = { ...getSavedServerWorkspaces(), [name]: workspace };
+    } else {
+      await updateServerWorkspaceSettings({ savePresetWorkspace: { preset: currentBuiltinWorkspaceName, workspace } });
+      SERVER_CONFIG.presetWorkspaces = { ...getSavedPresetWorkspaces(), [currentBuiltinWorkspaceName]: workspace };
+    }
+    refreshWorkspaceSelect();
+    syncWorkspaceControls();
+    flashHint(saveAs ? `已另存工作区：${displayName}` : `已保存工作区：${displayName}`);
+  } catch (error) {
+    flashHint(`保存工作区失败：${error.message || error}`);
+  } finally {
+    if (button) button.disabled = false;
+  }
+}
+
+async function deleteCurrentServerWorkspace() {
+  const name = currentServerWorkspaceName;
+  if (!name || !SERVER_CONFIG?.settingsUrl || !confirm(`确定删除工作区「${name}」吗？`)) return;
+  deleteWorkspaceButton.disabled = true;
+  try {
+    await updateServerWorkspaceSettings({ deleteWorkspaceName: name });
+    currentServerWorkspaceName = '';
+    refreshWorkspaceSelect();
+    syncWorkspaceControls();
+    flashHint(`已删除工作区：${name}`);
+  } catch (error) {
+    flashHint(`删除工作区失败：${error.message || error}`);
+  } finally {
+    deleteWorkspaceButton.disabled = false;
+  }
+}
+
+// 应用一次下拉选择：saved:* 从本机库恢复；内置 id 优先用本机覆盖版，否则用默认定义。
+function applyWorkspaceSelection(preset) {
+  if (preset.startsWith('saved:')) {
+    const name = preset.slice('saved:'.length);
+    const workspace = getSavedServerWorkspaces()[name];
+    if (!workspace) return;
+    waveformEditor.setLayoutData({ ...workspace, selectedPreset: `saved:${name}` });
+    currentServerWorkspaceName = name;
+    currentBuiltinWorkspaceName = '';
+    refreshWorkspaceSelect();
+    syncWorkspaceControls();
+    void updateServerWorkspaceSettings({ activeWorkspaceName: name }).catch((error) => {
+      flashHint(`记住工作区失败：${error.message || error}`);
+    });
+    flashHint(`已应用工作区：${name}`);
+    return;
+  }
+  if (!BUILTIN_WORKSPACE_IDS.includes(preset)) return;
+  currentServerWorkspaceName = '';
+  currentBuiltinWorkspaceName = preset;
+  const savedPreset = getSavedPresetWorkspaces()[preset];
+  if (savedPreset) waveformEditor.setLayoutData(savedPreset);
+  else waveformEditor.setLayout(preset);
+  workspacePresetSelect.value = preset;
+  refreshWorkspaceSelect();
+  syncWorkspaceControls();
+  void updateServerWorkspaceSettings({ activeWorkspaceName: '' }).catch((error) => {
+    flashHint(`记住工作区失败：${error.message || error}`);
+  });
+}
+
+function configureServerWorkspaceLibrary() {
+  if (!SERVER_CONFIG?.settingsUrl || !waveformEditor) return;
+  const savedSelection = DATA.workspace?.selectedPreset;
+  currentServerWorkspaceName = typeof savedSelection === 'string' && savedSelection.startsWith('saved:')
+    && getSavedServerWorkspaces()[savedSelection.slice('saved:'.length)]
+    ? savedSelection.slice('saved:'.length)
+    : !savedSelection && getSavedServerWorkspaces()[SERVER_CONFIG.activeWorkspaceName]
+      ? SERVER_CONFIG.activeWorkspaceName : '';
+  const initialPreset = typeof savedSelection === 'string' && !savedSelection.startsWith('saved:')
+    ? savedSelection : DATA.workspace?.preset;
+  currentBuiltinWorkspaceName = currentServerWorkspaceName ? ''
+    : BUILTIN_WORKSPACE_IDS.includes(initialPreset) ? initialPreset : 'wave-right';
+  if (!savedSelection && currentBuiltinWorkspaceName && getSavedPresetWorkspaces()[currentBuiltinWorkspaceName]) {
+    waveformEditor.setLayoutData(getSavedPresetWorkspaces()[currentBuiltinWorkspaceName]);
+    if (workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
+  }
+  refreshWorkspaceSelect();
+  restoreWorkspaceSelection();
+  workspacePresetSelect?.addEventListener('change', () => applyWorkspaceSelection(workspacePresetSelect.value));
+  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
+    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
+    if (currentServerWorkspaceName) refreshWorkspaceSelect();
+    else if (currentBuiltinWorkspaceName && workspacePresetSelect) workspacePresetSelect.value = currentBuiltinWorkspaceName;
+    syncWorkspaceControls();
+  });
+  document.getElementById('layout-reset')?.addEventListener('click', () => {
+    const preset = currentBuiltinWorkspaceName;
+    if (preset) {
+      waveformEditor.setLayout(preset);
+      void updateServerWorkspaceSettings({ resetPresetWorkspace: preset }).then(() => {
+        flashHint(`已恢复「${preset}」默认工作区`);
+      }).catch((error) => {
+        flashHint(`重置工作区失败：${error.message || error}`);
+      });
+    }
+    syncWorkspaceControls();
+  });
+  saveWorkspaceButton?.addEventListener('click', () => { void saveCurrentWorkspace({ saveAs: false }); });
+  saveWorkspaceAsButton?.addEventListener('click', () => { void saveCurrentWorkspace({ saveAs: true }); });
+  deleteWorkspaceButton?.addEventListener('click', () => { void deleteCurrentServerWorkspace(); });
+  syncWorkspaceControls();
+}
+
+function configurePortableWorkspaceTransfer() {
+  if (SERVER_CONFIG?.settingsUrl || !waveformEditor) return;
+  // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
+  const transferDropdown = document.getElementById('workspace-transfer-dropdown');
+  const exportButton = document.getElementById('workspace-export');
+  const importButton = document.getElementById('workspace-import');
+  const importFile = document.getElementById('workspace-import-file');
+  if (transferDropdown) transferDropdown.hidden = false;
+  let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
+  workspacePresetSelect?.addEventListener('change', () => {
+    selectedWorkspaceId = workspacePresetSelect.value;
+    if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) waveformEditor.setLayout(selectedWorkspaceId);
+  });
+  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
+    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
+    if (workspacePresetSelect) workspacePresetSelect.value = selectedWorkspaceId;
+  });
+  exportButton?.addEventListener('click', async () => {
+    await downloadFile(buildWorkspaceJson(), `${FILENAME_BASE}.workspace.json`, 'application/json', {
+      desc: '编辑器工作区文件', types: { 'application/json': ['.workspace.json', '.json'] },
+    });
+  });
+  importButton?.addEventListener('click', () => {
+    if (!importFile) return;
+    importFile.value = '';
+    importFile.click();
+  });
+  importFile?.addEventListener('change', async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const data = JSON.parse(await file.text());
+      const workspace = data.workspace || data;
+      pushLayoutUndo('导入工作区', waveformEditor.getLayoutHistorySnapshot?.());
+      waveformEditor.setLayoutData(workspace);
+      applyEditorDisplaySettings(workspace?.editorDisplay);
+      DATA.workspace = waveformEditor.getLayoutData();
+      flashHint(`已导入工作区：${file.name}`);
+    } catch (error) {
+      flashHint(`工作区导入失败：${error.message || error}`);
+    }
+  });
+}
+
 function markProjectSaved(filename, backupName, { silent = false } = {}) {
   DATA.segments.forEach((segment) => { delete segment._dirty; });
   gapRemoveDirty = false;
@@ -3665,30 +3948,6 @@ document.addEventListener('keydown', (event) => {
     void saveProjectToServer();
   }
 });
-document.getElementById('layout-export')?.addEventListener('click', async () => {
-  await downloadFile(buildLayoutJson(), `${FILENAME_BASE}.layout.json`, 'application/json', {
-    desc: '编辑器布局文件', types: { 'application/json': ['.layout.json', '.json'] }
-  });
-});
-const layoutImportFile = document.getElementById('layout-import-file');
-document.getElementById('layout-import')?.addEventListener('click', () => {
-  if (!layoutImportFile) return;
-  layoutImportFile.value = '';
-  layoutImportFile.click();
-});
-layoutImportFile?.addEventListener('change', async (event) => {
-  const file = event.target.files?.[0];
-  if (!file || !waveformEditor) return;
-  try {
-    const data = JSON.parse(await file.text());
-    pushLayoutUndo('导入布局', waveformEditor.getLayoutHistorySnapshot?.());
-    waveformEditor.setLayoutData(data.layout || data);
-    DATA.layout = waveformEditor.getLayoutData();
-    flashHint(`已导入布局：${file.name}`);
-  } catch (error) {
-    flashHint(`布局导入失败：${error.message}`);
-  }
-});
 document.getElementById('download-resolve-json').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
   const payload = buildResolveJson();
@@ -3783,6 +4042,7 @@ bindToolbarExportDropdown('gap-removed-export-dropdown', 'gap-removed-export-btn
 bindToolbarExportDropdown('extra-export-dropdown', 'extra-export-btn', 'extra-export-menu');
 bindToolbarExportDropdown('open-project-dropdown', 'open-project-menu-btn', 'open-project-menu');
 bindToolbarExportDropdown('save-project-dropdown', 'save-project-menu-btn', 'save-project-menu');
+bindToolbarExportDropdown('workspace-transfer-dropdown', 'workspace-transfer-btn', 'workspace-transfer-menu');
 
 // === 打开工程 ===
 const openProjectFileInput = document.getElementById('open-project-file');
@@ -3958,7 +4218,7 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     DATA.language = data.language || '';
     DATA.model = data.model || '';
     DATA.waveform = data.waveform || null;
-    DATA.layout = data.layout || null;
+    DATA.workspace = data.workspace || null;
     DATA.gap_remove = data.gap_remove || null;
     gapRemoveDirty = false;
     // 预览几何：归一化后应用；缺失时回退到 legacy 默认，且不弄脏工程。
@@ -3977,7 +4237,10 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     clearSelection();
     lastActive = -1;
     if (waveformEditor) {
-      waveformEditor.setLayoutData(DATA.layout);
+      waveformEditor.setLayoutData(DATA.workspace);
+      applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
+      restoreWorkspaceSelection();
+      syncWorkspaceControls();
       waveformEditor.setPayload(DATA.waveform);
     }
     updateGapRemoveUi();
@@ -5069,7 +5332,8 @@ function initWaveformEditor() {
     onPayload: (payload) => { DATA.waveform = payload; },
   });
   waveformEditor.attachPlayer(player);
-  waveformEditor.setLayoutData(DATA.layout || null);
+  waveformEditor.setLayoutData(DATA.workspace || null);
+  applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
   waveformEditor.setPayload(DATA.waveform || null);
 }
 
@@ -5133,6 +5397,8 @@ configureServerAutoSave();
 configureRecentProjects();
 configureServerProjectSettings();
 initWaveformEditor();
+configureServerWorkspaceLibrary();
+configurePortableWorkspaceTransfer();
 totalCountEl.textContent = DATA.segments.length;
 renderAll();
 updateGapRemoveUi();

@@ -203,7 +203,7 @@
   padding-top: 10px;
 }
 .editor-workspace.layout-wave-right .cue-panel-text-wrap,
-.editor-workspace.layout-free .cue-panel-text-wrap { flex: 1 1 auto; }
+.editor-workspace.layout-custom .cue-panel-text-wrap { flex: 1 1 auto; }
 .editor-workspace.layout-wave-right .cue-panel-navigation,
 .editor-workspace.layout-wave-right .cue-panel-time-actions,
 .editor-workspace.layout-wave-right .cue-panel-sticker-wrap,
@@ -215,26 +215,7 @@
   padding: var(--waveform-content-top) 8px 8px;
 }
 
-.editor-workspace.layout-wave-bottom {
-  display: grid;
-  /* 波形在下方时不需要中间的垂直分隔条：保留它会造成 7px 轨道加两侧 gap 的假空隙。 */
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  grid-template-rows:
-    minmax(130px, calc(var(--layout-row-top) - 9.333px))
-    7px
-    minmax(90px, calc(var(--layout-row-middle) - 9.333px))
-    7px
-    minmax(120px, calc(var(--layout-row-bottom) - 9.333px));
-  gap: 0 8px;
-  overflow: hidden;
-}
-.editor-workspace.layout-wave-bottom > .player-wrap { grid-column: 1; grid-row: 1; }
-.editor-workspace.layout-wave-bottom > .current-cue-panel { grid-column: 2; grid-row: 1; }
-.editor-workspace.layout-wave-bottom > .cues-container { grid-column: 1 / 3; grid-row: 3; }
-.editor-workspace.layout-wave-bottom > .waveform-pane { grid-column: 1 / 3; grid-row: 5; display: block; }
-.editor-workspace.layout-wave-bottom .waveform-scroll { overflow-y: auto; overflow-x: hidden; padding: var(--waveform-content-top) 8px 8px; }
-
-.editor-workspace.layout-free {
+.editor-workspace.layout-custom {
   display: flex;
   flex-direction: row;
   gap: 0;
@@ -288,40 +269,39 @@
   position: relative;
   overflow: hidden;
 }
-.layout-free .player-wrap video {
+.layout-custom .player-wrap video {
   width: 100%;
   height: 100%;
   max-height: none;
 }
-.layout-free .player-wrap audio { width: 100%; }
-.layout-free .current-cue-panel {
+.layout-custom .player-wrap audio { width: 100%; }
+.layout-custom .current-cue-panel {
   min-height: max-content;
   overflow: hidden;
   padding-top: 30px;
 }
-.layout-free .layout-module-slot[data-layout-module="panel"],
-.layout-free .layout-child:has(.layout-module-slot[data-layout-module="panel"]) {
+.layout-custom .layout-module-slot[data-layout-module="panel"],
+.layout-custom .layout-child:has(.layout-module-slot[data-layout-module="panel"]) {
   min-height: max-content;
 }
-.layout-free .cue-panel-text-wrap { flex: 1 1 auto; }
-.layout-free .cue-panel-navigation,
-.layout-free .cue-panel-time-actions,
-.layout-free .cue-panel-sticker-wrap,
-.layout-free .cue-panel-time-fields { flex-wrap: wrap; }
-.layout-free .waveform-pane { display: block; }
-.layout-free .waveform-scroll {
+.layout-custom .cue-panel-text-wrap { flex: 1 1 auto; }
+.layout-custom .cue-panel-navigation,
+.layout-custom .cue-panel-time-actions,
+.layout-custom .cue-panel-sticker-wrap,
+.layout-custom .cue-panel-time-fields { flex-wrap: wrap; }
+.layout-custom .waveform-pane { display: block; }
+.layout-custom .waveform-scroll {
   overflow-y: auto;
   overflow-x: hidden;
   padding: var(--waveform-content-top) 8px 8px;
 }
 /* 字幕列表本身始终可滚动；不要被预设/停靠模块的 overflow:hidden 截断。 */
 .editor-workspace.layout-wave-right > .cues-container,
-.editor-workspace.layout-wave-bottom > .cues-container,
-.layout-free .cues-container {
+.layout-custom .cues-container {
   overflow-y: auto;
   overflow-x: hidden;
 }
-.layout-free .layout-resizer { display: none; }
+.layout-custom .layout-resizer { display: none; }
 .layout-split-divider {
   position: relative;
   z-index: 35;
@@ -415,10 +395,6 @@
 }
 .workspace-divider:hover::after,
 .workspace-divider.dragging::after { background: var(--accent); }
-.editor-workspace.waveform-hidden .waveform-pane,
-.editor-workspace.waveform-hidden .workspace-divider,
-.editor-workspace.waveform-hidden .workspace-divider-secondary,
-.editor-workspace.waveform-hidden .layout-resizer { display: none; }
 
 .layout-resizer {
   display: none;
@@ -440,9 +416,6 @@
 .layout-resizer-h1 { grid-column: 1; grid-row: 2; cursor: row-resize; }
 .layout-resizer-h2 { grid-column: 1; grid-row: 4; cursor: row-resize; }
 .layout-resizer-h1::after, .layout-resizer-h2::after { left: 0; right: 0; top: 2px; height: 3px; }
-.layout-wave-bottom .layout-resizer-v { display: none; }
-.layout-wave-bottom .layout-resizer-h1 { grid-column: 1 / 3; grid-row: 2; display: block; }
-.layout-wave-bottom .layout-resizer-h2 { grid-column: 1 / 3; grid-row: 4; display: block; }
 .layout-wave-right .layout-resizer-v,
 .layout-wave-right .layout-resizer-h1,
 .layout-wave-right .layout-resizer-h2 { display: block; }
@@ -452,6 +425,14 @@
   align-items: center; padding: 0 8px; color: var(--text-secondary); background: rgba(21, 29, 36, 0.94);
   border-bottom: 1px solid var(--border-subtle); cursor: grab; user-select: none;
   font: 11px/1 var(--font-mono); letter-spacing: 0.02em;
+}
+/* 字幕列表自身会滚动：拖拽把手改为 sticky 进入文档流，
+   滚动时始终钉在列表顶部，不会被内容顶走。 */
+.cues-container > .dock-handle {
+  position: sticky;
+  left: auto; right: auto;
+  margin: 0 -4px;
+  border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
 }
 .dock-handle:hover { color: var(--amber-hover); background: rgba(45, 55, 62, 0.96); }
 .dock-handle:active { cursor: grabbing; }
@@ -738,8 +719,7 @@
   }
   .editor-workspace.layout-classic.waveform-multi .workspace-divider { display: none; }
   .editor-workspace.layout-wave-right,
-  .editor-workspace.layout-wave-bottom,
-  .editor-workspace.layout-free {
+  .editor-workspace.layout-custom {
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -749,6 +729,6 @@
   .editor-workspace.layout-wave-right > .waveform-pane,
   .editor-workspace.layout-wave-right > .cues-container { min-height: 170px; }
   .editor-workspace.layout-wave-right .layout-resizer { display: none; }
-  .editor-workspace.layout-free .free-layout-root { flex-direction: column; }
-  .editor-workspace.layout-free .layout-module-slot { min-height: 170px; }
+  .editor-workspace.layout-custom .free-layout-root { flex-direction: column; }
+  .editor-workspace.layout-custom .layout-module-slot { min-height: 170px; }
 }

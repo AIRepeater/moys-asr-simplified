@@ -6,11 +6,63 @@
   const SETTINGS_KEY = 'moy.asr.waveform.settings.v1';
   const SCHEMA = 'moy.asr.waveform.v1';
   const ENCODING = 'i8-minmax-base64';
-  const LAYOUT_SCHEMA = 'moy.asr.editor.layout.v1';
-  const LAYOUT_PRESETS = ['classic', 'wave-right', 'wave-bottom', 'free'];
+  const WORKSPACE_SCHEMA = 'moy.asr.editor.workspace.v1';
+  // 渲染器预设：classic / wave-right 由专属 CSS 网格渲染；custom 由 layoutTree 渲染
+  // （传统字幕编辑器与用户保存的自定义工作区都以树渲染）。
+  const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
+  // 内置工作区 id：下拉框可选项；traditional 内部以 custom 渲染器 + 专用树实现。
+  const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'traditional'];
   const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
   const MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
-  const DEFAULT_FREE_ORDER = ['player', 'panel', 'cues', 'wave'];
+  const DEFAULT_MODULE_ORDER = ['player', 'panel', 'cues', 'wave'];
+  const DEFAULT_RIGHT_LAYOUT_TREE = {
+    type: 'split', direction: 'row', ratio: 30,
+    children: [
+      {
+        type: 'split', direction: 'column', ratio: 42,
+        children: [
+          { type: 'module', id: 'player' },
+          {
+            type: 'split', direction: 'column', ratio: 20,
+            children: [{ type: 'module', id: 'panel' }, { type: 'module', id: 'cues' }],
+          },
+        ],
+      },
+      { type: 'module', id: 'wave' },
+    ],
+  };
+  const TRADITIONAL_SUBTITLE_LAYOUT_TREE = {
+    type: 'split', direction: 'column', ratio: 64,
+    children: [
+      {
+        type: 'split', direction: 'row', ratio: 31,
+        children: [
+          {
+            type: 'split', direction: 'column', ratio: 67,
+            children: [{ type: 'module', id: 'player' }, { type: 'module', id: 'panel' }],
+          },
+          { type: 'module', id: 'cues' },
+        ],
+      },
+      { type: 'module', id: 'wave' },
+    ],
+  };
+  const CLASSIC_LAYOUT_EDIT_TREE = {
+    type: 'split', direction: 'column', ratio: 38,
+    children: [
+      { type: 'module', id: 'player' },
+      {
+        type: 'split', direction: 'column', ratio: 24,
+        children: [
+          { type: 'module', id: 'panel' },
+          {
+            type: 'split', direction: 'row', ratio: 50,
+            children: [{ type: 'module', id: 'wave' }, { type: 'module', id: 'cues' }],
+          },
+        ],
+      },
+    ],
+  };
   const LAYOUT_DIRECTIONS = ['left', 'right', 'top', 'bottom'];
   const MODULE_EDGE_DROP_RATIO = 0.24;
   const ROOT_EDGE_DROP_RATIO = 0.055;
@@ -28,7 +80,6 @@
   const BROWSER_DECODE_LIMIT = 512 * 1024 * 1024;
   const BROWSER_PCM_ESTIMATE_LIMIT = 768 * 1024 * 1024;
   const DEFAULT_LAYOUT_ROWS = [42, 18, 40];
-  const PREVIOUS_DEFAULT_LAYOUT_ROWS = [42, 27, 31];
   const DEFAULT_SETTINGS = {
     mode: 'multi',
     layout: 'wave-right',
@@ -37,15 +88,29 @@
     rowHeight: 120,
     side: 'left',
     splitPercent: 60,
-    layoutColumnPercent: 44,
+    layoutColumnPercent: 30,
     layoutRows: [...DEFAULT_LAYOUT_ROWS],
-    freeOrder: [...DEFAULT_FREE_ORDER],
-    layoutTree: null,
+    layoutTree: DEFAULT_RIGHT_LAYOUT_TREE,
     layoutEditing: false,
     waveformScale: 1,
     disabledDisplay: 'dim',
     showGroupBadges: true,
     dragPlayhead: true,
+  };
+  const BUILTIN_WORKSPACES = {
+    classic: {
+      preset: 'classic', waveformMode: 'multi', splitPercent: 60, columnPercent: 36,
+      rows: [42, 18, 40], tree: CLASSIC_LAYOUT_EDIT_TREE,
+    },
+    'wave-right': {
+      preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
+      rows: [42, 18, 40], tree: DEFAULT_RIGHT_LAYOUT_TREE,
+    },
+    // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
+    traditional: {
+      preset: 'custom', waveformMode: 'basic', splitPercent: 60, columnPercent: 36,
+      rows: [42, 18, 40], tree: TRADITIONAL_SUBTITLE_LAYOUT_TREE,
+    },
   };
   const PALETTE = {
     red: '#e74c3c',
@@ -97,11 +162,11 @@
     return `${hh}${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}.${String(millis).padStart(3, '0')}`;
   }
 
-  function normalizeFreeOrder(value) {
+  function normalizeModuleOrder(value) {
     return Array.isArray(value) && value.length === MODULE_IDS.length
       && value.every((id) => MODULE_IDS.includes(id))
       && new Set(value).size === MODULE_IDS.length
-      ? [...value] : [...DEFAULT_FREE_ORDER];
+      ? [...value] : [...DEFAULT_MODULE_ORDER];
   }
 
   function moduleLayoutNode(id) {
@@ -115,18 +180,6 @@
       ratio: clamp(Number(ratio) || 50, 20, 80),
       children: [first, second],
     };
-  }
-
-  function legacyOrderToLayoutTree(order, columnPercent = DEFAULT_SETTINGS.layoutColumnPercent, rows = DEFAULT_LAYOUT_ROWS) {
-    const ids = normalizeFreeOrder(order);
-    const [top, middle, bottom] = normalizeLayoutRows(rows);
-    const left = splitLayoutNode(
-      'column',
-      top,
-      moduleLayoutNode(ids[0]),
-      splitLayoutNode('column', middle / Math.max(1, middle + bottom), moduleLayoutNode(ids[1]), moduleLayoutNode(ids[2])),
-    );
-    return splitLayoutNode('row', columnPercent, left, moduleLayoutNode(ids[3]));
   }
 
   function cloneLayoutTree(node) {
@@ -293,38 +346,50 @@
     return [top, middle, bottom];
   }
 
-  function isPreviousDefaultLayoutRows(rows) {
-    return rows.length === PREVIOUS_DEFAULT_LAYOUT_ROWS.length
-      && rows.every((value, index) => value === PREVIOUS_DEFAULT_LAYOUT_ROWS[index]);
-  }
-
   function normalizeLayoutData(value) {
     const source = value && typeof value === 'object' ? value : {};
-    const preset = LAYOUT_PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.layout;
-    const normalizedRows = normalizeLayoutRows(source.rows);
-    // 仅迁移精确命中的旧默认值；用户手动调整过的比例保持原样。
-    const rows = preset === 'wave-right' && isPreviousDefaultLayoutRows(normalizedRows)
-      ? [...DEFAULT_LAYOUT_ROWS] : normalizedRows;
+    const preset = RENDERER_PRESETS.includes(source.preset) ? source.preset : DEFAULT_SETTINGS.layout;
+    const rows = normalizeLayoutRows(source.rows);
     const columnPercent = clamp(Number(source.columnPercent) || DEFAULT_SETTINGS.layoutColumnPercent, 30, 75);
     const splitPercent = clamp(Number(source.splitPercent) || DEFAULT_SETTINGS.splitPercent, 35, 75);
-    const legacyOrder = normalizeFreeOrder(source.freeOrder || source.dockOrder);
-    const candidateTree = normalizeLayoutTree(source.tree || source.layoutTree);
+    const waveformMode = ['basic', 'multi'].includes(source.waveformMode) ? source.waveformMode : null;
+    const rawWaveformSettings = source.waveformSettings;
+    const waveformSettings = rawWaveformSettings && typeof rawWaveformSettings === 'object' ? {
+      ...(ZOOM_PRESETS.includes(Number(rawWaveformSettings.visibleSeconds))
+        ? { visibleSeconds: Number(rawWaveformSettings.visibleSeconds) } : {}),
+      ...(ROW_PRESETS.includes(Number(rawWaveformSettings.secondsPerRow))
+        ? { secondsPerRow: Number(rawWaveformSettings.secondsPerRow) } : {}),
+      ...(ROW_HEIGHT_PRESETS.includes(Number(rawWaveformSettings.rowHeight))
+        ? { rowHeight: Number(rawWaveformSettings.rowHeight) } : {}),
+      ...(Number.isFinite(Number(rawWaveformSettings.waveformScale))
+        ? { waveformScale: clampWaveformScale(Number(rawWaveformSettings.waveformScale)) } : {}),
+      ...(rawWaveformSettings.side === 'left' || rawWaveformSettings.side === 'right'
+        ? { side: rawWaveformSettings.side } : {}),
+      ...(rawWaveformSettings.disabledDisplay === 'hidden' || rawWaveformSettings.disabledDisplay === 'dim'
+        ? { disabledDisplay: rawWaveformSettings.disabledDisplay } : {}),
+      ...(typeof rawWaveformSettings.showGroupBadges === 'boolean'
+        ? { showGroupBadges: rawWaveformSettings.showGroupBadges } : {}),
+      ...(typeof rawWaveformSettings.dragPlayhead === 'boolean'
+        ? { dragPlayhead: rawWaveformSettings.dragPlayhead } : {}),
+    } : null;
+    const candidateTree = normalizeLayoutTree(source.tree);
     const tree = isCompleteLayoutTree(candidateTree)
       ? candidateTree
-      : legacyOrderToLayoutTree(legacyOrder, columnPercent, rows);
+      : cloneLayoutTree(preset === 'classic' ? CLASSIC_LAYOUT_EDIT_TREE : DEFAULT_RIGHT_LAYOUT_TREE);
     return {
-      schema: LAYOUT_SCHEMA,
+      schema: WORKSPACE_SCHEMA,
       preset,
+      waveformMode,
+      waveformSettings,
       splitPercent,
       columnPercent,
       rows,
-      freeOrder: collectLayoutModules(tree),
       tree,
     };
   }
 
-  function swapFreeLayoutOrder(order, sourceId, targetId) {
-    const next = normalizeFreeOrder(order);
+  function swapLayoutModuleOrder(order, sourceId, targetId) {
+    const next = normalizeModuleOrder(order);
     const sourceIndex = next.indexOf(sourceId);
     const targetIndex = next.indexOf(targetId);
     if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return next;
@@ -335,28 +400,16 @@
   function readSettings() {
     try {
       const parsed = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}');
-      const legacyLayout = parsed.layout || (
-        parsed.mode === 'grid-right' ? 'wave-right' :
-          parsed.mode === 'grid-bottom' ? 'wave-bottom' :
-            parsed.mode === 'dock' ? 'free' : DEFAULT_SETTINGS.layout
-      );
-      const legacyMode = ['hidden', 'basic', 'multi'].includes(parsed.mode)
-        ? parsed.mode
-        : ['grid-right', 'grid-bottom', 'dock'].includes(parsed.mode)
-          ? 'multi'
-          : DEFAULT_SETTINGS.mode;
       const layoutData = normalizeLayoutData({
-        preset: legacyLayout,
+        preset: parsed.layout,
         splitPercent: parsed.splitPercent,
         columnPercent: parsed.layoutColumnPercent,
-        rows: parsed.layoutRows || [parsed.layoutRowPercent, PREVIOUS_DEFAULT_LAYOUT_ROWS[1], PREVIOUS_DEFAULT_LAYOUT_ROWS[2]],
-        freeOrder: parsed.freeOrder || parsed.dockOrder,
-        tree: parsed.layoutTree || parsed.tree,
+        rows: parsed.layoutRows,
+        tree: parsed.layoutTree,
       });
       return {
         ...DEFAULT_SETTINGS,
-        ...parsed,
-        mode: legacyMode,
+        mode: ['basic', 'multi'].includes(parsed.mode) ? parsed.mode : DEFAULT_SETTINGS.mode,
         layout: layoutData.preset,
         visibleSeconds: ZOOM_PRESETS.includes(Number(parsed.visibleSeconds))
           ? Number(parsed.visibleSeconds) : DEFAULT_SETTINGS.visibleSeconds,
@@ -368,7 +421,6 @@
         splitPercent: layoutData.splitPercent,
         layoutColumnPercent: layoutData.columnPercent,
         layoutRows: layoutData.rows,
-        freeOrder: layoutData.freeOrder,
         layoutTree: layoutData.tree,
         layoutEditing: false,
         waveformScale: clampWaveformScale(Number(parsed.waveformScale) || DEFAULT_SETTINGS.waveformScale),
@@ -379,7 +431,7 @@
     } catch (_) {
       return {
         ...DEFAULT_SETTINGS,
-        layoutTree: legacyOrderToLayoutTree(DEFAULT_FREE_ORDER, DEFAULT_SETTINGS.layoutColumnPercent, DEFAULT_SETTINGS.layoutRows),
+        layoutTree: cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE),
       };
     }
   }
@@ -650,7 +702,6 @@
       this.dragPlayheadToggle = document.getElementById('waveform-drag-playhead');
       this.sideSelect = document.getElementById('waveform-side');
       this.disabledDisplaySelect = document.getElementById('waveform-disabled-display');
-      this.layoutPresetSelect = document.getElementById('layout-preset');
       this.layoutEditToggle = document.getElementById('layout-edit-toggle');
       this.layoutResetButton = document.getElementById('layout-reset');
       this.layoutPreview = document.getElementById('layout-drop-preview');
@@ -724,7 +775,6 @@
         saveSettings(this.settings);
         this.renderSegments();
       });
-      this.layoutPresetSelect?.addEventListener('change', () => this.setLayout(this.layoutPresetSelect.value));
       this.layoutEditToggle?.addEventListener('click', () => this.toggleLayoutEditMode());
       this.layoutResetButton?.addEventListener('click', () => this.resetLayout());
       this.scroll.addEventListener('wheel', (event) => this.handleWheel(event), { passive: false });
@@ -858,8 +908,8 @@
 
     applyLayout() {
       this.workspace.classList.remove(
-        'waveform-hidden', 'waveform-basic', 'waveform-multi',
-        'layout-classic', 'layout-wave-right', 'layout-wave-bottom', 'layout-free',
+        'waveform-basic', 'waveform-multi',
+        'layout-classic', 'layout-wave-right', 'layout-custom',
         'waveform-right', 'layout-editing',
       );
       this.workspace.classList.add(`waveform-${this.settings.mode}`);
@@ -869,7 +919,7 @@
       }
       if (this.settings.layoutEditing) this.workspace.classList.add('layout-editing');
       this.applyLayoutVariables();
-      this.applyFreeLayoutTree();
+      this.applyCustomLayoutTree();
       document.querySelectorAll('[data-waveform-mode]').forEach((button) => {
         button.classList.toggle('active', button.dataset.waveformMode === this.settings.mode);
       });
@@ -879,7 +929,8 @@
       if (this.rowHeightSelect) this.rowHeightSelect.value = String(this.settings.rowHeight);
       if (this.sideSelect) this.sideSelect.value = this.settings.side;
       if (this.disabledDisplaySelect) this.disabledDisplaySelect.value = this.settings.disabledDisplay;
-      if (this.layoutPresetSelect) this.layoutPresetSelect.value = this.settings.layout;
+      if (this.showGroupBadgesToggle) this.showGroupBadgesToggle.checked = this.settings.showGroupBadges !== false;
+      if (this.dragPlayheadToggle) this.dragPlayheadToggle.checked = this.settings.dragPlayhead === true;
       if (this.layoutEditToggle) {
         this.layoutEditToggle.textContent = this.settings.layoutEditing ? '完成布局' : '编辑布局';
         this.layoutEditToggle.classList.toggle('active', !!this.settings.layoutEditing);
@@ -891,14 +942,11 @@
     updateAdvancedSettingsAvailability() {
       const basicMode = this.settings.mode === 'basic';
       const multiMode = this.settings.mode === 'multi';
-      const waveformVisible = this.settings.mode !== 'hidden';
       document.getElementById('waveform-zoom-in').disabled = !basicMode;
       document.getElementById('waveform-zoom-out').disabled = !basicMode;
       this.secondsPerRowSelect.disabled = !multiMode;
       if (this.rowHeightSelect) this.rowHeightSelect.disabled = !multiMode;
-      if (this.waveformScaleDownButton) this.waveformScaleDownButton.disabled = !waveformVisible;
-      if (this.waveformScaleUpButton) this.waveformScaleUpButton.disabled = !waveformVisible;
-      // 「显示窗口」仅基础模式有意义；「每行长度」仅多行模式有意义；隐藏波形时两项都收起。
+      // 「显示窗口」仅基础模式有意义；「每行长度」「每行高度」仅多行模式有意义。
       const windowSetting = document.getElementById('waveform-window-setting');
       const secondsPerRowSetting = document.getElementById('waveform-seconds-per-row-setting');
       const rowHeightSetting = document.getElementById('waveform-row-height-setting');
@@ -908,7 +956,7 @@
     }
 
     setMode(mode) {
-      if (!['hidden', 'basic', 'multi'].includes(mode) || mode === this.settings.mode) return;
+      if (!['basic', 'multi'].includes(mode) || mode === this.settings.mode) return;
       this.settings.mode = mode;
       saveSettings(this.settings);
       this.applyLayout();
@@ -936,18 +984,27 @@
       return this.tool;
     }
 
-    setLayout(layout) {
-      if (!LAYOUT_PRESETS.includes(layout)) return;
-      this.settings.layout = layout;
-      this.settings.layoutEditing = layout === 'free';
+    // 切换到内置工作区：应用其渲染器、波形模式与完整布局树。
+    setLayout(workspaceId) {
+      const builtin = BUILTIN_WORKSPACES[workspaceId];
+      if (!builtin) return;
+      const normalized = normalizeLayoutData(builtin);
+      this.settings.layout = normalized.preset;
+      if (normalized.waveformMode) this.settings.mode = normalized.waveformMode;
+      if (normalized.waveformSettings) Object.assign(this.settings, normalized.waveformSettings);
+      this.settings.splitPercent = normalized.splitPercent;
+      this.settings.layoutColumnPercent = normalized.columnPercent;
+      this.settings.layoutRows = normalized.rows;
+      this.settings.layoutTree = normalized.tree;
+      this.settings.layoutEditing = false;
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
     }
 
     toggleLayoutEditMode() {
-      if (this.settings.layout !== 'free') {
-        this.settings.layout = 'free';
+      if (this.settings.layout !== 'custom') {
+        this.settings.layout = 'custom';
         this.settings.layoutEditing = true;
       } else {
         this.settings.layoutEditing = !this.settings.layoutEditing;
@@ -961,16 +1018,12 @@
       return this.settings.mode === 'multi';
     }
 
-    isDockLayout() {
-      return this.settings.layout === 'free' && this.settings.layoutEditing;
-    }
-
-    isFreeLayout() {
-      return this.settings.layout === 'free';
+    isCustomLayout() {
+      return this.settings.layout === 'custom' && this.settings.layoutEditing;
     }
 
     isPresetResizableLayout() {
-      return this.settings.layout === 'wave-right' || this.settings.layout === 'wave-bottom';
+      return this.settings.layout === 'wave-right';
     }
 
     bindDockHandles() {
@@ -992,7 +1045,7 @@
         }
         handle.draggable = true;
         handle.addEventListener('dragstart', (event) => {
-          if (!this.isDockLayout()) {
+          if (!this.isCustomLayout()) {
             event.preventDefault();
             this.setStatus('请先进入「编辑布局」模式', 'busy');
             return;
@@ -1010,7 +1063,7 @@
           this.workspace.classList.remove('layout-dragging');
         });
         element.addEventListener('dragover', (event) => {
-          if (!this.isDockLayout() || !this.layoutDragSource) return;
+          if (!this.isCustomLayout() || !this.layoutDragSource) return;
           if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
           if (this.layoutDragSource === id) return;
           event.preventDefault();
@@ -1020,7 +1073,7 @@
           this.showLayoutDropPreview(element, id, this.layoutDragSource, intent);
         });
         element.addEventListener('drop', (event) => {
-          if (!this.isDockLayout()) return;
+          if (!this.isCustomLayout()) return;
           const source = this.layoutDragSource || event.dataTransfer?.getData('text/plain');
           if (layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY)) return;
           event.preventDefault();
@@ -1037,7 +1090,7 @@
 
     bindWorkspaceDockTarget() {
       this.workspace.addEventListener('dragover', (event) => {
-        if (!this.isDockLayout() || !this.layoutDragSource || event.defaultPrevented) return;
+        if (!this.isCustomLayout() || !this.layoutDragSource || event.defaultPrevented) return;
         const intent = layoutRootDropIntent(this.workspace.getBoundingClientRect(), event.clientX, event.clientY);
         if (!intent) {
           this.clearLayoutDropPreview();
@@ -1049,7 +1102,7 @@
         this.showLayoutDropPreview(this.workspace, null, this.layoutDragSource, intent);
       });
       this.workspace.addEventListener('drop', (event) => {
-        if (!this.isDockLayout() || event.defaultPrevented) return;
+        if (!this.isCustomLayout() || event.defaultPrevented) return;
         const source = this.layoutDragSource || event.dataTransfer?.getData('text/plain');
         if (!source) return;
         const storedIntent = this.layoutDropIntent?.mode === 'root-insert'
@@ -1065,7 +1118,9 @@
     }
 
     applyLayoutDrop(sourceId, targetId, intent) {
-      const tree = this.settings.layoutTree || legacyOrderToLayoutTree(this.settings.freeOrder);
+      const tree = isCompleteLayoutTree(this.settings.layoutTree)
+        ? this.settings.layoutTree
+        : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
       const nextTree = intent.mode === 'root-insert'
         ? insertLayoutModuleAtRootEdge(tree, sourceId, intent.direction)
         : intent.mode === 'insert'
@@ -1079,7 +1134,6 @@
         this.getLayoutHistorySnapshot(),
       );
       this.settings.layoutTree = nextTree;
-      this.settings.freeOrder = collectLayoutModules(nextTree);
       saveSettings(this.settings);
       this.applyLayout();
       if (intent.mode === 'root-insert') {
@@ -1127,12 +1181,12 @@
       });
     }
 
-    ensureFreeLayoutRoot() {
-      if (this.freeLayoutRoot?.isConnected) return this.freeLayoutRoot;
-      this.freeLayoutRoot = document.createElement('div');
-      this.freeLayoutRoot.className = 'free-layout-root';
-      this.workspace.insertBefore(this.freeLayoutRoot, this.layoutPreview || null);
-      return this.freeLayoutRoot;
+    ensureCustomLayoutRoot() {
+      if (this.customLayoutRoot?.isConnected) return this.customLayoutRoot;
+      this.customLayoutRoot = document.createElement('div');
+      this.customLayoutRoot.className = 'free-layout-root';
+      this.workspace.insertBefore(this.customLayoutRoot, this.layoutPreview || null);
+      return this.customLayoutRoot;
     }
 
     restoreDirectLayoutModules() {
@@ -1142,19 +1196,19 @@
         cues: this.cues,
         wave: this.pane,
       };
-      if (!this.freeLayoutRoot?.isConnected) return;
+      if (!this.customLayoutRoot?.isConnected) return;
       Object.values(elements).forEach((element) => {
         if (element) {
           element.style.gridArea = '';
-          this.workspace.insertBefore(element, this.freeLayoutRoot);
+          this.workspace.insertBefore(element, this.customLayoutRoot);
         }
       });
-      this.freeLayoutRoot.remove();
-      this.freeLayoutRoot = null;
-      this.renderedFreeLayoutTree = null;
+      this.customLayoutRoot.remove();
+      this.customLayoutRoot = null;
+      this.renderedCustomLayoutTree = null;
     }
 
-    createFreeLayoutNode(node) {
+    createCustomLayoutNode(node) {
       const elements = {
         player: this.playerWrap,
         panel: this.panel,
@@ -1178,22 +1232,22 @@
       const divider = document.createElement('div');
       divider.className = `layout-split-divider layout-split-divider-${node.direction}`;
       divider.title = node.direction === 'row' ? '拖动调整左右区域比例' : '拖动调整上下区域比例';
-      first.appendChild(this.createFreeLayoutNode(node.children[0]));
-      second.appendChild(this.createFreeLayoutNode(node.children[1]));
+      first.appendChild(this.createCustomLayoutNode(node.children[0]));
+      second.appendChild(this.createCustomLayoutNode(node.children[1]));
       split.append(first, divider, second);
-      this.applyFreeSplitRatio(first, node.ratio);
-      this.bindFreeLayoutDivider(divider, split, first, node);
+      this.applyCustomSplitRatio(first, node.ratio);
+      this.bindCustomLayoutDivider(divider, split, first, node);
       return split;
     }
 
-    applyFreeSplitRatio(first, ratio) {
+    applyCustomSplitRatio(first, ratio) {
       first.style.flex = `0 0 calc(${clamp(Number(ratio) || 50, 20, 80)}% - 3.5px)`;
     }
 
-    bindFreeLayoutDivider(divider, split, first, node) {
+    bindCustomLayoutDivider(divider, split, first, node) {
       let drag = null;
       divider.addEventListener('pointerdown', (event) => {
-        if (!this.isFreeLayout()) return;
+        if (this.settings.layout !== 'custom') return;
         event.preventDefault();
         drag = { pointerId: event.pointerId, snapshot: this.getLayoutHistorySnapshot(), changed: false };
         divider.classList.add('dragging');
@@ -1212,7 +1266,7 @@
           drag.changed = true;
         }
         node.ratio = nextRatio;
-        this.applyFreeSplitRatio(first, node.ratio);
+        this.applyCustomSplitRatio(first, node.ratio);
       });
       const finish = (event) => {
         if (!drag || drag.pointerId !== event.pointerId) return;
@@ -1225,30 +1279,40 @@
       divider.addEventListener('pointercancel', finish);
     }
 
-    applyFreeLayoutTree() {
-      if (this.settings.layout !== 'free') {
+    applyCustomLayoutTree() {
+      if (this.settings.layout !== 'custom') {
         this.restoreDirectLayoutModules();
         return;
       }
-      const root = this.ensureFreeLayoutRoot();
+      const root = this.ensureCustomLayoutRoot();
       const tree = isCompleteLayoutTree(this.settings.layoutTree)
         ? this.settings.layoutTree
-        : legacyOrderToLayoutTree(this.settings.freeOrder, this.settings.layoutColumnPercent, this.settings.layoutRows);
+        : cloneLayoutTree(DEFAULT_RIGHT_LAYOUT_TREE);
       this.settings.layoutTree = tree;
-      if (this.renderedFreeLayoutTree === tree && root.childElementCount) return;
+      if (this.renderedCustomLayoutTree === tree && root.childElementCount) return;
       root.replaceChildren();
-      root.appendChild(this.createFreeLayoutNode(tree));
-      this.renderedFreeLayoutTree = tree;
+      root.appendChild(this.createCustomLayoutNode(tree));
+      this.renderedCustomLayoutTree = tree;
     }
 
     getLayoutData() {
       return {
-        schema: LAYOUT_SCHEMA,
+        schema: WORKSPACE_SCHEMA,
         preset: this.settings.layout,
+        waveformMode: this.settings.mode,
+        waveformSettings: {
+          visibleSeconds: this.settings.visibleSeconds,
+          secondsPerRow: this.settings.secondsPerRow,
+          rowHeight: this.settings.rowHeight,
+          waveformScale: this.settings.waveformScale,
+          side: this.settings.side,
+          disabledDisplay: this.settings.disabledDisplay,
+          showGroupBadges: this.settings.showGroupBadges !== false,
+          dragPlayhead: this.settings.dragPlayhead === true,
+        },
         splitPercent: this.settings.splitPercent,
         columnPercent: this.settings.layoutColumnPercent,
         rows: [...this.settings.layoutRows],
-        freeOrder: collectLayoutModules(this.settings.layoutTree),
         tree: cloneLayoutTree(this.settings.layoutTree),
       };
     }
@@ -1268,12 +1332,13 @@
       if (!snapshot || !snapshot.layout) return false;
       const layout = normalizeLayoutData(snapshot.layout);
       this.settings.layout = layout.preset;
+      if (layout.waveformMode) this.settings.mode = layout.waveformMode;
+      if (layout.waveformSettings) Object.assign(this.settings, layout.waveformSettings);
       this.settings.splitPercent = layout.splitPercent;
       this.settings.layoutColumnPercent = layout.columnPercent;
       this.settings.layoutRows = layout.rows;
-      this.settings.freeOrder = layout.freeOrder;
       this.settings.layoutTree = layout.tree;
-      this.settings.layoutEditing = layout.preset === 'free' && !!snapshot.layoutEditing;
+      this.settings.layoutEditing = layout.preset === 'custom' && !!snapshot.layoutEditing;
       saveSettings(this.settings);
       this.applyLayout();
       this.render();
@@ -1281,31 +1346,19 @@
     }
 
     resetLayout() {
-      this.recordLayoutUndo('重置布局');
-      this.settings.layout = DEFAULT_SETTINGS.layout;
-      this.settings.splitPercent = DEFAULT_SETTINGS.splitPercent;
-      this.settings.layoutColumnPercent = DEFAULT_SETTINGS.layoutColumnPercent;
-      this.settings.layoutRows = [...DEFAULT_SETTINGS.layoutRows];
-      this.settings.freeOrder = [...DEFAULT_FREE_ORDER];
-      this.settings.layoutTree = legacyOrderToLayoutTree(
-        DEFAULT_FREE_ORDER,
-        DEFAULT_SETTINGS.layoutColumnPercent,
-        DEFAULT_SETTINGS.layoutRows,
-      );
-      this.settings.layoutEditing = false;
-      saveSettings(this.settings);
-      this.applyLayout();
-      this.render();
-      this.setStatus('已恢复默认布局');
+      this.recordLayoutUndo('重置工作区');
+      this.setLayout(DEFAULT_SETTINGS.layout);
+      this.setStatus('已恢复默认工作区');
     }
 
     setLayoutData(value) {
       const layout = normalizeLayoutData(value);
       this.settings.layout = layout.preset;
+      if (layout.waveformMode) this.settings.mode = layout.waveformMode;
+      if (layout.waveformSettings) Object.assign(this.settings, layout.waveformSettings);
       this.settings.splitPercent = layout.splitPercent;
       this.settings.layoutColumnPercent = layout.columnPercent;
       this.settings.layoutRows = layout.rows;
-      this.settings.freeOrder = layout.freeOrder;
       this.settings.layoutTree = layout.tree;
       this.settings.layoutEditing = false;
       saveSettings(this.settings);
@@ -1351,7 +1404,7 @@
     }
 
     revealTime(timeMs, center = true) {
-      if (this.settings.mode === 'hidden' || !this.payload) return;
+      if (!this.payload) return;
       if (this.settings.mode === 'basic') {
         const windowMs = this.settings.visibleSeconds * 1000;
         const maxStart = Math.max(0, this.durationMs - windowMs);
@@ -1610,7 +1663,6 @@
 
     render() {
       this.applyLayout();
-      if (this.settings.mode === 'hidden') return;
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
         this.empty.classList.remove('hidden');
@@ -1637,7 +1689,7 @@
     }
 
     renderSegments() {
-      if (this.settings.mode === 'hidden' || !this.payload) return;
+      if (!this.payload) return;
       if (this.settings.mode === 'basic') this.renderBasic();
       else this.renderMultiVisible(true);
     }
@@ -2087,7 +2139,7 @@
         }
         return;
       }
-      if (event.shiftKey && this.settings.mode !== 'hidden') {
+      if (event.shiftKey) {
         event.preventDefault();
         // 用 rAF 合并高频滚轮：一帧内累加方向，避免每次 wheel 都重渲染导致卡顿
         this.pendingScaleDirection += event.deltaY > 0 ? -1 : 1;
@@ -2579,7 +2631,7 @@
     }
 
     updatePlayback(allowFollow = true) {
-      if (!this.payload || this.settings.mode === 'hidden') return;
+      if (!this.payload) return;
       const now = this.currentTimeMs();
       const segments = this.options.getSegments();
       const activeIndex = segments.findIndex((segment) => !segment.disabled && now >= segment.start && now <= segment.end);
@@ -2631,6 +2683,7 @@
     create(options) {
       return new WaveformEditor(options);
     },
+    builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
     testing: {
       decodePayload,
       remapItems,
@@ -2645,7 +2698,7 @@
       waveformAmplitude,
       sampleInterpolatedPeak,
       normalizeLayoutData,
-      swapFreeLayoutOrder,
+      swapLayoutModuleOrder,
       normalizeLayoutTree,
       collectLayoutModules,
       swapLayoutTreeModules,

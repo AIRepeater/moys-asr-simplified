@@ -59,20 +59,36 @@ class LocalEditorServerTests(unittest.TestCase):
         page = server_editor.build_server_page(project, settings).decode("utf-8")
         self.assertIn('src="/media"', page)
         self.assertIn('const STICKER_URL_PREFIX = "/stickers";', page)
-        self.assertIn(
-            'const SERVER_CONFIG = {"saveUrl": "/api/project", "canSave": true, '
-            '"autoLoadedMediaName": "clip.mp3", "recentProjectsUrl": "/api/recent-projects/open", '
-            '"settingsUrl": "/api/settings", "recentProjects": [{"path": "',
-            page,
-        )
-        self.assertIn('"name": "clip.json"}], "autoOpenLastProject": true};', page)
+        self.assertIn('const SERVER_CONFIG = {"saveUrl": "/api/project", "canSave": true, ', page)
+        self.assertIn('"autoLoadedMediaName": "clip.mp3", "recentProjectsUrl": "/api/recent-projects/open", ', page)
+        self.assertIn('"settingsUrl": "/api/settings", "recentProjects": [{"path": "', page)
+        self.assertIn('"name": "clip.json"}], "autoOpenLastProject": true, "savedWorkspaces": {}, ', page)
+        self.assertIn('"presetWorkspaces": {}, ', page)
+        self.assertIn('"activeWorkspaceName": ""};', page)
         self.assertIn('id="save-project"', page)
         self.assertIn('id="save-project-as"', page)
+        self.assertIn('id="save-project-dropdown"', page)
+        self.assertIn('id="open-project-dropdown"', page)
+        self.assertIn('id="load-srt"', page)
+        self.assertIn('id="load-srt-file"', page)
+        self.assertIn('function parseSrtSegments(text)', page)
+        self.assertIn('function isMawProject(data)', page)
+        self.assertIn('请使用 MAW 生成的 JSON 工程文件', page)
+        self.assertIn('id="server-auto-save-settings"', page)
+        self.assertIn('id="auto-save-project"', page)
+        self.assertIn('id="auto-save-project" checked', page)
+        self.assertIn('id="auto-save-interval"', page)
+        self.assertLess(page.index('editor-settings-title">导出'), page.index('id="server-auto-save-settings"'))
+        self.assertIn('function scheduleAutoSave()', page)
+        self.assertIn('hasUnsavedProjectChanges() && !projectSaveInFlight', page)
         self.assertIn('id="recent-projects"', page)
         self.assertIn('id="auto-open-last-project"', page)
         self.assertLess(page.index('id="auto-open-last-project"'), page.index('id="recent-projects-list"'))
         self.assertIn("const STORAGE_KEY = 'mawe.language';", page)
         self.assertIn('class="waveform-mode-switch"', page)
+        self.assertIn('data-saved-workspaces', page)
+        self.assertIn('id="workspace-save-as"', page)
+        self.assertIn('function configureServerWorkspaceLibrary()', page)
 
         with server_editor.EditorServer(("127.0.0.1", 0), project) as server:
             thread = threading.Thread(target=server.serve_forever, daemon=True)
@@ -159,12 +175,65 @@ class LocalEditorServerTests(unittest.TestCase):
                 self.assertFalse(server.settings.auto_open_last_project)
                 self.assertFalse(server_editor.read_server_settings(settings_path).auto_open_last_project)
 
+                workspace = {"schema": "moy.asr.editor.workspace.v1", "preset": "custom", "tree": {}}
+                status, result = post("/api/settings", {
+                    "saveWorkspace": {"name": "测试工作区", "workspace": workspace, "overwrite": False},
+                })
+                self.assertEqual(status, 200)
+                self.assertTrue(result["ok"])
+                self.assertEqual(server.settings.saved_workspaces["测试工作区"], workspace)
+
+                status, result = post("/api/settings", {
+                    "savePresetWorkspace": {"preset": "wave-right", "workspace": workspace},
+                })
+                self.assertEqual(status, 200)
+                self.assertTrue(result["ok"])
+                self.assertEqual(result["presetWorkspaces"]["wave-right"], workspace)
+
                 status, result = post("/api/recent-projects/open", {"path": str(self.root / "unknown.json")})
                 self.assertEqual(status, 400)
                 self.assertFalse(result["ok"])
             finally:
                 server.shutdown()
                 thread.join(timeout=2)
+
+    def test_saved_workspaces_are_persisted_and_reused_by_new_projects(self) -> None:
+        project = server_editor.load_project(
+            self.project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,
+        )
+        settings_path = self.root / "server-editor-settings.json"
+        workspace = {
+            "schema": 1,
+            "preset": "custom",
+            "columnPercent": 46,
+            "rows": [30, 40, 30],
+            "tree": {"type": "leaf", "id": "waveform"},
+        }
+        with server_editor.EditorServer(
+            ("127.0.0.1", 0), project, settings_path=settings_path,
+        ) as server:
+            server.save_workspace("剪辑工作区", workspace, overwrite=False)
+            self.assertEqual(server.settings.active_workspace_name, "剪辑工作区")
+            self.assertEqual(server_editor.read_server_settings(settings_path).saved_workspaces["剪辑工作区"], workspace)
+
+            page = server_editor.build_server_page(server.project, server.settings).decode("utf-8")
+            self.assertIn('"workspace": {"schema": 1, "preset": "custom"', page)
+            self.assertIn('"savedWorkspaces": {"剪辑工作区": {"schema": 1', page)
+
+            with self.assertRaisesRegex(ValueError, "同名工作区"):
+                server.save_workspace("剪辑工作区", workspace, overwrite=False)
+            server.save_workspace("剪辑工作区", {**workspace, "columnPercent": 55}, overwrite=True)
+            self.assertEqual(server.settings.saved_workspaces["剪辑工作区"]["columnPercent"], 55)
+            server.delete_workspace("剪辑工作区")
+            self.assertEqual(server.settings.active_workspace_name, "")
+            self.assertEqual(server.settings.saved_workspaces, {})
+
+            server.save_preset_workspace("wave-right", workspace)
+            self.assertEqual(server.settings.preset_workspaces["wave-right"], workspace)
+            server.reset_preset_workspace("wave-right")
+            self.assertEqual(server.settings.preset_workspaces, {})
+            with self.assertRaisesRegex(ValueError, "内置工作区"):
+                server.save_preset_workspace("custom", workspace)
 
     def test_server_saves_project_with_backup_and_rejects_unsafe_save_as(self) -> None:
         project = server_editor.load_project(

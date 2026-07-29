@@ -190,42 +190,54 @@ test('keeps waveform amplitude scale in a usable range', () => {
 });
 
 
-test('normalizes independent layout data and preserves the right-column preset', () => {
+test('normalizes independent workspace data and preserves the right-column preset', () => {
   const normalized = JSON.parse(JSON.stringify(helpers.normalizeLayoutData({
-    schema: 'moy.asr.editor.layout.v1',
-    preset: 'free',
+    schema: 'moy.asr.editor.workspace.v1',
+    preset: 'custom',
     splitPercent: 64,
     columnPercent: 68,
     rows: [45, 25, 30],
-    freeOrder: ['player', 'panel', 'cues', 'wave'],
   })));
-  assert.equal(normalized.schema, 'moy.asr.editor.layout.v1');
-  assert.equal(normalized.preset, 'free');
+  assert.equal(normalized.schema, 'moy.asr.editor.workspace.v1');
+  assert.equal(normalized.preset, 'custom');
   assert.equal(normalized.splitPercent, 64);
   assert.equal(normalized.columnPercent, 68);
   assert.deepEqual(normalized.rows, [45, 25, 30]);
-  assert.deepEqual(normalized.freeOrder, ['player', 'panel', 'cues', 'wave']);
   assert.equal(normalized.tree.type, 'split');
+  // 未知或旧版渲染器值（如 free / wave-bottom）一律回退到默认 wave-right
+  assert.equal(helpers.normalizeLayoutData({ preset: 'free' }).preset, 'wave-right');
+  assert.equal(helpers.normalizeLayoutData({ preset: 'wave-bottom' }).preset, 'wave-right');
 });
 
 
-test('defaults the right-column layout to a wider waveform pane', () => {
+test('defaults the right-column layout to a seventy-percent waveform pane', () => {
   const normalized = helpers.normalizeLayoutData({ preset: 'wave-right' });
-  assert.equal(normalized.columnPercent, 44);
+  assert.equal(normalized.columnPercent, 30);
+});
+
+test('normalizes waveform display settings carried by a layout', () => {
+  const normalized = helpers.normalizeLayoutData({
+    preset: 'custom',
+    waveformMode: 'basic',
+    waveformSettings: {
+      visibleSeconds: 30, secondsPerRow: 20, rowHeight: 144, waveformScale: 9,
+      side: 'right', disabledDisplay: 'hidden', showGroupBadges: false, dragPlayhead: false,
+    },
+  });
+  assert.equal(normalized.waveformMode, 'basic');
+  assert.deepEqual(JSON.parse(JSON.stringify(normalized.waveformSettings)), {
+    visibleSeconds: 30, secondsPerRow: 20, rowHeight: 144, waveformScale: 6,
+    side: 'right', disabledDisplay: 'hidden', showGroupBadges: false, dragPlayhead: false,
+  });
 });
 
 
-test('migrates only the previous wave-right default to the more compact default', () => {
-  const migrated = helpers.normalizeLayoutData({
+test('preserves stored row ratios without legacy default migration', () => {
+  const preserved = helpers.normalizeLayoutData({
     preset: 'wave-right',
     rows: [42, 27, 31],
   });
-  const preserved = helpers.normalizeLayoutData({
-    preset: 'wave-right',
-    rows: [43, 27, 30],
-  });
-  assert.deepEqual(JSON.parse(JSON.stringify(migrated.rows)), [42, 18, 40]);
-  assert.deepEqual(JSON.parse(JSON.stringify(preserved.rows)), [43, 27, 30]);
+  assert.deepEqual(JSON.parse(JSON.stringify(preserved.rows)), [42, 27, 31]);
 });
 
 
@@ -238,10 +250,10 @@ test('allows the current cue row to shrink below the old eighteen-percent limit'
 });
 
 
-test('swaps free docking slots without mutating the source order', () => {
+test('swaps custom docking slots without mutating the source order', () => {
   const order = ['player', 'panel', 'cues', 'wave'];
   assert.deepEqual(
-    JSON.parse(JSON.stringify(helpers.swapFreeLayoutOrder(order, 'wave', 'panel'))),
+    JSON.parse(JSON.stringify(helpers.swapLayoutModuleOrder(order, 'wave', 'panel'))),
     ['player', 'wave', 'cues', 'panel'],
   );
   assert.deepEqual(order, ['player', 'panel', 'cues', 'wave']);
@@ -249,7 +261,7 @@ test('swaps free docking slots without mutating the source order', () => {
 
 
 test('inserts a module at an edge without losing the existing layout tree', () => {
-  const base = helpers.normalizeLayoutData({ preset: 'free' });
+  const base = helpers.normalizeLayoutData({ preset: 'custom' });
   const insertedRight = helpers.insertLayoutModuleAtEdge(base.tree, 'wave', 'player', 'right');
   assert.deepEqual(
     JSON.parse(JSON.stringify(helpers.collectLayoutModules(insertedRight))),
@@ -264,7 +276,7 @@ test('inserts a module at an edge without losing the existing layout tree', () =
 
 
 test('docks a module outside the whole layout tree at a window edge', () => {
-  const base = helpers.normalizeLayoutData({ preset: 'free' });
+  const base = helpers.normalizeLayoutData({ preset: 'custom' });
   const dockedLeft = helpers.insertLayoutModuleAtRootEdge(base.tree, 'wave', 'left');
   assert.equal(dockedLeft.direction, 'row');
   assert.deepEqual(

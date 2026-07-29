@@ -93,18 +93,25 @@ __WAVEFORM_CSS__
     </button>
   </span>
   <span class="sep"></span>
-  <span class="info layout-toolbar-label">布局</span>
-  <select id="layout-preset" title="布局只控制面板摆放，不改变波形基础/多行模式">
-    <option value="classic">标准堆叠</option>
+  <span class="info layout-toolbar-label">工作区</span>
+  <select id="workspace-preset" title="工作区：窗口布局与显示状态（列表显示项、波形模式等）">
     <option value="wave-right" selected>右侧整列波形</option>
-    <option value="wave-bottom">波形在下方</option>
-    <option value="free">自定义停靠</option>
+    <option value="classic">标准堆叠</option>
+    <option value="traditional">传统字幕编辑器</option>
   </select>
   <button type="button" id="layout-edit-toggle" title="显示面板标题条和拖动预览">编辑布局</button>
-  <button type="button" id="layout-reset" title="恢复默认的右侧整列波形布局" hidden>重置布局</button>
-  <button type="button" id="layout-export" title="导出当前布局 JSON">导出布局</button>
-  <button type="button" id="layout-import" title="导入布局 JSON">导入布局</button>
-  <input type="file" id="layout-import-file" accept=".layout.json,.json,application/json" style="display:none">
+  <button type="button" id="layout-reset" title="恢复当前内置工作区的默认状态" hidden>重置工作区</button>
+  <button type="button" id="workspace-save" title="保存到当前工作区" hidden>保存工作区</button>
+  <button type="button" id="workspace-save-as" title="将当前工作区另存为新的工作区" hidden>另存为工作区</button>
+  <button type="button" id="workspace-delete" class="danger" title="删除本机保存的工作区" hidden>删除工作区</button>
+  <span class="dropdown" id="workspace-transfer-dropdown" hidden>
+    <button type="button" id="workspace-transfer-btn" title="导出或导入工作区配置">工作区配置 ▾</button>
+    <div class="dropdown-menu" id="workspace-transfer-menu">
+      <div class="dropdown-item" id="workspace-export">导出工作区配置</div>
+      <div class="dropdown-item" id="workspace-import">导入工作区配置</div>
+    </div>
+  </span>
+  <input type="file" id="workspace-import-file" accept=".workspace.json,.json,application/json" style="display:none">
   <span class="sep"></span>
   <span class="info">当前 <b id="now">00:00.000</b></span>
   <span class="info">已选 <b id="sel-count">0</b></span>
@@ -412,10 +419,9 @@ __WAVEFORM_CSS__
   <section class="waveform-pane" id="waveform-pane" aria-label="音频波形" tabindex="-1">
     <div class="toolbar waveform-toolbar">
       <span class="info layout-toolbar-label">波形</span>
-      <span class="waveform-mode-switch" role="group" aria-label="波形模式">
+      <span class="waveform-mode-switch" role="group" aria-label="波形显示模式">
         <button type="button" data-waveform-mode="multi">多行</button>
         <button type="button" data-waveform-mode="basic">基础</button>
-        <button type="button" data-waveform-mode="hidden">隐藏</button>
       </span>
       <span class="sep"></span>
       <button type="button" id="gap-remove-manage" title="打开可拖动的移除静音空隙工具窗" aria-expanded="false" aria-controls="gap-remove-panel">移除静音空隙</button>

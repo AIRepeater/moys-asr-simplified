@@ -108,8 +108,8 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIsNone(absent["lastLanguage"])
         self.assertEqual(absent["language"], "zh")
 
-    def test_start_server_builds_command_and_opens_localhost(self) -> None:
-        """Given a project json, When server starts, Then it uses the serve command and localhost URL."""
+    def test_start_server_builds_command_and_returns_localhost_url(self) -> None:
+        """Given a project json, When server starts, Then it returns the localhost URL for the launcher link."""
         project = self.root / "project.json"
         media = self.root / "clip.mp4"
         project.write_text(json.dumps({"media": str(media), "segments": []}), encoding="utf-8")
@@ -128,14 +128,13 @@ class GuiWebBridgeTests(unittest.TestCase):
                 return self.returncode or 0
 
         with mock.patch("maw.gui_web.subprocess.Popen", return_value=FakeProcess()) as popen:
-            with mock.patch("maw.gui_web._wait_for_server", return_value=True) as wait_for_server:
-                with mock.patch("maw.gui_web.webbrowser.open") as open_browser:
-                    result = self.api.start_server({
-                        "jsonPath": str(project),
-                        "mediaPath": str(media),
-                        "port": "9876",
-                        "guiLang": "en",
-                    })
+            with mock.patch("maw.gui_web._wait_for_server", side_effect=[False, True]) as wait_for_server:
+                result = self.api.start_server({
+                    "jsonPath": str(project),
+                    "mediaPath": str(media),
+                    "port": "9876",
+                    "guiLang": "en",
+                })
 
         command = popen.call_args.args[0]
         self.assertIn("serve.py", command[1])
@@ -143,8 +142,14 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(command[command.index("-m") + 1], str(media))
         self.assertEqual(command[command.index("--port") + 1], "9876")
         self.assertEqual(result["url"], "http://127.0.0.1:9876/?lang=en")
-        wait_for_server.assert_called_once_with("http://127.0.0.1:9876/", timeout=5.0)
-        open_browser.assert_called_once_with("http://127.0.0.1:9876/?lang=en")
+        self.assertEqual(
+            wait_for_server.call_args_list,
+            [
+                mock.call("http://127.0.0.1:9876/", timeout=0.25),
+                mock.call("http://127.0.0.1:9876/", timeout=5.0),
+            ],
+        )
+        self.assertNotIn("serverAlreadyRunning", result)
 
     def test_start_server_reports_failure_when_port_never_responds(self) -> None:
         """Given child starts but port stays closed, When starting server, Then browser is not opened."""
@@ -183,8 +188,8 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(result["field"], "jsonPath")
         self.assertEqual(result["code"], "json_not_found")
 
-    def test_start_server_opens_url_after_wait_helper_passes(self) -> None:
-        """Given wait helper passes, When starting server, Then open happens after wait call."""
+    def test_start_server_returns_url_after_wait_helper_passes(self) -> None:
+        """Given wait helper passes, When starting server, Then it returns the URL after waiting."""
         project = self.root / "project.json"
         media = self.root / "clip.mp4"
         project.write_text(json.dumps({"media": str(media), "segments": []}), encoding="utf-8")
@@ -205,18 +210,59 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         def wait(_url: str, *, timeout: float) -> bool:
             calls.append("wait")
-            return True
-
-        def open_url(_url: str) -> None:
-            calls.append("open")
+            return len(calls) > 1
 
         with mock.patch("maw.gui_web.subprocess.Popen", return_value=FakeProcess()):
             with mock.patch("maw.gui_web._wait_for_server", side_effect=wait):
-                with mock.patch("maw.gui_web.webbrowser.open", side_effect=open_url):
-                    result = self.api.start_server({"jsonPath": str(project), "mediaPath": str(media), "port": "9876"})
+                result = self.api.start_server({"jsonPath": str(project), "mediaPath": str(media), "port": "9876"})
 
         self.assertTrue(result["ok"])
-        self.assertEqual(calls, ["wait", "open"])
+        self.assertEqual(calls, ["wait", "wait"])
+
+    def test_start_server_returns_existing_server_url_without_spawning(self) -> None:
+        """Given a responding port, When starting server, Then it reports the existing server instead of spawning."""
+        with mock.patch("maw.gui_web._wait_for_server", return_value=True):
+            with mock.patch("maw.gui_web.subprocess.Popen") as popen:
+                result = self.api.start_server({"port": "9876", "guiLang": "zh"})
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["serverAlreadyRunning"])
+        self.assertEqual(result["url"], "http://127.0.0.1:9876/?lang=zh")
+        popen.assert_not_called()
+
+    def test_server_status_reports_only_a_verified_maw_server(self) -> None:
+        with mock.patch("maw.gui_web._wait_for_server", return_value=True):
+            with mock.patch("maw.gui_web._maw_server_process_id", return_value=4321):
+                result = self.api.get_server_status({"port": "9876"})
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["running"])
+        self.assertEqual(result["pid"], 4321)
+        self.assertEqual(result["url"], "http://127.0.0.1:9876/")
+
+    def test_stop_server_can_stop_a_verified_external_maw_process(self) -> None:
+        with mock.patch("maw.gui_web._wait_for_server", return_value=True):
+            with mock.patch("maw.gui_web._stop_external_maw_server", return_value=True) as stop_external:
+                result = self.api.stop_server({"port": "9876"})
+
+        self.assertTrue(result["ok"])
+        self.assertTrue(result["stopped"])
+        stop_external.assert_called_once_with(9876)
+
+    def test_stop_server_refuses_a_non_maw_external_listener(self) -> None:
+        with mock.patch("maw.gui_web._wait_for_server", return_value=True):
+            with mock.patch("maw.gui_web._stop_external_maw_server", return_value=False):
+                with mock.patch("maw.gui_web._maw_server_process_id", return_value=None):
+                    result = self.api.stop_server({"port": "9876"})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], "server_stop_not_maw")
+
+    def test_maw_server_pid_verifies_the_frozen_serve_command(self) -> None:
+        with mock.patch("maw.gui_web._listening_process_id", return_value=4321):
+            with mock.patch("maw.gui_web._process_command_line", return_value='"D:\\Tools\\MAW.exe" --serve --port 9876'):
+                from maw.gui_web import _maw_server_process_id
+                self.assertEqual(_maw_server_process_id(9876), 4321)
 
     def test_check_server_media_reports_existing_project_media(self) -> None:
         """Given JSON embeds existing media, When checked, Then media is usable."""
@@ -461,6 +507,18 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertEqual(request.length_limit, "30m")
 
+    def test_request_from_payload_only_generates_html_when_requested(self) -> None:
+        media = self.root / "clip.mp3"
+        media.write_bytes(b"media")
+        payload = {
+            "mediaPath": str(media),
+            "srtPath": str(self.root / "out.srt"),
+            "apiKey": "sk-test",
+        }
+
+        self.assertFalse(_request_from_payload(payload, self.env_path).generate_html)
+        self.assertTrue(_request_from_payload({**payload, "generateHtml": True}, self.env_path).generate_html)
+
     def test_request_from_payload_enables_speaker_colors_only_for_selected_model(self) -> None:
         media = self.root / "clip.mp3"
         media.write_bytes(b"media")
@@ -544,7 +602,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         self.assertIn('<div class="hero-brand">', page)
         self.assertIn('<img class="hero-icon" src="../../assets/show.webp"', page)
-        self.assertIn(".hero-icon{width:72px;height:72px;", stylesheet)
+        self.assertIn(".hero-icon {\n  width: 72px;\n  height: 72px;", stylesheet)
 
     def test_sticker_picker_saves_immediately_without_a_separate_button(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -559,6 +617,76 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertEqual(_port({}), 8250)
         self.assertEqual(_port({"port": "invalid"}), 8250)
         self.assertIn('id="port" type="number" min="1" max="65535" value="8250"', page)
+        self.assertIn('id="refreshServerStatus"', page)
+
+    def test_single_file_editor_controls_are_opt_in_and_contextual(self) -> None:
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="generateHtml" type="checkbox"', page)
+        self.assertIn('data-i18n-title="generate_html_title"', page)
+        self.assertIn('id="openHtml" class="hidden"', page)
+        self.assertIn('generateHtml: $("generateHtml").checked', script)
+        self.assertIn('function syncHtmlMenu()', script)
+        self.assertIn('$("openHtml").classList.toggle("hidden", !enabled)', script)
+        self.assertIn('$("openHtml").disabled = enabled && !state.result?.htmlPath', script)
+
+    def test_server_status_uses_clickable_link_and_detects_existing_server(self) -> None:
+        script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        self.assertIn('function setServerStatus(url, alreadyRunning = false, prefix = "")', script)
+        self.assertIn('bridge("open_url", { url })', script)
+        self.assertIn('server_already_running', script)
+        self.assertIn('get_server_status', script)
+        self.assertIn('status-stop-link', script)
+        self.assertIn('bridge("stop_server", serverPayload())', script)
+        self.assertIn('state.serverRunning = starting && !result.serverAlreadyRunning;', script)
+        self.assertIn('void checkExistingServer(t("done"));', script)
+        self.assertIn('server_address: "当前服务器地址："', script)
+        self.assertIn('server_start_hint: "请点击「启动字幕服务器」"', script)
+        self.assertIn('open_editor: "打开字幕编辑器"', script)
+        self.assertIn('id="refreshServerStatus"', page := (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8"))
+        self.assertIn('await bridge("open_url", { url: state.detectedServerUrl })', script)
+
+    def test_workspace_requests_sync_server_config_from_response(self) -> None:
+        script = (ROOT / "web" / "editor.js").read_text(encoding="utf-8")
+
+        self.assertIn('async function updateServerWorkspaceSettings(payload)', script)
+        self.assertIn('body: JSON.stringify(payload)', script)
+        self.assertIn('SERVER_CONFIG.savedWorkspaces = result.savedWorkspaces || {};', script)
+        self.assertIn("SERVER_CONFIG.activeWorkspaceName = result.activeWorkspaceName || '';", script)
+        self.assertIn('SERVER_CONFIG.autoOpenLastProject = result.autoOpenLastProject !== false;', script)
+
+    def test_saved_workspace_is_kept_in_the_current_select_list(self) -> None:
+        script = (ROOT / "web" / "editor.js").read_text(encoding="utf-8")
+
+        self.assertIn("SERVER_CONFIG.savedWorkspaces = { ...getSavedServerWorkspaces(), [name]: workspace };", script)
+        self.assertIn("workspacePresetSelect.querySelector('optgroup[data-saved-workspaces]')?.remove();", script)
+        self.assertNotIn("当前服务器版本不支持保存布局", script)
+
+    def test_workspace_select_is_owned_by_editor_not_waveform(self) -> None:
+        script = (ROOT / "web" / "editor.js").read_text(encoding="utf-8")
+        waveform = (ROOT / "web" / "waveform.js").read_text(encoding="utf-8")
+
+        self.assertNotIn('layoutPresetSelect', waveform)
+        self.assertIn('const workspacePresetSelect = document.getElementById(\'workspace-preset\');', script)
+        self.assertIn("workspacePresetSelect?.addEventListener('change', () => applyWorkspaceSelection(workspacePresetSelect.value));", script)
+
+    def test_builtin_workspace_save_uses_its_visible_name(self) -> None:
+        script = (ROOT / "web" / "editor.js").read_text(encoding="utf-8")
+
+        self.assertIn('function currentWorkspaceDisplayName()', script)
+        self.assertIn('const displayName = saveAs ? name : currentWorkspaceDisplayName();', script)
+        self.assertIn('已保存工作区：${displayName}', script)
+        self.assertIn('[currentBuiltinWorkspaceName]: workspace };', script)
+
+    def test_html_editor_menu_uses_current_labels_and_closes_outside_the_menu(self) -> None:
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        self.assertIn("打开该工程的 HTML 编辑器", page)
+        self.assertIn("打开空的 HTML 编辑器", page)
+        self.assertIn('event.target.closest(".split-wrap")', script)
 
     def test_language_filter_hint_is_available_to_single_language_providers(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
@@ -587,7 +715,7 @@ class LauncherAssetContractTests(unittest.TestCase):
 
         for expected in ("1️⃣ 媒体与输出", "2️⃣ 识别设置", "3️⃣ 日志", "4️⃣ 字幕编辑器设置"):
             self.assertIn(expected, page)
-        self.assertIn(".card h2{margin:0 0 12px;color:var(--text-secondary);font-size:16px;", stylesheet)
+        self.assertIn(".card h2 {\n  margin: 0 0 12px;\n  color: var(--text-secondary);\n  font-size: 16px;", stylesheet)
 
     def test_server_start_button_exposes_disabled_starting_state(self) -> None:
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
@@ -602,7 +730,7 @@ class LauncherAssetContractTests(unittest.TestCase):
         stylesheet = (ROOT / "web" / "launcher" / "launcher.css").read_text(encoding="utf-8")
 
         self.assertIn(".ghost.attention:hover:not(:disabled)", stylesheet)
-        self.assertIn("border-color:var(--amber-hover)", stylesheet)
+        self.assertIn("border-color: var(--amber-hover);", stylesheet)
 
 
 if __name__ == "__main__":

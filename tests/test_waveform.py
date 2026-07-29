@@ -148,7 +148,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('加载媒体后显示视频', page)
         self.assertIn('id="cues-empty"', page)
         self.assertIn('加载工程后显示字幕列表', page)
-        self.assertIn('id="layout-preset"', page)
+        self.assertIn('id="workspace-preset"', page)
         self.assertIn('id="layout-reset"', page)
         self.assertIn('class="toolbar-utility-group" role="group" aria-label="编辑器工具"', page)
         self.assertIn('data-waveform-tool="select"', page)
@@ -341,22 +341,15 @@ class EditorAssetTests(unittest.TestCase):
 
     def test_preset_layouts_do_not_keep_inactive_resize_tracks(self) -> None:
         styles = (ROOT / "web" / "waveform.css").read_text(encoding="utf-8")
-        self.assertIn(
-            "grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);",
-            styles,
-        )
+        # 传统字幕编辑器与自定义工作区统一由 custom 渲染器渲染，不再保留 wave-bottom 专属网格
+        self.assertNotIn(".layout-wave-bottom", styles)
         self.assertNotIn(
             ".layout-resizer-v { grid-column: 2; grid-row: 1 / 6; cursor: col-resize; display: block; }",
             styles,
         )
-        self.assertNotIn(
-            ".layout-wave-bottom .layout-resizer-h1 { grid-column: 1 / 4;",
-            styles,
-        )
         self.assertIn(
             ".editor-workspace.layout-wave-right > .cues-container,\n"
-            ".editor-workspace.layout-wave-bottom > .cues-container,\n"
-            ".layout-free .cues-container {\n"
+            ".layout-custom .cues-container {\n"
             "  overflow-y: auto;",
             styles,
         )

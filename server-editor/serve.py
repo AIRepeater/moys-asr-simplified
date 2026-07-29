@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import html
 import json
 import mimetypes
@@ -34,6 +35,7 @@ from maw.project import ProjectValidationFailed, normalize_project  # noqa: E402
 
 MAX_RECENT_PROJECTS = 10
 SETTINGS_FILE_NAME = "server-editor-settings.json"
+BUILTIN_WORKSPACE_IDS = frozenset({"classic", "wave-right", "traditional"})
 
 
 class ByteRange(NamedTuple):
@@ -65,6 +67,9 @@ class RecentProject:
 class ServerSettings:
     auto_open_last_project: bool = True
     recent_projects: tuple[RecentProject, ...] = field(default_factory=tuple)
+    saved_workspaces: dict[str, dict[str, object]] = field(default_factory=dict)
+    preset_workspaces: dict[str, dict[str, object]] = field(default_factory=dict)
+    active_workspace_name: str = ""
 
 
 class SaveProjectError(ValueError):
@@ -114,9 +119,25 @@ def read_server_settings(path: Path) -> ServerSettings:
             ))
             if len(projects) == MAX_RECENT_PROJECTS:
                 break
+    saved_workspaces: dict[str, dict[str, object]] = {}
+    raw_workspaces = payload.get("saved_workspaces", {})
+    if isinstance(raw_workspaces, dict):
+        for name, workspace in raw_workspaces.items():
+            if isinstance(name, str) and 1 <= len(name) <= 60 and isinstance(workspace, dict):
+                saved_workspaces[name] = copy.deepcopy(workspace)
+    preset_workspaces: dict[str, dict[str, object]] = {}
+    raw_preset_workspaces = payload.get("preset_workspaces", {})
+    if isinstance(raw_preset_workspaces, dict):
+        for name, workspace in raw_preset_workspaces.items():
+            if name in BUILTIN_WORKSPACE_IDS and isinstance(workspace, dict):
+                preset_workspaces[name] = copy.deepcopy(workspace)
+    active_workspace_name = payload.get("active_workspace_name")
     return ServerSettings(
         auto_open_last_project=payload.get("auto_open_last_project") is not False,
         recent_projects=tuple(projects),
+        saved_workspaces=saved_workspaces,
+        preset_workspaces=preset_workspaces,
+        active_workspace_name=active_workspace_name if active_workspace_name in saved_workspaces else "",
     )
 
 
@@ -127,6 +148,9 @@ def write_server_settings(path: Path, settings: ServerSettings) -> None:
         "version": 1,
         "auto_open_last_project": settings.auto_open_last_project,
         "recent_projects": [project.to_json() for project in settings.recent_projects],
+        "saved_workspaces": settings.saved_workspaces,
+        "preset_workspaces": settings.preset_workspaces,
+        "active_workspace_name": settings.active_workspace_name,
     }
     fd, temp_name = tempfile.mkstemp(prefix=f".{path.stem}.", suffix=".tmp", dir=path.parent)
     try:
@@ -263,10 +287,17 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
         json_class = "empty"
         media_class = "empty"
 
+    page_data = copy.deepcopy(project.data)
+    project_workspace = page_data.get("workspace")
+    project_selected_workspace = project_workspace.get("selectedPreset") if isinstance(project_workspace, dict) else None
+    active_workspace = settings.saved_workspaces.get(settings.active_workspace_name)
+    if active_workspace is not None and not project_selected_workspace:
+        page_data["workspace"] = copy.deepcopy(active_workspace)
+        page_data["workspace"]["selectedPreset"] = f"saved:{settings.active_workspace_name}"
     page = edit.render_editor_page(
         title=title,
         media_html=media_html,
-        data_json=json.dumps(project.data, ensure_ascii=False),
+        data_json=json.dumps(page_data, ensure_ascii=False),
         filename_base_json=json.dumps(filename_base, ensure_ascii=False),
         stickers_json=json.dumps(project.stickers, ensure_ascii=False),
         sticker_root_json=json.dumps(project.sticker_root.as_posix() if project.sticker_root else "", ensure_ascii=False),
@@ -279,6 +310,9 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
             "settingsUrl": "/api/settings",
             "recentProjects": [item.to_json() for item in settings.recent_projects],
             "autoOpenLastProject": settings.auto_open_last_project,
+            "savedWorkspaces": settings.saved_workspaces,
+            "presetWorkspaces": settings.preset_workspaces,
+            "activeWorkspaceName": settings.active_workspace_name,
         }, ensure_ascii=False),
         generated_at=html.escape(generated_at),
         json_display=html.escape(json_display),
@@ -327,6 +361,55 @@ class EditorServer(ThreadingHTTPServer):
     def set_auto_open_last_project(self, enabled: bool) -> None:
         with self.settings_lock:
             self.settings = replace(self.settings, auto_open_last_project=enabled)
+            self.persist_settings()
+
+    def save_workspace(self, name: str, workspace: dict[str, object], *, overwrite: bool) -> None:
+        with self.settings_lock:
+            workspaces = copy.deepcopy(self.settings.saved_workspaces)
+            if name in workspaces and not overwrite:
+                raise ValueError("同名工作区已存在")
+            if name not in workspaces and len(workspaces) >= 20:
+                raise ValueError("最多保存 20 个自定义工作区")
+            workspaces[name] = copy.deepcopy(workspace)
+            self.settings = replace(self.settings, saved_workspaces=workspaces, active_workspace_name=name)
+            self.persist_settings()
+
+    def delete_workspace(self, name: str) -> None:
+        with self.settings_lock:
+            workspaces = copy.deepcopy(self.settings.saved_workspaces)
+            if name not in workspaces:
+                raise ValueError("工作区不存在")
+            del workspaces[name]
+            self.settings = replace(
+                self.settings,
+                saved_workspaces=workspaces,
+                active_workspace_name="" if self.settings.active_workspace_name == name else self.settings.active_workspace_name,
+            )
+            self.persist_settings()
+
+    def save_preset_workspace(self, preset: str, workspace: dict[str, object]) -> None:
+        if preset not in BUILTIN_WORKSPACE_IDS:
+            raise ValueError("不是可保存的内置工作区")
+        with self.settings_lock:
+            workspaces = copy.deepcopy(self.settings.preset_workspaces)
+            workspaces[preset] = copy.deepcopy(workspace)
+            self.settings = replace(self.settings, preset_workspaces=workspaces, active_workspace_name="")
+            self.persist_settings()
+
+    def reset_preset_workspace(self, preset: str) -> None:
+        if preset not in BUILTIN_WORKSPACE_IDS:
+            raise ValueError("不是可重置的内置工作区")
+        with self.settings_lock:
+            workspaces = copy.deepcopy(self.settings.preset_workspaces)
+            workspaces.pop(preset, None)
+            self.settings = replace(self.settings, preset_workspaces=workspaces, active_workspace_name="")
+            self.persist_settings()
+
+    def set_active_workspace(self, name: str) -> None:
+        with self.settings_lock:
+            if name and name not in self.settings.saved_workspaces:
+                raise ValueError("工作区不存在")
+            self.settings = replace(self.settings, active_workspace_name=name)
             self.persist_settings()
 
     def open_recent_project(self, project_path: str) -> ServerProject:
@@ -472,14 +555,73 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
     def update_settings(self) -> None:
         try:
             request = self.read_json_request()
-            enabled = request.get("autoOpenLastProject")
-            if not isinstance(enabled, bool):
-                raise ValueError("autoOpenLastProject 必须是布尔值")
-            self.editor_server.set_auto_open_last_project(enabled)
+            applied = self._apply_settings_request(request)
         except (UnicodeDecodeError, json.JSONDecodeError, ValueError, OSError) as error:
             self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": str(error)})
             return
-        self.send_json(HTTPStatus.OK, {"ok": True, "autoOpenLastProject": enabled})
+        if not applied:
+            self.send_json(HTTPStatus.BAD_REQUEST, {"ok": False, "error": "缺少可更新的设置"})
+            return
+        settings = self.editor_server.settings
+        self.send_json(HTTPStatus.OK, {
+            "ok": True,
+            "autoOpenLastProject": settings.auto_open_last_project,
+            "savedWorkspaces": settings.saved_workspaces,
+            "presetWorkspaces": settings.preset_workspaces,
+            "activeWorkspaceName": settings.active_workspace_name,
+        })
+
+    def _apply_settings_request(self, request: dict[str, object]) -> bool:
+        """Apply at most one settings action; returns False when nothing was requested."""
+        enabled = request.get("autoOpenLastProject")
+        if enabled is not None:
+            if not isinstance(enabled, bool):
+                raise ValueError("autoOpenLastProject 必须是布尔值")
+            self.editor_server.set_auto_open_last_project(enabled)
+            return True
+        save_workspace = request.get("saveWorkspace")
+        if save_workspace is not None:
+            if not isinstance(save_workspace, dict):
+                raise ValueError("saveWorkspace 必须是对象")
+            name = save_workspace.get("name")
+            workspace = save_workspace.get("workspace")
+            if not isinstance(name, str) or not (1 <= len(name.strip()) <= 60) or not isinstance(workspace, dict):
+                raise ValueError("工作区名称或内容不正确")
+            if len(json.dumps(workspace, ensure_ascii=False)) > 256 * 1024:
+                raise ValueError("工作区不能超过 256 KB")
+            self.editor_server.save_workspace(name.strip(), workspace, overwrite=save_workspace.get("overwrite") is True)
+            return True
+        save_preset = request.get("savePresetWorkspace")
+        if save_preset is not None:
+            if not isinstance(save_preset, dict):
+                raise ValueError("savePresetWorkspace 必须是对象")
+            preset = save_preset.get("preset")
+            workspace = save_preset.get("workspace")
+            if not isinstance(preset, str) or not isinstance(workspace, dict):
+                raise ValueError("内置工作区名称或内容不正确")
+            if len(json.dumps(workspace, ensure_ascii=False)) > 256 * 1024:
+                raise ValueError("工作区不能超过 256 KB")
+            self.editor_server.save_preset_workspace(preset, workspace)
+            return True
+        delete_workspace_name = request.get("deleteWorkspaceName")
+        if delete_workspace_name is not None:
+            if not isinstance(delete_workspace_name, str):
+                raise ValueError("deleteWorkspaceName 必须是字符串")
+            self.editor_server.delete_workspace(delete_workspace_name)
+            return True
+        reset_preset = request.get("resetPresetWorkspace")
+        if reset_preset is not None:
+            if not isinstance(reset_preset, str):
+                raise ValueError("resetPresetWorkspace 必须是字符串")
+            self.editor_server.reset_preset_workspace(reset_preset)
+            return True
+        active_workspace_name = request.get("activeWorkspaceName")
+        if active_workspace_name is not None:
+            if not isinstance(active_workspace_name, str):
+                raise ValueError("activeWorkspaceName 必须是字符串")
+            self.editor_server.set_active_workspace(active_workspace_name)
+            return True
+        return False
 
     def handle_request(self, *, include_body: bool) -> None:
         path = urlsplit(self.path).path
