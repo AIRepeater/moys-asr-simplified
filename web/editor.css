@@ -421,6 +421,16 @@
     left: 0; right: auto;
     width: max-content; min-width: 100%; max-width: 320px;
   }
+  /* 与“打开工程”相同：这两个短菜单按内容收缩，避免通用 240px 最小宽度留下大块空白。 */
+  #workspace-transfer-dropdown > .dropdown-menu {
+    left: 0; right: auto;
+    width: max-content; min-width: 100%; max-width: 320px;
+  }
+  /* 右侧工具栏的表情包导出菜单向左展开，避免贴近窗口右缘时溢出。 */
+  #extra-export-dropdown > .dropdown-menu {
+    left: auto; right: 0;
+    width: max-content; min-width: 100%; max-width: 320px;
+  }
   .toolbar .dropdown.open .dropdown-menu { display: block; }
   .toolbar .dropdown-item {
     padding: 7px 14px; cursor: pointer; user-select: none;
@@ -585,9 +595,11 @@
     margin: 0 -4px 4px;
     border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
   }
+  /* 布局编辑模式下，dock-handle 已在文档流中占位（顶部圆角归把手），
+     工具栏 sticky 让出把手高度即可。 */
   .editor-workspace.layout-editing .cues-container > .cue-list-toolbar {
     top: var(--dock-handle-h);
-    margin-top: var(--dock-handle-h);
+    border-radius: 0;
   }
   .cue {
     display: flex; align-items: flex-start; gap: 8px;

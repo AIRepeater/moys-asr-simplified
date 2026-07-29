@@ -33,7 +33,7 @@
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
     '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '工作区': 'Workspace',
-    '标准堆叠': 'Classic stack', '右侧整列波形': 'Waveform column right',
+    '字幕列表编辑': 'Subtitle list editor', '右侧整列波形': 'Waveform column right',
     '传统字幕编辑器': 'Traditional subtitle editor',
     '编辑布局': 'Edit layout', '完成布局': 'Done editing', '重置工作区': 'Reset workspace',
     '已保存工作区': 'Saved workspaces',

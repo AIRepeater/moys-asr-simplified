@@ -35,16 +35,33 @@
     type: 'split', direction: 'column', ratio: 64,
     children: [
       {
-        type: 'split', direction: 'row', ratio: 31,
+        type: 'split', direction: 'row', ratio: 32,
         children: [
           {
-            type: 'split', direction: 'column', ratio: 67,
+            type: 'split', direction: 'column', ratio: 77,
             children: [{ type: 'module', id: 'player' }, { type: 'module', id: 'panel' }],
           },
           { type: 'module', id: 'cues' },
         ],
       },
       { type: 'module', id: 'wave' },
+    ],
+  };
+  // 字幕列表编辑（内置 classic 工作区）：左侧上「视频|当前字幕」、下多行波形，右侧整列字幕列表。
+  const SUBTITLE_LIST_EDIT_LAYOUT_TREE = {
+    type: 'split', direction: 'row', ratio: 55,
+    children: [
+      {
+        type: 'split', direction: 'column', ratio: 43,
+        children: [
+          {
+            type: 'split', direction: 'row', ratio: 63,
+            children: [{ type: 'module', id: 'player' }, { type: 'module', id: 'panel' }],
+          },
+          { type: 'module', id: 'wave' },
+        ],
+      },
+      { type: 'module', id: 'cues' },
     ],
   };
   const CLASSIC_LAYOUT_EDIT_TREE = {
@@ -97,19 +114,28 @@
     showGroupBadges: true,
     dragPlayhead: true,
   };
+  // 内置工作区默认的列表/编辑区显示开关；traditional 默认开启字幕列表表情包列。
+  const BUILTIN_EDITOR_DISPLAY = {
+    cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: false, cueListShowCharcount: true,
+    cueEditorShowNavigation: false, cueEditorShowTimeActions: true, cueEditorShowSticker: false,
+  };
   const BUILTIN_WORKSPACES = {
+    // 字幕列表编辑（界面显示名）：聚焦右侧整列字幕列表，以 custom 渲染器渲染。
     classic: {
-      preset: 'classic', waveformMode: 'multi', splitPercent: 60, columnPercent: 36,
-      rows: [42, 18, 40], tree: CLASSIC_LAYOUT_EDIT_TREE,
+      preset: 'custom', waveformMode: 'multi', splitPercent: 60, columnPercent: 36,
+      rows: [42, 18, 40], tree: SUBTITLE_LIST_EDIT_LAYOUT_TREE,
+      editorDisplay: BUILTIN_EDITOR_DISPLAY,
     },
     'wave-right': {
       preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
       rows: [42, 18, 40], tree: DEFAULT_RIGHT_LAYOUT_TREE,
+      editorDisplay: BUILTIN_EDITOR_DISPLAY,
     },
     // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
     traditional: {
       preset: 'custom', waveformMode: 'basic', splitPercent: 60, columnPercent: 36,
       rows: [42, 18, 40], tree: TRADITIONAL_SUBTITLE_LAYOUT_TREE,
+      editorDisplay: { ...BUILTIN_EDITOR_DISPLAY, cueListShowSticker: true },
     },
   };
   const PALETTE = {
@@ -2684,6 +2710,7 @@
       return new WaveformEditor(options);
     },
     builtinWorkspaceIds: BUILTIN_WORKSPACE_IDS,
+    builtinWorkspaces: BUILTIN_WORKSPACES,
     testing: {
       decodePayload,
       remapItems,

@@ -3694,12 +3694,14 @@ async function deleteCurrentServerWorkspace() {
 }
 
 // 应用一次下拉选择：saved:* 从本机库恢复；内置 id 优先用本机覆盖版，否则用默认定义。
+// 工作区 = 窗口布局 + 显示状态，切换时同时恢复该工作区保存的显示开关。
 function applyWorkspaceSelection(preset) {
   if (preset.startsWith('saved:')) {
     const name = preset.slice('saved:'.length);
     const workspace = getSavedServerWorkspaces()[name];
     if (!workspace) return;
     waveformEditor.setLayoutData({ ...workspace, selectedPreset: `saved:${name}` });
+    applyEditorDisplaySettings(workspace.editorDisplay);
     currentServerWorkspaceName = name;
     currentBuiltinWorkspaceName = '';
     refreshWorkspaceSelect();
@@ -3716,6 +3718,9 @@ function applyWorkspaceSelection(preset) {
   const savedPreset = getSavedPresetWorkspaces()[preset];
   if (savedPreset) waveformEditor.setLayoutData(savedPreset);
   else waveformEditor.setLayout(preset);
+  applyEditorDisplaySettings(
+    savedPreset?.editorDisplay || window.AsrWaveform?.builtinWorkspaces?.[preset]?.editorDisplay,
+  );
   workspacePresetSelect.value = preset;
   refreshWorkspaceSelect();
   syncWorkspaceControls();
@@ -3767,23 +3772,14 @@ function configureServerWorkspaceLibrary() {
   syncWorkspaceControls();
 }
 
-function configurePortableWorkspaceTransfer() {
-  if (SERVER_CONFIG?.settingsUrl || !waveformEditor) return;
-  // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
+function configureWorkspaceTransfer() {
+  if (!waveformEditor) return;
+  // 「工作区配置 ▾」在服务器版与单文件版都可用，便于以文件显式备份/迁移工作区。
   const transferDropdown = document.getElementById('workspace-transfer-dropdown');
   const exportButton = document.getElementById('workspace-export');
   const importButton = document.getElementById('workspace-import');
   const importFile = document.getElementById('workspace-import-file');
   if (transferDropdown) transferDropdown.hidden = false;
-  let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
-  workspacePresetSelect?.addEventListener('change', () => {
-    selectedWorkspaceId = workspacePresetSelect.value;
-    if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) waveformEditor.setLayout(selectedWorkspaceId);
-  });
-  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
-    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
-    if (workspacePresetSelect) workspacePresetSelect.value = selectedWorkspaceId;
-  });
   exportButton?.addEventListener('click', async () => {
     await downloadFile(buildWorkspaceJson(), `${FILENAME_BASE}.workspace.json`, 'application/json', {
       desc: '编辑器工作区文件', types: { 'application/json': ['.workspace.json', '.json'] },
@@ -3808,6 +3804,20 @@ function configurePortableWorkspaceTransfer() {
     } catch (error) {
       flashHint(`工作区导入失败：${error.message || error}`);
     }
+  });
+  if (SERVER_CONFIG?.settingsUrl) return;  // 服务器版的下拉选择由工作区库接管
+  // 单文件编辑器不承诺 file:// 间的浏览器存储；内置工作区与显式文件迁移最可靠。
+  let selectedWorkspaceId = workspacePresetSelect?.value || 'wave-right';
+  workspacePresetSelect?.addEventListener('change', () => {
+    selectedWorkspaceId = workspacePresetSelect.value;
+    if (BUILTIN_WORKSPACE_IDS.includes(selectedWorkspaceId)) {
+      waveformEditor.setLayout(selectedWorkspaceId);
+      applyEditorDisplaySettings(window.AsrWaveform?.builtinWorkspaces?.[selectedWorkspaceId]?.editorDisplay);
+    }
+  });
+  document.getElementById('layout-edit-toggle')?.addEventListener('click', () => {
+    // 拖放编辑只改窗口排列，不改变下拉框当前选中的工作区名称。
+    if (workspacePresetSelect) workspacePresetSelect.value = selectedWorkspaceId;
   });
 }
 
@@ -5398,7 +5408,7 @@ configureRecentProjects();
 configureServerProjectSettings();
 initWaveformEditor();
 configureServerWorkspaceLibrary();
-configurePortableWorkspaceTransfer();
+configureWorkspaceTransfer();
 totalCountEl.textContent = DATA.segments.length;
 renderAll();
 updateGapRemoveUi();
