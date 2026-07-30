@@ -611,7 +611,8 @@
   }
   .cue.has-color { background: color-mix(in srgb, var(--color-bar, #777) 30%, transparent); }
   .cue.has-color:hover { background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--bg-raised)); }
-  .cue:hover { background: var(--hover-bg); }
+  /* 悬停反馈与下拉/右键菜单一致：accent 淡蓝 + 中性内描边；选中（琥珀）与激活（蓝）行仍各自优先。 */
+  .cue:hover { background: var(--accent-tint); box-shadow: inset 0 0 0 1px var(--border-strong); }
   .cue.hidden { display: none; }
   .cue .color-bar {
     flex-shrink: 0; width: 4px; align-self: stretch;
@@ -990,9 +991,14 @@
     position: fixed; background: var(--bg-overlay); border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md); padding: 4px 0; min-width: 180px; font-size: 13px;
     box-shadow: var(--shadow-3); z-index: 200;
-    display: none;
+    display: block; opacity: 0; visibility: hidden; pointer-events: none;
+    /* 关闭时微弱淡出：可见性在淡出结束后才移除，淡出期间不再拦截点击 */
+    transition: opacity 140ms ease-out, visibility 0s linear 140ms;
   }
-  .ctxmenu.show { display: block; }
+  .ctxmenu.show {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transition: opacity 100ms ease-out;
+  }
   .ctxmenu .item {
     padding: 7px 14px; cursor: pointer; user-select: none; color: var(--text-secondary);
     display: flex; justify-content: space-between; gap: 12px;

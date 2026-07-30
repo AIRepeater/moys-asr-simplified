@@ -2307,6 +2307,56 @@ document.addEventListener('keydown', (e) => {
   selectAll();
 });
 
+// Ctrl/Cmd+D：取消选中（清空当前字幕选择）。浏览器默认是「添加书签」，这里接管；
+// 与 Ctrl/Cmd+A 同样仅在非编辑字幕状态下生效。ESC 清除选中的行为保持不变。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'd' && e.key !== 'D') return;
+  if (!e.ctrlKey && !e.metaKey) return;
+  if (e.altKey || e.shiftKey) return;
+  if (editingState) return;
+  if (e.target === cuePanelText) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (selectedIdxs.size === 0) return;
+  e.preventDefault();
+  clearSelection();
+});
+
+// T：给选中字幕分配表情包。单选直接分配本条，多选统一分配（与右键菜单一致）。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 't' && e.key !== 'T') return;
+  if (editingState || e.repeat) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (selectedIdxs.size === 0) return;
+  e.preventDefault();
+  const idxs = [...selectedIdxs].sort((x, y) => x - y);
+  openStickerPicker(idxs, idxs.length > 1);
+});
+
 // Enter：仅选中单条字幕（列表或波形均可）时，进入字幕编辑区并聚焦文本框，
 // 光标置于末尾，方便直接继续编辑。内联编辑态、已聚焦编辑区或多个模态打开时不触发。
 document.addEventListener('keydown', (e) => {
@@ -3825,7 +3875,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   DATA.segments.forEach((segment) => { delete segment._dirty; });
   gapRemoveDirty = false;
   previewGeometryDirty = false;
-  FILENAME_BASE = filename.replace(/\.json$/i, '');
+  FILENAME_BASE = filename.replace(/\.(json|mosp)$/i, '');
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
@@ -3833,7 +3883,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
     jsonEl.classList.remove('empty');
   }
   renderAll();
-  if (!silent) flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
+  if (!silent) flashHint('保存成功！');
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
@@ -3866,8 +3916,8 @@ async function saveProjectToServer({ silent = false } = {}) {
     // completed edits, while making clear that the bound JSON was not overwritten.
     if (error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？')) {
-      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.json`, 'application/json', {
-        desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.mosp`, 'application/json', {
+        desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
       });
       if (saved) flashHint('服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续');
     }
@@ -3881,18 +3931,18 @@ async function saveProjectToServer({ silent = false } = {}) {
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新）。
 async function saveProjectAsToFile() {
   if (editingState) finishEdit(true);
-  const suggested = `${FILENAME_BASE}.json`;
+  const suggested = `${FILENAME_BASE}.mosp`;
   // 无原生保存对话框的浏览器：退化为普通下载（文件名不可考，标题保持不变）。
   if (!window.showSaveFilePicker) {
     await downloadFile(buildJson(), suggested, 'application/json', {
-      desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+      desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
     });
     return;
   }
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: suggested,
-      types: [{ description: '编辑器工程文件', accept: { 'application/json': ['.json'] } }],
+      types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
     const writable = await handle.createWritable();
     await writable.write(new Blob([buildJson()], { type: 'application/json;charset=utf-8' }));
@@ -3941,8 +3991,8 @@ document.getElementById('download-plain-text').addEventListener('click', async (
 });
 document.getElementById('download-json').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
-  await downloadFile(buildJson(), `${FILENAME_BASE}.json`, 'application/json', {
-    desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+  await downloadFile(buildJson(), `${FILENAME_BASE}.mosp`, 'application/json', {
+    desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
   });
 });
 saveProjectButton?.addEventListener('click', () => saveProjectToServer());
@@ -5079,7 +5129,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
       addItem('跳转到字幕并播放', '', () => seekTo(DATA.segments[idx].start / 1000));
     }
     addSep();
-    addItem('分配表情包…', '', () => openStickerPicker([idx], false));
+    addItem('分配表情包…', 'T', () => openStickerPicker([idx], false));
     if (DATA.segments[idx].sticker || DATA.segments[idx].sticker_ref) {
       addItem('删除表情包', '', () => {
         removeStickerCascade(idx);
@@ -5108,7 +5158,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     if (hasStickerInRange) {
       addItem('拓展表情包时长', '', () => expandStickerTime(targetIdxs));
     }
-    addItem('统一分配表情包…', '', () => openStickerPicker(targetIdxs, true));
+    addItem('统一分配表情包…', 'T', () => openStickerPicker(targetIdxs, true));
     addSep();
     addColorSubmenu(targetIdxs);
     addSep();
@@ -5124,7 +5174,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     addItem(`删除 ${targetIdxs.length} 条字幕`, '', () => {
       deleteSegments(targetIdxs);
     }, { danger: true });
-    addItem('清除所有选中', '', () => clearSelection());
+    addItem('取消选中', 'Ctrl+D', () => clearSelection());
   }
 
   // 调整 ctxmenu 位置（避免溢出）
@@ -5306,6 +5356,10 @@ function initWaveformEditor() {
       else selectOnly(idx);
       lastClickedIdx = idx;
     },
+    // 波形 Shift+框选：把命中的一批下标追加进当前多选（追加语义，不改 Shift 锚点）
+    addCueSelection: (idxs) => {
+      idxs.forEach((idx) => addToSelection(idx));
+    },
     seek: seekFromWaveform,
     togglePlayback,
     toggleDisabled: (idxs) => toggleDisabled(idxs),
@@ -5350,7 +5404,8 @@ function initWaveformEditor() {
 // === Drag & Drop：拖入视频/音频/JSON/SRT 自动加载 ===
 const dragOverlay = document.getElementById('drag-overlay');
 function isJsonFile(f) {
-  return f.type === 'application/json' || f.name.toLowerCase().endsWith('.json');
+  const name = f.name.toLowerCase();
+  return f.type === 'application/json' || name.endsWith('.json') || name.endsWith('.mosp');
 }
 function isSrtFile(f) {
   return f.name.toLowerCase().endsWith('.srt');

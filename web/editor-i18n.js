@@ -12,7 +12,7 @@
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     '打开工程': 'Open project',
     '最近工程': 'Recent projects', '自动打开上次工程': 'Automatically open last project',
-    '加载媒体': 'Load media', '加载字幕': 'Load subtitles', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save',
+    '加载媒体': 'Load media', '加载字幕': 'Load subtitles', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save', '保存成功！': 'Saved!',
     '📥 松开以加载文件（视频 / 音频 / JSON / SRT）': '📥 Drop to load files (video / audio / JSON / SRT)',
     '自动保存': 'Auto-save', '自动保存间隔（秒）': 'Auto-save interval (seconds)',
     '导出字幕': 'Export subtitles', '导出字幕 ▾': 'Export subtitles ▾',
@@ -76,6 +76,7 @@
     'SRT 首条从 0 开始': 'Start first SRT cue at 0',
     '菜单': 'Menu', '显示菜单': 'Show menu', '单击': 'Click',
     'Shift+点击': 'Shift+click', 'Ctrl+点击': 'Ctrl+click',
+    'Shift+拖拽空白处': 'Shift+drag blank area', '框选字幕': 'Box-select subtitles',
     'Shift+滚轮': 'Shift+wheel', 'Ctrl+滚轮': 'Ctrl+wheel',
     'Ctrl+Shift+滚轮': 'Ctrl+Shift+wheel',
     '（编辑字幕文本时）在文字光标处拆分': 'Split at the text cursor (while editing)',
@@ -141,7 +142,7 @@
     '统一分配表情包…': 'Assign sticker to selection…',
     '批量替换选中字幕…': 'Batch replace selected subtitles…',
     '启用选中': 'Enable selection', '禁用选中': 'Disable selection',
-    '清除所有选中': 'Clear selection', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
+    '清除所有选中': 'Clear selection', '取消选中': 'Deselect', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
     '红': 'Red', '黄': 'Yellow',
     '蓝': 'Blue', '绿': 'Green', '紫': 'Purple'
   };
@@ -193,7 +194,7 @@
     '导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入': 'Export color and sticker Resolve JSON for compatible import scripts',
     '导出只包含表情包图片轨道的 OTIO 工程': 'Export an OTIO project containing only sticker image tracks',
     '在视频画面右上角预览当前时间的表情包': 'Preview stickers at the current time over the video',
-    '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Alt toggles disabled, Alt-drag changes one shared edge',
+    '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Shift+空白拖拽框选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Shift+drag on blank area to box-select, Alt toggles disabled, Alt-drag changes one shared edge',
     '分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool (R): click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
     '打开可拖动的移除静音空隙工具窗': 'Open the draggable silent-gap tool',
     '播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览': 'Skip removed silent gaps during playback; clicking inside a gap previews it temporarily',
@@ -282,10 +283,6 @@
     if (match) return `Generated ${match[1]}`;
     match = /^上次打开：(.+)$/.exec(text);
     if (match) return `Last opened: ${match[1]}`;
-    match = /^已保存工程：(.+?)（已备份为 (.+)）$/.exec(text);
-    if (match) return `Project saved: ${match[1]} (backup: ${match[2]})`;
-    match = /^已保存工程：(.+)$/.exec(text);
-    if (match) return `Project saved: ${match[1]}`;
     match = /^保存失败：(.+)$/.exec(text);
     if (match) return `Save failed: ${match[1]}`;
     match = /^打开工程失败：(.+)$/.exec(text);

@@ -305,7 +305,7 @@
   }
 
   function projectMediaStem(projectName) {
-    const stem = fileBasename(projectName).replace(/\.json$/i, '');
+    const stem = fileBasename(projectName).replace(/\.(json|mosp)$/i, '');
     for (const tag of ['.qwen3-asr.', '.qwen3-asr-api.', '.funasr.', '.glm-asr.', '.paraformer.', '.sensevoice.', '.nano.']) {
       const index = stem.toLowerCase().indexOf(tag);
       if (index >= 0) return stem.slice(0, index).toLowerCase();

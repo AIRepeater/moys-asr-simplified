@@ -624,6 +624,16 @@
   color: #ffe1b4;
   background: rgba(49, 27, 14, 0.88);
 }
+/* Shift+左键框选：选框覆盖层。挂在 #waveform-content 内随行滚动，
+   z-index 与空隙范围预览同级（高于字幕块 5/6 与播放头 9），不接收指针事件。 */
+.waveform-marquee {
+  position: absolute;
+  z-index: 12;
+  box-sizing: border-box;
+  border: 1px dashed rgba(255, 213, 74, 0.95);
+  background: rgba(255, 213, 74, 0.1);
+  pointer-events: none;
+}
 .waveform-cue-block {
   --cue-color: #4f8fc9;
   position: absolute;
@@ -667,6 +677,12 @@
   outline: 2px solid #ffd54a;
   outline-offset: 1px;
   box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px rgba(255, 213, 74, .45);
+}
+/* 框选拖动中的命中预览：比正式选中的实线弱一档的虚线；
+   松开后由选中契约替换为 .selected。 */
+.waveform-cue-block.marquee-preview {
+  outline: 2px dashed rgba(255, 213, 74, 0.85);
+  outline-offset: 1px;
 }
 .waveform-cue-block.active {
   background: color-mix(in srgb, var(--cue-color) 70%, #28547a);

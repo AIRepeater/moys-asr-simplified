@@ -1954,6 +1954,21 @@
           this.beginGapRangeDrag(event, row);
           return;
         }
+        // Shift+左键在空白处拖动：框选字幕块（追加进现有多选），
+        // 不进入下方的清除选中/seek/播放头拖拽路径
+        if (
+          event.button === 0 &&
+          event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.target.closest('.waveform-cue-block, .waveform-gap-block') &&
+          !this.isLayoutEditing()
+        ) {
+          event.preventDefault();
+          this.beginMarqueeDrag(event);
+          return;
+        }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
         event.preventDefault();
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
@@ -2148,6 +2163,98 @@
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
+    }
+
+    // Shift+左键框选：在波形空白处按下并拖动，画出选框，松开后把与选框相交的
+    // 字幕块追加进当前多选（与 Shift 范围选同为追加语义）。选框挂在
+    // #waveform-content 内、与行同坐标系，滚动时自动跟随；多行虚拟化重建
+    // 会清掉覆盖层与块上的预览类，因此每帧重新挂载、重新命中。位移低于
+    // 阈值的 Shift+点击视为空操作，不触发空白区既有的清除选中/seek。
+    beginMarqueeDrag(event) {
+      const content = this.content;
+      const startRect = content.getBoundingClientRect();
+      const start = { x: event.clientX - startRect.left, y: event.clientY - startRect.top };
+      let lastEvent = event;
+      let overlay = null;
+      let frame = 0;
+      let drawing = false;
+      let hits = new Set();
+
+      const clearPreview = () => {
+        content.querySelectorAll('.waveform-cue-block.marquee-preview').forEach((block) => {
+          block.classList.remove('marquee-preview');
+        });
+      };
+      const removeOverlay = () => {
+        if (overlay) overlay.remove();
+        overlay = null;
+      };
+      const update = () => {
+        frame = 0;
+        const rect = content.getBoundingClientRect();
+        const current = { x: lastEvent.clientX - rect.left, y: lastEvent.clientY - rect.top };
+        if (!drawing) {
+          if (Math.hypot(current.x - start.x, current.y - start.y) < 4) return;
+          drawing = true;
+        }
+        if (!overlay || !overlay.isConnected) {
+          overlay = document.createElement('div');
+          overlay.className = 'waveform-marquee';
+          content.appendChild(overlay);
+        }
+        const left = Math.min(start.x, current.x);
+        const top = Math.min(start.y, current.y);
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+        overlay.style.width = `${Math.abs(current.x - start.x)}px`;
+        overlay.style.height = `${Math.abs(current.y - start.y)}px`;
+        const marqueeRect = overlay.getBoundingClientRect();
+        const next = new Set();
+        content.querySelectorAll('.waveform-cue-block').forEach((block) => {
+          const blockRect = block.getBoundingClientRect();
+          const hit =
+            !block.hidden &&
+            blockRect.right > marqueeRect.left &&
+            blockRect.left < marqueeRect.right &&
+            blockRect.bottom > marqueeRect.top &&
+            blockRect.top < marqueeRect.bottom;
+          block.classList.toggle('marquee-preview', hit);
+          if (hit) next.add(Number(block.dataset.idx));
+        });
+        hits = next;
+      };
+      const finish = (commit) => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        if (frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+        }
+        // 以指针最终位置补一次命中计算，避免快速松开时结果落后一帧
+        if (commit) update();
+        clearPreview();
+        removeOverlay();
+        if (commit && drawing && hits.size > 0) {
+          this.options.addCueSelection?.([...hits].sort((a, b) => a - b));
+        }
+      };
+      const onMove = (moveEvent) => {
+        if (!(moveEvent.buttons & 1)) {
+          finish(true);
+          return;
+        }
+        lastEvent = moveEvent;
+        if (!frame) frame = requestAnimationFrame(update);
+      };
+      const onUp = (upEvent) => {
+        lastEvent = upEvent;
+        finish(true);
+      };
+      const onCancel = () => finish(false);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
     }
 
     handleWheel(event) {
