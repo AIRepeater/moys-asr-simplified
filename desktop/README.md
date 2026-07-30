@@ -19,14 +19,24 @@ moys-open-subtitle-editor/   (MOSE 发布仓库，独立)
 ## 开发流程
 
 ```powershell
-# 首次：确保 Rust 工具链已装（https://rustup.rs/）
-cargo --version
+# 前提：Rust 工具链已装（https://rustup.rs/），且当前终端的 PATH 里有 cargo
+cargo --version   # 能出版本号 = OK
 
 # 进入 desktop/ 开发
-cd desktop
-cargo tauri dev              # 开发热重载
-cargo tauri build            # 出 MSI/NSIS 安装包
+cd D:\Codes\moys-asr-workflow\desktop
+npm install       # 首次：安装 @tauri-apps/cli（package.json 里已声明）
+npx tauri dev     # 启动开发模式（编译 Rust + 从 web/ 渲染 index.html + 开 webview 窗口）
+npx tauri build   # 出 MSI/NSIS 安装包（Week 8 用）
 ```
+
+启动后：
+- Rust 侧自动从 `../web/` 渲染 `desktop/src/index.html`（等价 `edit.py --blank`）
+- webview 加载该文件，显示完整 MAWE 编辑器界面
+- 改 `web/` 源码后需要重启 `npx tauri dev`（暂无 watch 热重载）
+
+### 关于 PATH
+
+如果终端报 `cargo not found`，说明终端是在装 Rust 之前开的。**开一个新的 PowerShell 窗口**即可（不需要重启电脑）。
 
 ## 与 web/ 的关系
 
