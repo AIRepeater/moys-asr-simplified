@@ -388,3 +388,89 @@ pub fn resolve_media(path: String) -> Result<serde_json::Value, String> {
         "name": path_buf.file_name().and_then(|s| s.to_str()).unwrap_or("media"),
     }))
 }
+
+// === 表情包扫描 ===
+
+const STICKER_IMAGE_EXTS: &[&str] = &["png", "jpg", "jpeg", "gif", "webp", "bmp"];
+
+fn scan_sticker_dir(
+    root: &Path,
+    current: &Path,
+    max_depth: usize,
+    current_depth: usize,
+    max_items: usize,
+    items: &mut Vec<serde_json::Value>,
+) {
+    if current_depth > max_depth || items.len() >= max_items {
+        return;
+    }
+    let entries = match fs::read_dir(current) {
+        Ok(e) => e,
+        Err(_) => return,
+    };
+    let mut files: Vec<_> = entries.filter_map(|e| e.ok()).collect();
+    files.sort_by_key(|e| e.path());
+    for entry in files {
+        if items.len() >= max_items {
+            break;
+        }
+        let path = entry.path();
+        if path.is_dir() {
+            scan_sticker_dir(root, &path, max_depth, current_depth + 1, max_items, items);
+        } else if path.is_file() {
+            let ext = path
+                .extension()
+                .and_then(|e| e.to_str())
+                .map(|e| e.to_lowercase())
+                .unwrap_or_default();
+            if !STICKER_IMAGE_EXTS.contains(&ext.as_str()) {
+                continue;
+            }
+            let rel = path.strip_prefix(root).unwrap_or(&path);
+            let rel_posix = rel.to_string_lossy().replace('\\', "/");
+            let name = rel
+                .with_extension("")
+                .to_string_lossy()
+                .replace('\\', "/");
+            let filename = path
+                .file_name()
+                .and_then(|s| s.to_str())
+                .unwrap_or("")
+                .to_string();
+            items.push(serde_json::json!({
+                "name": name,
+                "filename": filename,
+                "rel": rel_posix,
+            }));
+        }
+    }
+}
+
+/// 弹出目录选择器 + 扫描表情包，返回 { root, stickers, count }。
+#[tauri::command]
+pub async fn pick_and_scan_stickers(app: tauri::AppHandle) -> Result<serde_json::Value, String> {
+    use tauri_plugin_dialog::DialogExt;
+
+    let picked = app.dialog().file().blocking_pick_folder();
+    let Some(dir) = picked else {
+        return Ok(serde_json::json!({ "ok": false, "cancelled": true }));
+    };
+
+    let root_path = dir
+        .as_path()
+        .ok_or_else(|| "无效目录路径".to_string())?
+        .to_path_buf();
+    let root_abs = root_path.canonicalize().unwrap_or(root_path);
+
+    let mut items = Vec::new();
+    scan_sticker_dir(&root_abs, &root_abs, 3, 0, 500, &mut items);
+
+    let root_posix = root_abs.to_string_lossy().replace('\\', "/");
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "root": root_posix,
+        "stickers": items,
+        "count": items.len(),
+    }))
+}

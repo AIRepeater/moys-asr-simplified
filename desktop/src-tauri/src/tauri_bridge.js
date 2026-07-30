@@ -192,5 +192,59 @@
   }
 
   setupOpenProjectInterceptor();
-  console.log('[MOSE] Tauri bridge initialized (fetch→invoke + open + media + reload)');
+
+  // === 4. 拦截"📁 浏览…"表情包按钮 ===
+  // editor.js 的 sticker-root-pick 用浏览器 showDirectoryPicker/webkitdirectory（拿不到路径，用 blob URL）。
+  // Tauri 模式改为 dialog 选目录 + Rust 扫描 → file:// URL 直接加载图片。
+  function setupStickerInterceptor() {
+    var pickBtn = document.getElementById('sticker-root-pick');
+    if (!pickBtn) {
+      setTimeout(setupStickerInterceptor, 50);
+      return;
+    }
+
+    pickBtn.addEventListener(
+      'click',
+      async function (e) {
+        e.stopImmediatePropagation();
+
+        try {
+          var result = await invoke('pick_and_scan_stickers');
+          if (!result || !result.ok || result.cancelled) return;
+
+          // 更新 STICKERS 数组（file:// URL，不需要 blob URL）
+          if (typeof STICKERS !== 'undefined') {
+            STICKERS.forEach(function (s) {
+              if (s._blobUrl) { try { URL.revokeObjectURL(s._blobUrl); } catch (e) {} }
+            });
+            STICKERS.length = 0;
+            result.stickers.forEach(function (s) { STICKERS.push(s); });
+          }
+
+          // STICKER_ROOT 改为实际路径（editor.js stickerUrl 会拼 file:// URL）
+          if (typeof STICKER_ROOT !== 'undefined') {
+            STICKER_ROOT = result.root;
+          }
+
+          var input = document.getElementById('sticker-root-input');
+          if (input) input.value = result.root;
+          var modal = document.getElementById('sticker-root-modal');
+          if (modal) modal.classList.remove('show');
+
+          if (typeof renderAll === 'function') renderAll();
+          if (typeof flashHint === 'function') {
+            flashHint('已加载 ' + result.count + ' 张表情包');
+          }
+        } catch (error) {
+          console.error('[MOSE] 表情包加载失败:', error);
+        }
+      },
+      true
+    );
+
+    console.log('[MOSE] 表情包拦截器已就绪');
+  }
+
+  setupStickerInterceptor();
+  console.log('[MOSE] Tauri bridge initialized (fetch→invoke + open + media + stickers)');
 })();
