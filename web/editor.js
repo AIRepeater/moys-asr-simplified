@@ -2018,17 +2018,6 @@ function scrollCueIntoViewIfNeeded(cueEl) {
 
 // === seek ===
 let seekWarned = false;
-function seekTo(timeSec) {
-  const seekableEnd = player.seekable.length ? player.seekable.end(player.seekable.length - 1) : 0;
-  if (seekableEnd <= 0 && !seekWarned) {
-    seekWarned = true;
-    flashHint('媒体不可 seek！请用 file:// 直接打开 HTML，或使用支持 Range 的服务器');
-  }
-  player.currentTime = timeSec;
-  const p = player.play();
-  if (p && p.catch) p.catch(() => {});
-}
-
 // === 单击/双击/Shift/Ctrl ===
 function bindCueEvents(el, idx) {
   let clickTimer = null;
@@ -2355,6 +2344,35 @@ document.addEventListener('keydown', (e) => {
   e.preventDefault();
   const idxs = [...selectedIdxs].sort((x, y) => x - y);
   openStickerPicker(idxs, idxs.length > 1);
+});
+
+// 数字键 1~5：给选中字幕标记对应颜色（红黄蓝绿紫）；0：清除颜色。
+document.addEventListener('keydown', (e) => {
+  if (!/^[0-5]$/.test(e.key)) return;
+  if (editingState || e.repeat) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (selectedIdxs.size === 0) return;
+  e.preventDefault();
+  const idxs = [...selectedIdxs].sort((x, y) => x - y);
+  if (e.key === '0') {
+    clearColorOnTargets(idxs);
+    return;
+  }
+  const color = COLOR_PALETTE[Number(e.key) - 1];
+  if (color) assignColor(idxs, color.name);
 });
 
 // Enter：仅选中单条字幕（列表或波形均可）时，进入字幕编辑区并聚焦文本框，
@@ -3563,13 +3581,25 @@ function configureRecentProjects() {
   projects.forEach((project, index) => {
     if (!project || typeof project.path !== 'string' || typeof project.name !== 'string') return;
     const item = document.createElement('div');
-    item.className = 'dropdown-item';
-    item.textContent = index === 0 ? `上次打开：${project.name}` : project.name;
-    item.title = project.path;
-    item.addEventListener('click', () => {
-      recentProjectsEl.classList.remove('open');
-      openRecentProject(project);
-    });
+    if (project.exists === false) {
+      item.className = 'dropdown-item';
+      item.style.opacity = '0.4';
+      item.style.cursor = 'not-allowed';
+      item.textContent = project.name;
+      item.title = `工程路径失效：${project.path}`;
+      item.addEventListener('click', () => {
+        recentProjectsEl.classList.remove('open');
+        flashHint('工程路径失效，文件可能已被移动或删除');
+      });
+    } else {
+      item.className = 'dropdown-item';
+      item.textContent = index === 0 ? `上次打开：${project.name}` : project.name;
+      item.title = project.path;
+      item.addEventListener('click', () => {
+        recentProjectsEl.classList.remove('open');
+        openRecentProject(project);
+      });
+    }
     recentProjectsList.appendChild(item);
   });
   recentProjectsToggle.addEventListener('click', (event) => {
@@ -4912,8 +4942,13 @@ function assignColor(idxs, colorName) {
       DATA.segments[sorted[k]].color_ref = { name: colorName, headIdx };
     }
   }
+  // 单条修改 lead（其 color_ref 成员仍指向它）或多选统一分配时，视为整组联动修改
+  const isUnifiedGroup = sorted.length > 1
+    || DATA.segments.some((s) => s.color_ref && s.color_ref.headIdx === sorted[0]);
   renderAll();
-  flashHint(`已标记「${def.label}」`);
+  flashHint(isUnifiedGroup
+    ? `已将关联字幕统一设为「${def.label}色」`
+    : `已将字幕设为「${def.label}色」`);
 }
 
 // 删除颜色（级联清理）：
@@ -5016,12 +5051,14 @@ function addCueAtWaveformTime(timeMs, clickX, clickY) {
 // 右键波形背景：创建字幕，或按右键对应的音频位置拆分命中的字幕。
 function showWaveformBlankMenu(timeMs, clickX, clickY) {
   ctxmenu.innerHTML = '';
-  function addItem(label, fn, disabled = false) {
+  function addItem(label, kbd, fn, disabled = false) {
     const it = document.createElement('div');
     it.className = `item${disabled ? ' disabled' : ''}`;
     const lbl = document.createElement('span'); lbl.textContent = label;
     it.appendChild(lbl);
-    const kb = document.createElement('kbd'); kb.style.visibility = 'hidden';
+    const kb = document.createElement('kbd');
+    kb.textContent = kbd || '';
+    if (!kbd) kb.style.visibility = 'hidden';
     it.appendChild(kb);
     if (!disabled) {
       it.addEventListener('click', () => { ctxmenu.classList.remove('show'); fn(); });
@@ -5031,9 +5068,10 @@ function showWaveformBlankMenu(timeMs, clickX, clickY) {
   const splitIdx = DATA.segments.findIndex((segment) => (
     timeMs > segment.start && timeMs < segment.end
   ));
-  addItem('创建字幕', () => addCueAtWaveformTime(timeMs, clickX, clickY));
+  addItem('创建字幕', '', () => addCueAtWaveformTime(timeMs, clickX, clickY));
   addItem(
     '按音频位置拆分当前字幕',
+    'B',
     () => splitFromContextMenu(splitIdx, clickX, clickY, timeMs),
     splitIdx < 0,
   );
@@ -5074,24 +5112,29 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     const s = document.createElement('div'); s.className = 'sep'; ctxmenu.appendChild(s);
   }
 
-  // 颜色子菜单：一行 5 色块 + "清除颜色"项
-  // targets 来自外层闭包；但参数化以保持函数纯粹
+  // 颜色子菜单：首行「标记颜色 + 1~5 键位提示」，下方一排加大号色块（好辨认也好点击）
   function addColorSubmenu(targets) {
     const row = document.createElement('div');
     row.className = 'item';
-    row.style.cursor = 'default';
+    row.style.cssText = 'cursor:default;display:block;';
     row.addEventListener('click', e => e.stopPropagation());
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;';
     const lbl = document.createElement('span');
     lbl.textContent = '标记颜色';
-    lbl.style.flex = '0 0 auto';
-    row.appendChild(lbl);
-    const swatches = document.createElement('span');
-    swatches.style.cssText = 'display:flex;gap:4px;align-items:center;margin-left:auto;';
-    COLOR_PALETTE.forEach(c => {
+    head.appendChild(lbl);
+    const rangeHint = document.createElement('kbd');
+    rangeHint.textContent = '1~5';
+    rangeHint.style.marginLeft = 'auto';
+    head.appendChild(rangeHint);
+    row.appendChild(head);
+    const swatches = document.createElement('div');
+    swatches.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+    COLOR_PALETTE.forEach((c, colorIndex) => {
       const sw = document.createElement('span');
-      sw.title = c.label;
-      sw.style.cssText = `width:14px;height:14px;border-radius:50%;background:${c.value};border:1px solid #555;cursor:pointer;display:inline-block;`;
-      sw.addEventListener('mouseenter', () => sw.style.transform = 'scale(1.2)');
+      sw.title = `${c.label}（按 ${colorIndex + 1}）`;
+      sw.style.cssText = `width:22px;height:22px;border-radius:50%;background:${c.value};border:1px solid rgba(255,255,255,.25);cursor:pointer;display:inline-block;box-sizing:border-box;flex:0 0 auto;`;
+      sw.addEventListener('mouseenter', () => sw.style.transform = 'scale(1.15)');
       sw.addEventListener('mouseleave', () => sw.style.transform = '');
       sw.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -5106,29 +5149,27 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     const hasColorInRange = targets.some(i =>
       DATA.segments[i].color || DATA.segments[i].color_ref);
     if (hasColorInRange) {
-      addItem('清除颜色', '', () => clearColorOnTargets(targets), { danger: true });
+      addItem('清除颜色', '0', () => clearColorOnTargets(targets), { danger: true });
     }
   }
 
   if (!isMulti) {
-    // 仅「仅选中」模式提供：「选中并跳转」时左键单击本身就会跳转，右键菜单项是多余的
+    // 组 1：跳转与拆分。仅「仅选中」模式提供「跳转并播放」——「选中并跳转」时左键单击本身就会跳转。
     if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
-      addItem('跳转并播放', '', () => {
+      addItem('跳转并播放', 'F', () => {
         seekFromWaveform(DATA.segments[idx].start / 1000);
         if (player.paused) togglePlayback();
       });
-      addSep();
     }
     const splitLabel = Number.isFinite(waveformTimeMs)
       ? '按音频位置拆分'
       : '按文字位置拆分';
-    // 不显示 splitKeyLabel()：Enter/Ctrl+Enter 拆分仅在文本编辑态有效，
-    // 右键菜单里展示快捷键会误导用户以为菜单场景下也能按键触发。
-    addItem(splitLabel, '', () => splitFromContextMenu(idx, x, y, waveformTimeMs));
-    if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
-      addItem('跳转到字幕并播放', '', () => seekTo(DATA.segments[idx].start / 1000));
-    }
+    // 「按音频位置拆分」与波形 B 键（在红色播放指针处拆分）同类；「按文字位置拆分」
+    // 的 Enter/Ctrl+Enter 仅在文本编辑态有效，菜单里展示会误导，故不显示。
+    const splitKbd = Number.isFinite(waveformTimeMs) ? 'B' : '';
+    addItem(splitLabel, splitKbd, () => splitFromContextMenu(idx, x, y, waveformTimeMs));
     addSep();
+    // 组 2：外观（表情包与颜色）
     addItem('分配表情包…', 'T', () => openStickerPicker([idx], false));
     if (DATA.segments[idx].sticker || DATA.segments[idx].sticker_ref) {
       addItem('删除表情包', '', () => {
@@ -5137,44 +5178,42 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
         flashHint('已删除');
       }, { danger: true });
     }
-    addSep();
     addColorSubmenu(targetIdxs);
     addSep();
+    // 组 3：状态与删除
     addItem(
       DATA.segments[idx].disabled ? '启用此条' : '禁用此条',
       'Alt+点击',
       () => toggleDisabled([idx])
     );
-    addSep();
-    addItem('删除字幕', '', () => {
+    addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
     }, { danger: true });
   } else {
+    // 组 1：合并与批量文本操作
     addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
+    addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
     addSep();
-    // 只在选中范围内存在表情包时才显示「拓展表情包时长」，且放在「统一分配」前面
+    // 组 2：外观（表情包与颜色）；「拓展表情包时长」仅在范围内已有表情包时显示
     const hasStickerInRange = targetIdxs.some(i =>
       DATA.segments[i].sticker || DATA.segments[i].sticker_ref);
     if (hasStickerInRange) {
       addItem('拓展表情包时长', '', () => expandStickerTime(targetIdxs));
     }
     addItem('统一分配表情包…', 'T', () => openStickerPicker(targetIdxs, true));
-    addSep();
     addColorSubmenu(targetIdxs);
     addSep();
-    addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
-    addSep();
+    // 组 3：状态与删除
     const _disabledInSel = targetIdxs.filter(i => DATA.segments[i].disabled).length;
     addItem(
       _disabledInSel === targetIdxs.length ? '启用选中' : '禁用选中',
       '',
       () => toggleDisabled(targetIdxs)
     );
-    addSep();
-    addItem(`删除 ${targetIdxs.length} 条字幕`, '', () => {
+    addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
     }, { danger: true });
-    addItem('取消选中', 'Ctrl+D', () => clearSelection());
+    addItem('取消选择', 'Ctrl+D', () => clearSelection());
   }
 
   // 调整 ctxmenu 位置（避免溢出）

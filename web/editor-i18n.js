@@ -142,9 +142,10 @@
     '统一分配表情包…': 'Assign sticker to selection…',
     '批量替换选中字幕…': 'Batch replace selected subtitles…',
     '启用选中': 'Enable selection', '禁用选中': 'Disable selection',
-    '清除所有选中': 'Clear selection', '取消选中': 'Deselect', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
+    '清除所有选中': 'Clear selection', '取消选中': 'Deselect', '取消选择': 'Deselect', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
     '红': 'Red', '黄': 'Yellow',
-    '蓝': 'Blue', '绿': 'Green', '紫': 'Purple'
+    '蓝': 'Blue', '绿': 'Green', '紫': 'Purple',
+    '红色': 'red', '黄色': 'yellow', '蓝色': 'blue', '绿色': 'green', '紫色': 'purple'
   };
 
   const EN_ATTR = {
@@ -303,6 +304,10 @@
     if (match) return `Merge ${match[1]} subtitles`;
     match = /^删除\s+(\d+)\s+条字幕$/.exec(text);
     if (match) return `Delete ${match[1]} subtitles`;
+    match = /^已将关联字幕统一设为「(.+)」$/.exec(text);
+    if (match) return `All linked subtitles set to ${translateText(match[1])}`;
+    match = /^已将字幕设为「(.+)」$/.exec(text);
+    if (match) return `Subtitle set to ${translateText(match[1])}`;
     if (text === '无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？') {
       return 'The local editor server is unavailable. Export the project JSON instead so your changes are not lost?';
     }

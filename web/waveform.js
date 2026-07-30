@@ -1963,7 +1963,7 @@
           !event.metaKey &&
           !event.altKey &&
           !event.target.closest('.waveform-cue-block, .waveform-gap-block') &&
-          !this.isLayoutEditing()
+          !this.isCustomLayout()
         ) {
           event.preventDefault();
           this.beginMarqueeDrag(event);

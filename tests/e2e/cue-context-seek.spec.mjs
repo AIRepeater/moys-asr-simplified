@@ -11,7 +11,7 @@ import {
 } from './helpers.mjs';
 
 const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';
-const JUMP_AND_PLAY_LABEL = '跳转到字幕并播放';
+const JUMP_AND_PLAY_LABEL = '跳转并播放';
 const TARGET_CUE_IDX = 1;
 const TARGET_CUE_START_SEC = 50;
 
