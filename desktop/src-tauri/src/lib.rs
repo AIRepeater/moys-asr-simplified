@@ -12,8 +12,8 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use server::{
-    open_project, remember_project, save_project, settings_path, update_settings,
-    AppState, ServerSettings,
+    open_project, open_project_at_path, remember_project, resolve_media, save_project,
+    settings_path, update_settings, AppState, ServerSettings,
 };
 
 /// web/ 目录（MAW 仓库根的 web/），基于 Cargo.toml 编译时位置推算。
@@ -121,9 +121,11 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             open_project,
+            open_project_at_path,
             save_project,
             remember_project,
             update_settings,
+            resolve_media,
         ])
         .run(tauri::generate_context!())
         .expect("MOSE 启动失败");

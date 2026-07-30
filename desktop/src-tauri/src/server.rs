@@ -81,13 +81,27 @@ impl ServerSettings {
     }
 
     /// 序列化为可注入前端的 SERVER_CONFIG JSON 对象。
+    /// recentProjects 每条带 exists 标记，让前端区分失效路径。
     pub fn to_server_config(&self, can_save: bool) -> serde_json::Value {
+        let recent: Vec<serde_json::Value> = self
+            .recent_projects
+            .iter()
+            .map(|p| {
+                let exists = PathBuf::from(&p.path).exists();
+                serde_json::json!({
+                    "path": p.path,
+                    "name": p.name,
+                    "exists": exists,
+                })
+            })
+            .collect();
+
         serde_json::json!({
             "saveUrl": "mose://save-project",
             "canSave": can_save,
             "recentProjectsUrl": "mose://recent-projects",
             "settingsUrl": "mose://settings",
-            "recentProjects": self.recent_projects,
+            "recentProjects": recent,
             "autoOpenLastProject": self.auto_open_last_project,
             "savedWorkspaces": self.saved_workspaces,
             "presetWorkspaces": self.preset_workspaces,
@@ -302,5 +316,75 @@ pub fn update_settings(
         "presetWorkspaces": settings.preset_workspaces,
         "activeWorkspaceName": settings.active_workspace_name,
         "autoOpenLastProject": settings.auto_open_last_project,
+    }))
+}
+
+/// 打开指定路径的工程（用于"最近工程"切换，不弹 dialog）。
+#[tauri::command]
+pub fn open_project_at_path(
+    state: tauri::State<AppState>,
+    path: String,
+) -> Result<serde_json::Value, String> {
+    let path_buf = PathBuf::from(&path);
+
+    if !path_buf.exists() {
+        // 从最近工程列表移除失效路径
+        {
+            let mut settings = state.settings.lock().unwrap();
+            settings.recent_projects.retain(|p| p.path != path);
+            let _ = settings.save(&state.settings_path);
+        }
+        return Ok(serde_json::json!({
+            "ok": false,
+            "error": format!("文件不存在：{}", path),
+        }));
+    }
+
+    let content = fs::read_to_string(&path_buf)
+        .map_err(|e| format!("读取失败: {}", e))?;
+    let data: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("JSON 解析失败: {}", e))?;
+
+    *state.current_project_path.lock().unwrap() = Some(path_buf.clone());
+
+    {
+        let mut settings = state.settings.lock().unwrap();
+        settings.remember_project(&path);
+        let _ = settings.save(&state.settings_path);
+    }
+
+    let filename = path_buf
+        .file_name()
+        .and_then(|s| s.to_str())
+        .unwrap_or("untitled")
+        .to_string();
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "data": data,
+        "path": path,
+        "filename": filename,
+    }))
+}
+
+/// 解析媒体文件路径为 webview 可访问的 URL（当前用 file:// 协议）。
+#[tauri::command]
+pub fn resolve_media(path: String) -> Result<serde_json::Value, String> {
+    let path_buf = PathBuf::from(&path);
+    if !path_buf.exists() {
+        return Ok(serde_json::json!({
+            "ok": false,
+            "error": format!("媒体文件不存在：{}", path),
+        }));
+    }
+    // Windows: file:///D:/path/to/file → 正斜杠
+    let posix = path.replace('\\', "/");
+    let trimmed = posix.trim_start_matches('/');
+    let url = format!("file:///{}", trimmed);
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "url": url,
+        "name": path_buf.file_name().and_then(|s| s.to_str()).unwrap_or("media"),
     }))
 }
