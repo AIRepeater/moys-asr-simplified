@@ -341,7 +341,7 @@
   left: 0;
   right: 0;
   z-index: 30;
-  background: var(--panel-toolbar-bg);
+  background: var(--panel-toolbar-bg-wave);
 }
 .editor-workspace.layout-editing .waveform-pane {
   --waveform-content-top: calc(var(--dock-handle-h) + var(--panel-toolbar-h));
@@ -534,12 +534,12 @@
   bottom: 0;
   min-width: 3px;
   box-sizing: border-box;
-  border-left: 1px dashed rgba(250, 192, 92, 0.9);
-  border-right: 1px dashed rgba(250, 192, 92, 0.9);
+  border-left: 1px dashed var(--gap-stripe-border);
+  border-right: 1px dashed var(--gap-stripe-border);
   background: repeating-linear-gradient(
     135deg,
-    rgba(218, 128, 65, 0.30) 0 5px,
-    rgba(82, 51, 35, 0.34) 5px 10px
+    var(--gap-stripe-a) 0 5px,
+    var(--gap-stripe-b) 5px 10px
   );
   cursor: pointer;
 }
@@ -547,10 +547,10 @@
 .waveform-gap-block.restored {
   background: repeating-linear-gradient(
     135deg,
-    rgba(100, 126, 145, 0.13) 0 5px,
-    rgba(44, 55, 65, 0.17) 5px 10px
+    var(--gap-restored-stripe-a) 0 5px,
+    var(--gap-restored-stripe-b) 5px 10px
   );
-  border-color: rgba(132, 159, 178, 0.55);
+  border-color: var(--gap-restored-border);
 }
 .waveform-gap-label {
   position: absolute;
@@ -652,7 +652,7 @@
   font-size: 11px;
   line-height: 33px;
   padding: 0 8px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 5px var(--wave-cue-shadow);
   touch-action: none;
 }
 .waveform-cue-block:hover { filter: brightness(var(--wave-hover-brightness)); }
@@ -686,7 +686,7 @@
 }
 .waveform-cue-block.active {
   background: color-mix(in srgb, var(--cue-color) 70%, var(--wave-cue-active-mix));
-  color: #fff;
+  color: var(--active-cue-fg);
 }
 .waveform-cue-block.disabled {
   opacity: 0.48;

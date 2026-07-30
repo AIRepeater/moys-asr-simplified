@@ -141,13 +141,27 @@
     --wave-disabled-a:      rgba(84, 94, 104, 0.68);
     --wave-disabled-b:      rgba(47, 54, 61, 0.82);
 
+    /* 波形字幕块投影：亮主题下换用亮色系低透明阴影，避免黑色重影 */
+    --wave-cue-shadow:      rgba(0, 0, 0, 0.3);
+
+    /* 静音空隙块斜纹（DOM，随波形内容滚动，允许半透明；亮色主题换深色斜纹） */
+    --gap-stripe-a:           rgba(218, 128, 65, 0.30);
+    --gap-stripe-b:           rgba(82, 51, 35, 0.34);
+    --gap-stripe-border:      rgba(250, 192, 92, 0.9);
+    --gap-restored-stripe-a:  rgba(100, 126, 145, 0.13);
+    --gap-restored-stripe-b:  rgba(44, 55, 65, 0.17);
+    --gap-restored-border:    rgba(132, 159, 178, 0.55);
+
     /* 空状态 / dock 拖拽栏 —— 半透明面板背板 */
     --empty-overlay-1: rgba(23, 29, 35, 0.72);
     --empty-overlay-2: rgba(23, 29, 35, 0.92);
     --empty-raised-1:  rgba(34, 38, 46, 0.72);
     --empty-raised-2:  rgba(34, 38, 46, 0.92);
-    --dock-bg:         rgba(21, 29, 36, 0.94);
-    --dock-bg-hover:   rgba(45, 55, 62, 0.96);
+    /* dock 把手是 absolute/sticky 覆盖在滚动内容上的 chrome（字幕列表 sticky、波形顶部 absolute），
+       必须不透明：原 0.94/0.96 alpha 会让下方滚动的字幕/波形隐约透出。取原 alpha 在面板底色上的
+       合成色，视觉与原先一致但完全不透。 */
+    --dock-bg:         #151d24;
+    --dock-bg-hover:   #2c363d;
 
     /* 危险态悬停前景（红底上的浅色文字，暗色主题保持原值） */
     --danger-hover-fg: #ffd6d6;
@@ -155,12 +169,17 @@
     /* 活动字幕行前景（蓝软底上的文字，亮色主题需深色） */
     --active-cue-fg: #ffffff;
 
+    /* 搜索高亮 mark 前景：琥珀底在两个主题下都是中调，统一用深色字 */
+    --mark-fg: #16181d;
+
     /* 禁用字幕行底色（暗色用白提亮、亮色用黑压暗，均极低透明） */
     --disabled-cue-bg: rgba(255, 255, 255, 0.02);
 
-    /* 面板顶部工具栏背板 / 字幕边界拖动条（原先用 color-mix(…, black) 混黑，
-       亮色主题下会把浅底压暗，故改为独立令牌） */
-    --panel-toolbar-bg: rgba(15, 20, 25, 0.55);
+    /* 面板顶部工具栏背板：不透明（波形工具栏为 absolute 覆盖在滚动内容上，
+       透明会透出波形）。原先用 color-mix(…, black) 混黑，亮色主题下会把浅底
+       压暗，故改为按面板各自基色派生的独立令牌。 */
+    --panel-toolbar-bg:      #1f232a;   /* 列表 / 播放器面板（源自 --bg-raised 压暗） */
+    --panel-toolbar-bg-wave: #141a1f;   /* 波形面板（源自 --bg-wave 压暗） */
     --panel-toolbar-shadow: rgba(0, 0, 0, 0.22);
     /* 波形块 hover 提亮系数：暗色提亮深色块；亮色块本身已亮，过高会发白 */
     --wave-hover-brightness: 1.16;
@@ -226,38 +245,40 @@
     /* 文字（深色，亮底 WCAG AA） */
     --text-primary:   #1f2530;
     --text-secondary: #5a6473;
-    --text-muted:     #8a93a3;
-    --text-faint:     #aab2c0;
+    --text-muted:     #7a8394;   /* 原 #8a93a3 在 raised 底仅 2.7:1（时间码可读性差），压到与暗色同级 3.3:1 */
+    --text-faint:     #96a0b2;   /* 原 #aab2c0 仅 1.9:1，略压至暗色 faint 同级 */
 
-    /* 边框 */
-    --border-subtle: #e4e7ed;
-    --border:        #d4d8e0;
-    --border-strong: #c2c8d2;
+    /* 边框 —— 原值在白色面板上几乎消失（subtle 仅 1.2:1，暗色同位 1.5:1），整体加深一档 */
+    --border-subtle: #cfd3dc;
+    --border:        #c3c9d4;
+    --border-strong: #b3bac7;
 
-    /* 强调色 —— 加深以在亮底保持对比 */
-    --accent:        #3d7fcf;
-    --accent-hover:  #5091de;
+    /* 强调色 —— 加深以在亮底保持对比。原 #3d7fcf 白底仅 4.1:1、#5091de 作为常驻文字色
+       （active 时间码 / 波形时间徽章 / 引用链接）仅 2.9-3.3:1，未达自身「亮底 AA」的设计
+       目标；再加深一档至 4.7+ / 5.9+，tint 同步换基色。 */
+    --accent:        #3874c9;
+    --accent-hover:  #2a5a9e;
     --accent-strong: #2f6bb8;
-    --accent-tint:        rgba(61, 127, 207, 0.12);
-    --accent-tint-strong: rgba(61, 127, 207, 0.20);
-    --accent-soft:        rgba(61, 127, 207, 0.16);
-    --accent-line:   #3d7fcf;
+    --accent-tint:        rgba(56, 116, 201, 0.12);
+    --accent-tint-strong: rgba(56, 116, 201, 0.20);
+    --accent-soft:        rgba(56, 116, 201, 0.16);
+    --accent-line:   #3874c9;
 
-    /* 琥珀 —— 加深 */
-    --amber:        #b07a28;
-    --amber-hover:  #c48a36;
-    --amber-soft:   rgba(176, 122, 40, 0.16);
-    --amber-tint:   rgba(176, 122, 40, 0.12);
-    --amber-line:   #b07a28;
+    /* 琥珀 —— 原 #b07a28 白底 3.7:1、#c48a36 作文字仅 3.0:1，同步加深 */
+    --amber:        #9a6a1e;
+    --amber-hover:  #8a5d18;
+    --amber-soft:   rgba(154, 106, 30, 0.16);
+    --amber-tint:   rgba(154, 106, 30, 0.12);
+    --amber-line:   #9a6a1e;
 
-    /* 红 —— 加深 */
+    /* 红 —— 加深；hover 作危险文字（右键菜单 / 替换预览）需 4.5:1 */
     --red:        #c84545;
-    --red-hover:  #d65858;
+    --red-hover:  #c94a4a;
     --red-soft:   rgba(200, 69, 69, 0.12);
 
-    /* 绿 —— 加深 */
+    /* 绿 —— 加深；hover 作成功文字（替换预览后态）需 4.5:1 */
     --green:        #2f9e5f;
-    --green-hover:  #3eb070;
+    --green-hover:  #2a8a54;
     --green-soft:   rgba(47, 158, 95, 0.14);
 
     /* 按钮 */
@@ -278,15 +299,16 @@
     --scroll-thumb:        #c8ccd4;
     --scroll-thumb-hover:  #b0b6c0;
 
-    /* 选中黄 —— 亮底用深金 */
-    --selection-yellow:       #b8860b;
-    --selection-yellow-line:  rgba(184, 134, 11, 0.85);
-    --selection-yellow-soft:  rgba(184, 134, 11, 0.12);
-    --selection-yellow-glow:  rgba(184, 134, 11, 0.40);
+    /* 选中黄 —— 亮底用深金。原 #b8860b 在徽章白底上仅 3.0:1、在波形行上描边仅 2.9:1
+       （暗色同位 10+），再加深至 ~4:1 档 */
+    --selection-yellow:       #8f6a08;
+    --selection-yellow-line:  rgba(143, 106, 8, 0.85);
+    --selection-yellow-soft:  rgba(143, 106, 8, 0.12);
+    --selection-yellow-glow:  rgba(143, 106, 8, 0.40);
 
-    /* 布局编辑落点提示 —— 亮底加深 */
-    --layout-drop-outline: #b07a28;
-    --layout-drop-bg:      rgba(176, 122, 40, 0.16);
+    /* 布局编辑落点提示 —— 亮底加深，跟随 --amber 基色 */
+    --layout-drop-outline: #9a6a1e;
+    --layout-drop-bg:      rgba(154, 106, 30, 0.16);
     --layout-drop-fg:      #6a4a14;
     --layout-insert-outline: #2f9e5f;
     --layout-insert-bg:      rgba(47, 158, 95, 0.16);
@@ -296,8 +318,8 @@
     --wave-row-bg:          #dfe4ea;
     --wave-row-border:      #c4cbd6;
     --wave-row-tick:        #aeb6c2;
-    --wave-peak:            #2f9e6f;
-    --wave-peak-dim:        #aab2c0;
+    --wave-peak:            #27875f;   /* 原 #2f9e6f 在浅行底上仅 2.6:1，波形峰值发虚，加深至 3.5:1 */
+    --wave-peak-dim:        #7d8898;   /* 媒体不可用时的降态峰：与 peak 同明度、去饱和，原值过浅 */
     --wave-cue-mix:         rgba(255, 255, 255, 0.82);
     --wave-cue-text:        #16202c;
     --wave-cue-active-mix:  #a9c8e8;
@@ -311,13 +333,25 @@
     --wave-disabled-a:      rgba(120, 128, 140, 0.55);
     --wave-disabled-b:      rgba(200, 206, 216, 0.82);
 
+    /* 波形字幕块投影：亮底用低透明深色，替代暗色主题的 0.3 黑影 */
+    --wave-cue-shadow:      rgba(15, 23, 35, 0.16);
+
+    /* 静音空隙块斜纹：浅行底上改用深金斜纹（暗色主题的浅橙纹在亮底发灰、
+       恢复态灰纹几乎不可见），恢复态用中性灰蓝保持「已还原」的降级观感 */
+    --gap-stripe-a:           rgba(154, 106, 30, 0.30);
+    --gap-stripe-b:           rgba(154, 106, 30, 0.15);
+    --gap-stripe-border:      rgba(143, 106, 8, 0.85);
+    --gap-restored-stripe-a:  rgba(90, 105, 122, 0.16);
+    --gap-restored-stripe-b:  rgba(90, 105, 122, 0.08);
+    --gap-restored-border:    rgba(96, 110, 126, 0.55);
+
     /* 空状态 / dock 拖拽栏 */
     --empty-overlay-1: rgba(245, 246, 248, 0.72);
     --empty-overlay-2: rgba(245, 246, 248, 0.92);
     --empty-raised-1:  rgba(238, 240, 244, 0.72);
     --empty-raised-2:  rgba(238, 240, 244, 0.92);
-    --dock-bg:         rgba(238, 240, 244, 0.96);
-    --dock-bg-hover:   rgba(226, 230, 236, 0.98);
+    --dock-bg:         #eef0f4;
+    --dock-bg-hover:   #e2e6ec;
 
     /* 危险态悬停前景 —— 亮底红软底上需深色文字 */
     --danger-hover-fg: #b53030;
@@ -325,17 +359,21 @@
     /* 活动字幕行前景 —— 亮底蓝软底上需深色文字 */
     --active-cue-fg: #1f2530;
 
+    /* 搜索高亮 mark 前景 —— 亮底琥珀上用深色文字（原复用 --bg-base 会变成浅字压暗琥珀） */
+    --mark-fg: #1f2530;
+
     /* 禁用字幕行底色 —— 亮底用深色低透明压暗 */
     --disabled-cue-bg: rgba(15, 23, 35, 0.025);
 
-    /* 面板顶部工具栏背板：亮底改为轻微压暗的浅灰，而非混黑 */
-    --panel-toolbar-bg: rgba(226, 231, 237, 0.92);
+    /* 面板顶部工具栏背板：亮底改为比面板略深的浅灰，同样保持不透明 */
+    --panel-toolbar-bg:      #e7eaef;   /* 列表 / 播放器面板（--bg-raised #eef0f4 略深） */
+    --panel-toolbar-bg-wave: #dfe4ea;   /* 波形面板（--bg-wave #e8ebee 略深） */
     --panel-toolbar-shadow: rgba(15, 23, 35, 0.08);
     --wave-hover-brightness: 1.08;
     --wave-gap-hover-brightness: 1.08;
     --wave-drag-brightness: 1.1;
-    /* 字幕行悬停底色：亮底同样需要明显一档 */
-    --cue-hover-bg: rgba(61, 127, 207, 0.18);
+    /* 字幕行悬停底色：亮底同样需要明显一档（基色跟随 --accent） */
+    --cue-hover-bg: rgba(56, 116, 201, 0.18);
 
     /* 静音空隙工具窗：整窗改为浅色卡片 */
     --gap-panel-bg-1:     rgba(255, 255, 255, 0.99);
@@ -463,7 +501,7 @@
   .geo-box.geometry-enabled:focus,
   .geo-box.geometry-enabled.editable,
   .geo-box.geometry-enabled.dragging {
-    outline: 1.5px solid rgba(108, 165, 232, 0.95);
+    outline: 1.5px solid var(--accent-line);
     outline-offset: 0;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.35);
   }
@@ -532,7 +570,7 @@
     user-select: none; padding: 0;
     transition: background var(--t-fast), color var(--t-fast);
   }
-  .toolbar .input-clear .clear-x:hover { background: var(--scroll-thumb-hover); color: #fff; }
+  .toolbar .input-clear .clear-x:hover { background: var(--scroll-thumb-hover); color: var(--text-primary); }
   .toolbar .input-clear.has-value .clear-x { display: inline-flex; }
   .toolbar input[type=number] {
     background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border);
@@ -1056,7 +1094,7 @@
     background: var(--bg-input); min-width: 50%; white-space: pre-wrap;
     user-select: text;
   }
-  .cue mark { background: var(--amber); color: var(--bg-base); padding: 0 2px; border-radius: 2px; }
+  .cue mark { background: var(--amber); color: var(--mark-fg); padding: 0 2px; border-radius: 2px; }
 
   /* === Modal === */
   .modal-mask {
@@ -1259,17 +1297,17 @@
     transition: background var(--t-fast), border-color var(--t-fast);
   }
   .gap-remove-scan:hover { background: linear-gradient(180deg, var(--gap-scan-hover-1), var(--gap-scan-hover-2)); border-color: var(--gap-scan-hover-border); }
-  .gap-remove-scan:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(255, 220, 176, .12) inset; }
+  .gap-remove-scan:active { transform: translateY(1px); box-shadow: 0 1px 0 var(--gap-scan-inset) inset; }
   .gap-remove-scan:focus-visible { outline: 2px solid var(--amber-line); outline-offset: 2px; }
   .gap-remove-scan > span { font-size: 13px; font-weight: 700; letter-spacing: .03em; }
-  .gap-remove-scan > small { margin-top: 2px; color: #f0caa6; font-size: 9px; }
+  .gap-remove-scan > small { margin-top: 2px; color: color-mix(in srgb, var(--gap-scan-fg) 80%, transparent); font-size: 9px; }
   .gap-remove-list {
     max-height: min(210px, 28vh); min-height: 37px; overflow-y: auto;
     border: 1px solid var(--border-subtle); border-radius: var(--radius-sm);
     background: var(--bg-base); color: var(--text-muted); font-size: 11px;
     line-height: 1.45;
   }
-  .gap-remove-total { padding: 8px 9px; color: #91c5aa; }
+  .gap-remove-total { padding: 8px 9px; color: var(--green); }
   .gap-remove-panel-footer {
     display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px;
   }
@@ -1800,7 +1838,7 @@
   left: 0;
   right: 0;
   z-index: 30;
-  background: var(--panel-toolbar-bg);
+  background: var(--panel-toolbar-bg-wave);
 }
 .editor-workspace.layout-editing .waveform-pane {
   --waveform-content-top: calc(var(--dock-handle-h) + var(--panel-toolbar-h));
@@ -1993,12 +2031,12 @@
   bottom: 0;
   min-width: 3px;
   box-sizing: border-box;
-  border-left: 1px dashed rgba(250, 192, 92, 0.9);
-  border-right: 1px dashed rgba(250, 192, 92, 0.9);
+  border-left: 1px dashed var(--gap-stripe-border);
+  border-right: 1px dashed var(--gap-stripe-border);
   background: repeating-linear-gradient(
     135deg,
-    rgba(218, 128, 65, 0.30) 0 5px,
-    rgba(82, 51, 35, 0.34) 5px 10px
+    var(--gap-stripe-a) 0 5px,
+    var(--gap-stripe-b) 5px 10px
   );
   cursor: pointer;
 }
@@ -2006,10 +2044,10 @@
 .waveform-gap-block.restored {
   background: repeating-linear-gradient(
     135deg,
-    rgba(100, 126, 145, 0.13) 0 5px,
-    rgba(44, 55, 65, 0.17) 5px 10px
+    var(--gap-restored-stripe-a) 0 5px,
+    var(--gap-restored-stripe-b) 5px 10px
   );
-  border-color: rgba(132, 159, 178, 0.55);
+  border-color: var(--gap-restored-border);
 }
 .waveform-gap-label {
   position: absolute;
@@ -2111,7 +2149,7 @@
   font-size: 11px;
   line-height: 33px;
   padding: 0 8px;
-  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1px 5px var(--wave-cue-shadow);
   touch-action: none;
 }
 .waveform-cue-block:hover { filter: brightness(var(--wave-hover-brightness)); }
@@ -2145,7 +2183,7 @@
 }
 .waveform-cue-block.active {
   background: color-mix(in srgb, var(--cue-color) 70%, var(--wave-cue-active-mix));
-  color: #fff;
+  color: var(--active-cue-fg);
 }
 .waveform-cue-block.disabled {
   opacity: 0.48;
@@ -2213,7 +2251,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-30 18:04</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-30 21:31</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -11284,7 +11322,7 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     renderAll();
     updateUnloadedMediaLabel(DATA.media);
 
-    FILENAME_BASE = file.name.replace(/\.json$/i, '');
+    FILENAME_BASE = file.name.replace(/\.(json|mosp)$/i, '');
     const jsonEl = document.getElementById('json-name');
     if (jsonEl) {
       jsonEl.textContent = file.name;
