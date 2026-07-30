@@ -1,10 +1,20 @@
 // MOSE Tauri 应用入口。
 //
-// Week 1：启动时从 web/editor-template.html 渲染 index.html（等价 edit.py --blank）。
-// Week 2 起将在此处接入 IPC commands（工程加载、保存、波形等）。
+// Week 2：server 级能力（IPC commands + Settings + tauri bridge）。
+// - 启动时加载 settings → 渲染 index.html（注入 SERVER_CONFIG + bridge 脚本）
+// - 注册 4 个 IPC commands：open_project / save_project / remember_project / update_settings
+// - tauri_bridge.js 把 web/editor.js 的 fetch 透明路由到 invoke
+
+mod server;
 
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Mutex;
+
+use server::{
+    open_project, remember_project, save_project, settings_path, update_settings,
+    AppState, ServerSettings,
+};
 
 /// web/ 目录（MAW 仓库根的 web/），基于 Cargo.toml 编译时位置推算。
 fn web_dir() -> PathBuf {
@@ -23,8 +33,8 @@ fn read_web_asset(name: &str) -> String {
         .unwrap_or_else(|e| panic!("无法读取 {}: {}", path.display(), e))
 }
 
-/// 渲染 MAWE 编辑器页面（空工程），与 edit.py:build_blank_html 等价。
-fn render_editor_page() -> String {
+/// 渲染 MAWE 编辑器页面：注入 web/ 资源 + settings 到 SERVER_CONFIG + tauri bridge。
+fn render_editor_page(settings: &ServerSettings) -> String {
     let mut page = read_web_asset("editor-template.html");
 
     let blank_data = r#"{"segments":[],"media":"","language":"","model":""}"#;
@@ -38,7 +48,10 @@ fn render_editor_page() -> String {
     let waveform_js = read_web_asset("waveform.js");
     let editor_js = read_web_asset("editor.js");
 
-    // CSS / JS inline（trim_end 与 edit.py:render_editor_page 的 rstrip 行为一致）
+    // SERVER_CONFIG JSON（从 settings 构建；启动时 canSave=false，打开工程后 bridge 会更新）
+    let server_config_json = serde_json::to_string(&settings.to_server_config(false))
+        .expect("序列化 SERVER_CONFIG 失败");
+
     let replacements: Vec<(&str, &str)> = vec![
         ("__EDITOR_CSS__", editor_css.trim_end()),
         ("__WAVEFORM_CSS__", waveform_css.trim_end()),
@@ -46,9 +59,9 @@ fn render_editor_page() -> String {
         ("__EDITOR_I18N_JS__", editor_i18n_js.trim_end()),
         ("__WAVEFORM_JS__", waveform_js.trim_end()),
         ("__EDITOR_JS__", editor_js.trim_end()),
-        // JSON 数据（空工程）
+        // JSON 数据
         ("__DATA_JSON__", blank_data),
-        ("__SERVER_CONFIG_JSON__", "null"),
+        ("__SERVER_CONFIG_JSON__", &server_config_json),
         ("__FILENAME_BASE_JSON__", r#""untitled""#),
         ("__STICKERS_JSON__", "[]"),
         ("__STICKER_ROOT_JSON__", r#""""#),
@@ -68,12 +81,17 @@ fn render_editor_page() -> String {
     for (token, value) in &replacements {
         page = page.replace(token, value);
     }
+
+    // 注入 tauri_bridge.js（在 </body> 前，editor.js 之后执行）
+    let bridge = include_str!("tauri_bridge.js");
+    page = page.replace("</body>", &format!("<script>\n{}\n</script>\n</body>", bridge));
+
     page
 }
 
 /// 把渲染结果写到 desktop/src/index.html，供 Tauri webview 加载。
-fn write_rendered_index() {
-    let html = render_editor_page();
+fn write_rendered_index(settings: &ServerSettings) {
+    let html = render_editor_page(settings);
     let out_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent() // desktop/
         .unwrap()
@@ -86,10 +104,27 @@ fn write_rendered_index() {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 每次启动时从 web/ 重新渲染 index.html（开发期热更新）
-    write_rendered_index();
+    // 1. 加载 settings
+    let s_path = settings_path();
+    let settings = ServerSettings::load(&s_path);
 
+    // 2. 渲染 index.html（注入 SERVER_CONFIG + bridge 脚本）
+    write_rendered_index(&settings);
+
+    // 3. 启动 Tauri（注册 commands + dialog plugin + 共享状态）
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .manage(AppState {
+            current_project_path: Mutex::new(None),
+            settings: Mutex::new(settings),
+            settings_path: s_path,
+        })
+        .invoke_handler(tauri::generate_handler![
+            open_project,
+            save_project,
+            remember_project,
+            update_settings,
+        ])
         .run(tauri::generate_context!())
         .expect("MOSE 启动失败");
 }
