@@ -255,5 +255,23 @@
   }
 
   setupStickerInterceptor();
-  console.log('[MOSE] Tauri bridge initialized (fetch→invoke + open + media + stickers)');
+
+  // === 5. 监听 OS 级 .mosp 文件打开事件（双击 .mosp → MOSE 启动/聚焦 → 加载工程） ===
+  // 需要打包安装后生效（dev 模式下文件关联未注册到 OS）。
+  if (window.__TAURI__ && window.__TAURI__.event && window.__TAURI__.event.listen) {
+    window.__TAURI__.event.listen('open-file', function (event) {
+      var path = event.payload;
+      if (!path) return;
+      invoke('open_project_at_path', { path: path }).then(function (result) {
+        if (result && result.ok) {
+          loadProjectData(result);
+        } else if (result && result.error) {
+          alert(result.error);
+        }
+      });
+    });
+    console.log('[MOSE] open-file 监听器已就绪');
+  }
+
+  console.log('[MOSE] Tauri bridge initialized (fetch→invoke + open + media + stickers + waveform + file-assoc)');
 })();

@@ -113,7 +113,17 @@ pub fn run() {
     write_rendered_index(&settings);
 
     // 3. 启动 Tauri（注册 commands + dialog plugin + 共享状态）
-    tauri::Builder::default()
+    // 检查命令行参数（双击 .mosp 文件时 OS 传入路径）
+    let init_file = std::env::args().nth(1).filter(|p| {
+        let ext = std::path::Path::new(p)
+            .extension()
+            .and_then(|e| e.to_str())
+            .map(|e| e.to_lowercase())
+            .unwrap_or_default();
+        ext == "mosp" || ext == "json"
+    });
+
+    let app = tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .manage(AppState {
@@ -131,6 +141,16 @@ pub fn run() {
             pick_and_scan_stickers,
             extract_waveform,
         ])
-        .run(tauri::generate_context!())
+        .setup(move |app| {
+            // 启动时如有命令行传入的文件路径，发给前端加载
+            if let Some(path) = &init_file {
+                use tauri::Emitter;
+                let _ = app.emit("open-file", path.clone());
+            }
+            Ok(())
+        })
+        .build(tauri::generate_context!())
         .expect("MOSE 启动失败");
+
+    app.run(|_app_handle, _event| {});
 }
