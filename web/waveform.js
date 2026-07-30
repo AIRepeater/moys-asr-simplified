@@ -114,10 +114,10 @@
     showGroupBadges: true,
     dragPlayhead: true,
   };
-  // 内置工作区默认的列表/编辑区显示开关；traditional 默认开启字幕列表表情包列。
+  // 内置工作区默认的列表/编辑区显示开关：列表默认显示表情包列；编辑区默认收起时间操作与表情包。
   const BUILTIN_EDITOR_DISPLAY = {
-    cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: false, cueListShowCharcount: true,
-    cueEditorShowNavigation: false, cueEditorShowTimeActions: true, cueEditorShowSticker: false,
+    cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: true, cueListShowCharcount: true,
+    cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
   };
   const BUILTIN_WORKSPACES = {
     // 字幕列表编辑（界面显示名）：聚焦右侧整列字幕列表，以 custom 渲染器渲染。
@@ -135,7 +135,7 @@
     traditional: {
       preset: 'custom', waveformMode: 'basic', splitPercent: 60, columnPercent: 36,
       rows: [42, 18, 40], tree: TRADITIONAL_SUBTITLE_LAYOUT_TREE,
-      editorDisplay: { ...BUILTIN_EDITOR_DISPLAY, cueListShowSticker: true },
+      editorDisplay: BUILTIN_EDITOR_DISPLAY,
     },
   };
   const PALETTE = {
@@ -1687,7 +1687,30 @@
       });
     }
 
+    // 画布颜色取自 CSS 令牌，以便跟随暗/亮主题。每次 render() 前刷新缓存。
+    _readWaveColors() {
+      const styles = getComputedStyle(document.documentElement);
+      const get = (name, fallback) => {
+        const value = styles.getPropertyValue(name).trim();
+        return value || fallback;
+      };
+      this._waveColors = {
+        rowBg: get('--wave-row-bg', '#1d252d'),
+        rowBorder: get('--wave-row-border', '#2d3944'),
+        rowTick: get('--wave-row-tick', '#3b4b59'),
+        peak: get('--wave-peak', '#65b89a'),
+        peakDim: get('--wave-peak-dim', '#83909a'),
+      };
+    }
+
+    _getWaveColors() {
+      if (!this._waveColors) this._readWaveColors();
+      return this._waveColors;
+    }
+
     render() {
+      // 主题切换后令牌值变化：每次全量渲染前刷新画布颜色缓存，供 drawRow 读取。
+      this._readWaveColors();
       this.applyLayout();
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
@@ -2056,7 +2079,8 @@
       canvas.style.height = `${height}px`;
       const ctx = canvas.getContext('2d', { alpha: false });
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#1d252d';
+      const colors = this._getWaveColors();
+      ctx.fillStyle = colors.rowBg;
       ctx.fillRect(0, 0, width, height);
 
       const startMs = Number(row.dataset.startMs);
@@ -2064,7 +2088,7 @@
       const rangeMs = Math.max(1, endMs - startMs);
       const tickSeconds = rangeMs <= 10000 ? 1 : rangeMs <= 30000 ? 2 : 5;
       const firstTick = Math.ceil(startMs / (tickSeconds * 1000)) * tickSeconds * 1000;
-      ctx.strokeStyle = '#2d3944';
+      ctx.strokeStyle = colors.rowBorder;
       ctx.lineWidth = 1;
       for (let tick = firstTick; tick < endMs; tick += tickSeconds * 1000) {
         const x = ((tick - startMs) / rangeMs) * width;
@@ -2073,7 +2097,7 @@
         ctx.lineTo(x + 0.5, height);
         ctx.stroke();
       }
-      ctx.strokeStyle = '#3b4b59';
+      ctx.strokeStyle = colors.rowTick;
       ctx.beginPath();
       ctx.moveTo(0, height * 0.46);
       ctx.lineTo(width, height * 0.46);
@@ -2088,7 +2112,7 @@
       const amplitude = waveformAmplitude(height, this.settings.waveformScale);
       const minWaveY = 2;
       const maxWaveY = Math.max(minWaveY, height - 2);
-      ctx.strokeStyle = this.mediaAvailable ? '#65b89a' : '#83909a';
+      ctx.strokeStyle = this.mediaAvailable ? colors.peak : colors.peakDim;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = 0; x < width; x++) {

@@ -11,10 +11,10 @@ const DEFAULT_EDITOR_SETTINGS = {
   exportStartAtZero: true,
   cueListShowIndex: true,
   cueListShowTime: true,
-  cueListShowSticker: false,
+  cueListShowSticker: true,
   cueListShowCharcount: true,
   cueEditorShowNavigation: false,
-  cueEditorShowTimeActions: true,
+  cueEditorShowTimeActions: false,
   cueEditorShowSticker: false,
   selectGroupMembers: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
@@ -39,10 +39,10 @@ function readEditorSettings() {
       exportStartAtZero: saved.exportStartAtZero !== false,
       cueListShowIndex: saved.cueListShowIndex !== false,
       cueListShowTime: saved.cueListShowTime !== false,
-      cueListShowSticker: saved.cueListShowSticker === true,
+      cueListShowSticker: saved.cueListShowSticker !== false,
       cueListShowCharcount: saved.cueListShowCharcount !== false,
       cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
-      cueEditorShowTimeActions: saved.cueEditorShowTimeActions !== false,
+      cueEditorShowTimeActions: saved.cueEditorShowTimeActions === true,
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
       selectGroupMembers: saved.selectGroupMembers === true,
       mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
@@ -5283,7 +5283,7 @@ function dismissHintCard(card) {
   setTimeout(() => card.remove(), HINT_FADE_OUT_MS);
 }
 
-function flashHint(msg) {
+function flashHint(msg, type = 'default') {
   let stack = document.getElementById('hint-stack');
   if (!stack) {
     stack = document.createElement('div'); stack.id = 'hint-stack';
@@ -5297,7 +5297,12 @@ function flashHint(msg) {
     oldest.remove();
   }
   const card = document.createElement('div');
-  card.className = 'hint-card';
+  // type → 语义类：default 中性 / success 成功 / invalid 不可用提醒 / warning 失败。
+  // 仅在有效类型时追加类名，default 维持原 .hint-card 中性外观。
+  const typeClass = type === 'success' ? 'hint-success'
+    : type === 'invalid' ? 'hint-invalid'
+    : type === 'warning' ? 'hint-warning' : '';
+  card.className = typeClass ? `hint-card ${typeClass}` : 'hint-card';
   card.textContent = msg;
   stack.appendChild(card);
   setTimeout(() => dismissHintCard(card), HINT_DURATION_MS);

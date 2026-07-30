@@ -157,8 +157,8 @@ class EditorAssetTests(unittest.TestCase):
         # 帮助按钮改用 🤔 文本图标后，SVG 工具图标只剩选择/分割两个
         self.assertEqual(page.count('class="toolbar-button-icon"'), 2)
         self.assertIn('.waveform-cue-block.selected {', page)
-        # 选中字幕块只用 outline + 阴影高亮，不再改 border-color
-        self.assertIn('outline: 2px solid #ffd54a;', page)
+        # 选中字幕块只用 outline + 阴影高亮（颜色走 --selection-* 变量），不再改 border-color
+        self.assertIn('outline: 2px solid var(--selection-yellow);', page)
         # 单行模式徽章位置跟随块高公式，避免嵌进更高的块内
         self.assertIn('.waveform-basic .waveform-cue-badge {', page)
         self.assertIn('bottom: calc(9px + max(35px, min(72px, 40%))', page)
@@ -189,14 +189,15 @@ class EditorAssetTests(unittest.TestCase):
         for field in ('index', 'time', 'charcount'):
             self.assertIn(f'id="cue-list-show-{field}" checked', page)
             self.assertIn(f"container.classList.toggle('hide-cue-{field}'", page)
-        self.assertIn('id="cue-list-show-sticker"> 表情包', page)
-        self.assertNotIn('id="cue-list-show-sticker" checked', page)
+        self.assertIn('id="cue-list-show-sticker" checked> 表情包', page)
         self.assertIn("container.classList.toggle('hide-cue-sticker'", page)
         self.assertIn('cueListShowIndex: saved.cueListShowIndex !== false', page)
         self.assertIn('cueListShowTime: saved.cueListShowTime !== false', page)
-        self.assertIn('cueListShowSticker: saved.cueListShowSticker === true', page)
+        self.assertIn('cueListShowSticker: saved.cueListShowSticker !== false', page)
         self.assertIn('cueListShowCharcount: saved.cueListShowCharcount !== false', page)
         self.assertNotIn('id="cue-editor-show-navigation" checked', page)
+        self.assertNotIn('id="cue-editor-show-time-actions" checked', page)
+        self.assertIn('cueEditorShowTimeActions: saved.cueEditorShowTimeActions === true', page)
         self.assertIn('id="cue-editor-show-sticker"> 表情包', page)
         self.assertIn('cueEditorShowNavigation: saved.cueEditorShowNavigation === true', page)
         self.assertIn('cueEditorShowSticker: saved.cueEditorShowSticker === true', page)
