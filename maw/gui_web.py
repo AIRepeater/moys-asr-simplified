@@ -215,6 +215,19 @@ class LauncherApi:
         port = _port(payload)
         url = f"http://127.0.0.1:{port}/"
         launch_url = f"{url}?lang={_gui_lang(payload)}"
+
+        # MOSE 桌面应用检测：安装了就优先用它打开（os.startfile 触发 .mosp 文件关联）
+        if json_text and os.name == "nt":
+            try:
+                import winreg
+                winreg.OpenKey(winreg.HKEY_CLASSES_ROOT, ".mosp")
+                json_path = Path(json_text).expanduser()
+                if json_path.exists():
+                    os.startfile(str(json_path))
+                    return {"ok": True, "usedMose": True}
+            except (FileNotFoundError, OSError, KeyError):
+                pass  # MOSE 未安装或打开失败，fallback 到 serve.py
+
         if _wait_for_server(url, timeout=0.25):
             return {"ok": True, "url": launch_url, "serverAlreadyRunning": True}
         if not json_text:
