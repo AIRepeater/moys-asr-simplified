@@ -56,6 +56,7 @@
     '当音频判定为有声时，需要降低到比阈值更低 2 dB 的时候才视作恢复静音。建议 1–3 dB，过高会延迟回到静音': 'After audio becomes active, it must fall 2 dB below the threshold to become silent again. Recommended: 1–3 dB.',
     '滚轮可调数值 · Esc 关闭': 'Use the wheel to adjust values · Esc to close',
     '未加载媒体': 'No media loaded', '需重新扫描': 'Rescan needed', '人工修正': 'manually adjusted',
+    '上次打开': 'Last opened', '已失效': 'Missing',
     '全部清理': 'Clear all', '字幕列表显示': 'Subtitle list fields',
     '序号': 'Index', '时间码': 'Timecode', '表情包': 'Stickers', '字数': 'Characters',
     '字幕编辑显示': 'Subtitle editor fields', '跳转按钮': 'Navigation buttons', '前后跳转': 'Navigation buttons', '时间操作': 'Time actions',
@@ -152,6 +153,22 @@
   const EN_ATTR = {
     '切换到亮色主题': 'Switch to light theme',
     '切换到暗色主题': 'Switch to dark theme',
+    '保存工程的更多选项': 'More save options',
+    '波形显示模式': 'Waveform display mode',
+    '打开更多文件': 'Open more files',
+    '导出或导入工作区配置': 'Export or import workspace configuration',
+    '点击复制 JSON 文件名': 'Click to copy the JSON file name',
+    '点击替换；右键删除': 'Click to replace; right-click to remove',
+    '点击选择表情包；右键删除引用': 'Click to pick a sticker; right-click to remove the reference',
+    '点击添加表情包': 'Click to add a sticker',
+    '请用带 JSON 工程路径的服务器命令启动，才能直接保存':
+      'Start the server with a project JSON path to enable direct saving',
+    'SRT 字幕只能通过导出下载保存为工程 JSON':
+      'SRT subtitles can only be saved as a project JSON through export',
+    '字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。':
+      'Subtitle preview position. Drag to adjust; arrow keys move, hold Shift to speed up, hold Alt with arrows to resize, Enter or Space shows handles, Esc exits.',
+    '表情包预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。':
+      'Sticker preview position. Drag to adjust; arrow keys move, hold Shift to speed up, hold Alt with arrows to resize, Enter or Space shows handles, Esc exits.',
     '撤销 (Ctrl/Cmd+Z)': 'Undo (Ctrl/Cmd+Z)',
     '重做 (Ctrl/Cmd+Shift+Z)': 'Redo (Ctrl/Cmd+Shift+Z)',
     '撤销重做': 'Undo and redo',
@@ -230,7 +247,8 @@
     '#media-name', '#json-name', '#sticker-grid', 'script', 'style'
   ].join(',');
   const ATTRIBUTE_SKIP_SELECTOR = [
-    '#cue-list', '#overlay', '#sticker-overlay-layer',
+    // .waveform-cue-block 的 title 是用户字幕原文，不能参与翻译
+    '#cue-list', '#overlay', '#sticker-overlay-layer', '.waveform-cue-block',
     '#media-name', '#json-name', '#sticker-grid', 'script', 'style'
   ].join(',');
 
@@ -285,6 +303,26 @@
     if (EN_ATTR[text]) return EN_ATTR[text];
     let     match = /^生成时间\s+(.+)$/.exec(text);
     if (match) return `Generated ${match[1]}`;
+    // 动态 title / 徽标：带变量的属性文案
+    match = /^颜色：(.+)$/.exec(text);
+    if (match) {
+      const name = translateText(match[1], EN);
+      return `Color: ${name.charAt(0).toUpperCase()}${name.slice(1)}`;
+    }
+    match = /^↑\s*属于第\s*(\d+)\s*条的颜色（(.+)）$/.exec(text);
+    if (match) return `↑ Inherits the color of subtitle ${match[1]} (${translateText(match[2], EN)})`;
+    match = /^属于上方第\s*(\d+)\s*条的表情包$/.exec(text);
+    if (match) return `Inherits the sticker of subtitle ${match[1]}`;
+    match = /^工程路径失效：(.+)$/.exec(text);
+    if (match) return `Project path is no longer valid: ${match[1]}`;
+    match = /^点击复制 JSON 文件名：(.+)$/.exec(text);
+    if (match) return `Click to copy the JSON file name: ${match[1]}`;
+    match = /^点击复制媒体名：(.+)$/.exec(text);
+    if (match) return `Click to copy the media name: ${match[1]}`;
+    match = /^工程关联媒体：(.+)$/.exec(text);
+    if (match) return `Media linked to this project: ${match[1]}`;
+    match = /^(.+)（按\s*(\d+)）$/.exec(text);
+    if (match) return `${translateText(match[1], EN)} (press ${match[2]})`;
     // 时长片段（供下面各摘要规则递归调用，必须排在它们之前，且只匹配纯时长，
     //  不能吞掉前缀文字，否则会抢先匹配整句）：6秒 / 6秒（占比 2.1%） / 1分 6秒
     match = /^(\d+(?:\.\d+)?)\s*秒（占比\s+(.+?)）$/.exec(text);

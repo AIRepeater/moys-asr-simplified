@@ -3612,18 +3612,34 @@ function configureRecentProjects() {
     if (!project || typeof project.path !== 'string' || typeof project.name !== 'string') return;
     const item = document.createElement('div');
     if (project.exists === false) {
-      item.className = 'dropdown-item';
-      item.style.opacity = '0.4';
+      item.className = 'dropdown-item is-missing';
       item.style.cursor = 'not-allowed';
-      item.textContent = project.name;
+      const label = document.createElement('span');
+      label.className = 'recent-project-name';
+      label.textContent = project.name;
+      item.appendChild(label);
+      const badge = document.createElement('span');
+      badge.className = 'recent-project-badge is-missing';
+      badge.textContent = '已失效';
+      item.appendChild(badge);
       item.title = `工程路径失效：${project.path}`;
       item.addEventListener('click', () => {
         recentProjectsEl.classList.remove('open');
-        flashHint('工程路径失效，文件可能已被移动或删除');
+        flashHint('工程路径失效，文件可能已被移动或删除', 'warning');
       });
     } else {
       item.className = 'dropdown-item';
-      item.textContent = index === 0 ? `上次打开：${project.name}` : project.name;
+      // 工程名与其它项一致占正文；「上次打开」只作为右侧徽标标记，不写进名字
+      const label = document.createElement('span');
+      label.className = 'recent-project-name';
+      label.textContent = project.name;
+      item.appendChild(label);
+      if (index === 0) {
+        const badge = document.createElement('span');
+        badge.className = 'recent-project-badge';
+        badge.textContent = '上次打开';
+        item.appendChild(badge);
+      }
       item.title = project.path;
       item.addEventListener('click', () => {
         recentProjectsEl.classList.remove('open');

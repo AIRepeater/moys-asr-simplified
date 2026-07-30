@@ -712,6 +712,37 @@
     cursor: pointer;
     white-space: nowrap;
   }
+  /* 最近工程项：工程名占正文（可截断），「上次打开 / 已失效」作为右侧徽标 */
+  .toolbar #recent-projects-list .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .toolbar .recent-project-name {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .toolbar .recent-project-badge {
+    flex: 0 0 auto;
+    padding: 1px 6px;
+    border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+    border-radius: 999px;
+    background: var(--accent-tint);
+    color: var(--accent-hover);
+    font-size: 10px;
+    line-height: 1.5;
+    letter-spacing: .02em;
+  }
+  .toolbar .recent-project-badge.is-missing {
+    border-color: color-mix(in srgb, var(--red) 45%, var(--border));
+    background: var(--red-soft);
+    color: var(--red-hover);
+  }
+  .toolbar .dropdown-item.is-missing { opacity: .55; }
+  .toolbar .dropdown-item.is-missing .recent-project-name { text-decoration: line-through; }
   .toolbar .recent-project-setting input { margin: 0; }
   .toolbar .language-toggle { min-width: 38px; font-weight: 700; }
   .toolbar .dropdown-sep {

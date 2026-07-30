@@ -1925,6 +1925,8 @@
         label.className = 'waveform-cue-label';
         label.textContent = segment.text.replace(/\s+/g, ' ');
         block.appendChild(label);
+        // 短块内文字会被截断，悬浮 title 给出完整字幕文本
+        block.title = label.textContent;
         const badges = this.settings.showGroupBadges !== false ? groupBadges.get(index) : null;
         if (badges?.length) {
           // 徽章挂在行上、块上方（不遮挡块内文字）；单个表情包保留较小的显示阈值，
