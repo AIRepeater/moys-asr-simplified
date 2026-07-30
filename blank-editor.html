@@ -3,6 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <title>MAWE — Moy&#x27;s ASR Workflow Editor · 用「打开工程」加载 JSON</title>
+<script>
+/* 首帧前应用主题，避免亮色主题下先闪一帧暗色。
+   与 editor.js 的 EDITOR_SETTINGS_KEY / theme 字段保持一致；
+   file:// 隐私模式下 localStorage 可能抛错，失败则沿用默认暗色。 */
+(function () {
+  try {
+    var saved = JSON.parse(localStorage.getItem('moy.asr.editor.settings.v1') || '{}');
+    if (saved && saved.theme === 'light') document.documentElement.dataset.theme = 'light';
+  } catch (e) { /* 忽略：保持默认暗色 */ }
+})();
+</script>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%230f172a'/%3E%3Cpath d='M13 16h38v25H31l-11 9v-9h-7z' fill='%2314b8a6'/%3E%3Cpath d='M22 24h20M22 30h15M22 36h11' fill='none' stroke='white' stroke-linecap='round' stroke-width='4'/%3E%3C/svg%3E">
 <style>
   /* ============================================================
@@ -52,6 +63,11 @@
     --red-hover:  #ea8c8c;
     --red-soft:   rgba(224, 122, 122, 0.14);
 
+    /* 绿 —— 成功语义（toast / 替换预览后态） */
+    --green:        #6fbf8e;
+    --green-hover:  #82cf9e;
+    --green-soft:   rgba(111, 191, 142, 0.14);
+
     /* 按钮 —— 安静的默认家族 */
     --btn-bg:        #292e37;
     --btn-bg-hover:  #323843;
@@ -92,9 +108,269 @@
     --scroll-thumb-hover:  #4a505c;
     --scroll-track:        transparent;
 
+    /* 选中黄 —— 波形字幕块选中描边 / 框选 / 徽章（与字幕列表琥珀语义区分） */
+    --selection-yellow:       #ffd54a;
+    --selection-yellow-line:  rgba(255, 213, 74, 0.95);
+    --selection-yellow-soft:  rgba(255, 213, 74, 0.10);
+    --selection-yellow-glow:  rgba(255, 213, 74, 0.45);
+
+    /* 布局编辑落点提示 —— 金色（落点）/ 绿色（插入位） */
+    --layout-drop-outline: #f0c66e;
+    --layout-drop-bg:      rgba(240, 198, 110, 0.14);
+    --layout-drop-fg:      #ffe0a1;
+    --layout-insert-outline: #80d8ae;
+    --layout-insert-bg:      rgba(128, 216, 174, 0.16);
+    --layout-insert-fg:      #b9f1d2;
+
+    /* 波形画布 —— 供 waveform.js 通过 getComputedStyle 读取以跟随主题 */
+    --wave-row-bg:          #1d252d;
+    --wave-row-border:      #2d3944;
+    --wave-row-tick:        #3b4b59;
+    --wave-peak:            #65b89a;
+    --wave-peak-dim:        #83909a;
+    --wave-cue-mix:         rgba(15, 22, 28, 0.82);
+    --wave-cue-text:        #eef6ff;
+    --wave-cue-active-mix:  #28547a;
+    --wave-cue-handle:      rgba(231, 244, 255, 0.2);
+    --wave-badge-bg:        rgba(0, 0, 0, 0.65);
+    --wave-badge-sticker:   #b8d9ff;
+    --wave-playhead:        #ff5d67;
+    --wave-playhead-glow:   rgba(255, 70, 82, 0.72);
+    --wave-disabled-text:   #89939b;
+    --wave-disabled-border: #66717a;
+    --wave-disabled-a:      rgba(84, 94, 104, 0.68);
+    --wave-disabled-b:      rgba(47, 54, 61, 0.82);
+
+    /* 空状态 / dock 拖拽栏 —— 半透明面板背板 */
+    --empty-overlay-1: rgba(23, 29, 35, 0.72);
+    --empty-overlay-2: rgba(23, 29, 35, 0.92);
+    --empty-raised-1:  rgba(34, 38, 46, 0.72);
+    --empty-raised-2:  rgba(34, 38, 46, 0.92);
+    --dock-bg:         rgba(21, 29, 36, 0.94);
+    --dock-bg-hover:   rgba(45, 55, 62, 0.96);
+
+    /* 危险态悬停前景（红底上的浅色文字，暗色主题保持原值） */
+    --danger-hover-fg: #ffd6d6;
+
+    /* 活动字幕行前景（蓝软底上的文字，亮色主题需深色） */
+    --active-cue-fg: #ffffff;
+
+    /* 禁用字幕行底色（暗色用白提亮、亮色用黑压暗，均极低透明） */
+    --disabled-cue-bg: rgba(255, 255, 255, 0.02);
+
+    /* 面板顶部工具栏背板 / 字幕边界拖动条（原先用 color-mix(…, black) 混黑，
+       亮色主题下会把浅底压暗，故改为独立令牌） */
+    --panel-toolbar-bg: rgba(15, 20, 25, 0.55);
+    --panel-toolbar-shadow: rgba(0, 0, 0, 0.22);
+    /* 波形块 hover 提亮系数：暗色提亮深色块；亮色块本身已亮，过高会发白 */
+    --wave-hover-brightness: 1.16;
+    --wave-gap-hover-brightness: 1.35;
+    --wave-drag-brightness: 1.2;
+    /* 字幕行悬停底色：比 --accent-tint 明显一档，避免"看不出 hover" */
+    --cue-hover-bg: rgba(108, 165, 232, 0.20);
+
+    /* 静音空隙工具窗 —— 原先整块硬编码深蓝灰，亮色主题下无法变亮 */
+    --gap-panel-bg-1:     rgba(28, 38, 47, 0.98);
+    --gap-panel-bg-2:     rgba(20, 26, 32, 0.98);
+    --gap-panel-inset:    rgba(124, 161, 187, 0.06);
+    --gap-panel-drag-inset: rgba(217, 158, 91, 0.15);
+    --gap-header-bg-1:    rgba(40, 52, 64, 0.55);
+    --gap-header-bg-2:    rgba(28, 38, 47, 0.35);
+    --gap-close-bg:       rgba(13, 19, 24, 0.32);
+    --gap-close-hover-bg: #50362f;
+    --gap-close-hover-fg: #f4d5c0;
+    --gap-close-hover-border: #755048;
+    --gap-unit-bg:        rgba(61, 79, 92, 0.42);
+
+    /* 空隙相关强调按钮（橙）—— 亮色主题需要更亮更饱和的橙 */
+    --gap-accent-fg:        #fff0df;
+    --gap-accent-bg-1:      #a96535;
+    --gap-accent-bg-2:      #824723;
+    --gap-accent-border:    #c27a42;
+    --gap-accent-hover-fg:  #fff7ef;
+    --gap-accent-hover-1:   #ba7540;
+    --gap-accent-hover-2:   #96542a;
+    --gap-accent-hover-border: #dc965c;
+    --gap-accent-menu-border:  #8d603d;
+    --gap-accent-inset:     rgba(255, 221, 183, 0.12);
+    --gap-scan-fg:          #fff4e7;
+    --gap-scan-bg-1:        #b66f36;
+    --gap-scan-bg-2:        #925128;
+    --gap-scan-border:      #d08a50;
+    --gap-scan-hover-1:     #c27a3e;
+    --gap-scan-hover-2:     #a05b2e;
+    --gap-scan-hover-border:#dfa066;
+    --gap-scan-inset:       rgba(255, 220, 176, 0.2);
+    --gap-scan-shadow:      rgba(77, 39, 17, 0.28);
+
     /* 字体栈 */
     --font-sans: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
     --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+
+
+  /* ============================================================
+     亮色主题：覆盖 :root 中所有外观令牌（结构令牌圆角/字体/高度/动效与主题无关，沿用暗色）。
+     由 <html data-theme="light"> 激活；强调色相对暗色加深 ~15% 以保证亮底对比度。
+     ============================================================ */
+  [data-theme="light"] {
+    /* 背景 —— 干净的中性浅灰 */
+    --bg-base:    #f5f6f8;
+    --bg-panel:   #ffffff;
+    --bg-raised:  #eef0f4;
+    --bg-overlay: #ffffff;
+    --bg-input:   #f0f1f5;
+    --bg-wave:    #e8ebee;
+    --bg-wave-row:#dfe4ea;
+
+    /* 文字（深色，亮底 WCAG AA） */
+    --text-primary:   #1f2530;
+    --text-secondary: #5a6473;
+    --text-muted:     #8a93a3;
+    --text-faint:     #aab2c0;
+
+    /* 边框 */
+    --border-subtle: #e4e7ed;
+    --border:        #d4d8e0;
+    --border-strong: #c2c8d2;
+
+    /* 强调色 —— 加深以在亮底保持对比 */
+    --accent:        #3d7fcf;
+    --accent-hover:  #5091de;
+    --accent-strong: #2f6bb8;
+    --accent-tint:        rgba(61, 127, 207, 0.12);
+    --accent-tint-strong: rgba(61, 127, 207, 0.20);
+    --accent-soft:        rgba(61, 127, 207, 0.16);
+    --accent-line:   #3d7fcf;
+
+    /* 琥珀 —— 加深 */
+    --amber:        #b07a28;
+    --amber-hover:  #c48a36;
+    --amber-soft:   rgba(176, 122, 40, 0.16);
+    --amber-tint:   rgba(176, 122, 40, 0.12);
+    --amber-line:   #b07a28;
+
+    /* 红 —— 加深 */
+    --red:        #c84545;
+    --red-hover:  #d65858;
+    --red-soft:   rgba(200, 69, 69, 0.12);
+
+    /* 绿 —— 加深 */
+    --green:        #2f9e5f;
+    --green-hover:  #3eb070;
+    --green-soft:   rgba(47, 158, 95, 0.14);
+
+    /* 按钮 */
+    --btn-bg:        #e8eaf0;
+    --btn-bg-hover:  #dde0e8;
+    --btn-bg-active: #d2d6df;
+    --btn-text:      #3a4250;
+
+    /* 中性 hover —— 亮底用深色低透明 */
+    --hover-bg: rgba(15, 23, 35, 0.04);
+
+    /* 阴影 —— 更柔更轻 */
+    --shadow-1: 0 1px 2px rgba(15, 23, 35, 0.08);
+    --shadow-2: 0 4px 14px rgba(15, 23, 35, 0.12);
+    --shadow-3: 0 16px 44px rgba(15, 23, 35, 0.18);
+
+    /* 滚动条 */
+    --scroll-thumb:        #c8ccd4;
+    --scroll-thumb-hover:  #b0b6c0;
+
+    /* 选中黄 —— 亮底用深金 */
+    --selection-yellow:       #b8860b;
+    --selection-yellow-line:  rgba(184, 134, 11, 0.85);
+    --selection-yellow-soft:  rgba(184, 134, 11, 0.12);
+    --selection-yellow-glow:  rgba(184, 134, 11, 0.40);
+
+    /* 布局编辑落点提示 —— 亮底加深 */
+    --layout-drop-outline: #b07a28;
+    --layout-drop-bg:      rgba(176, 122, 40, 0.16);
+    --layout-drop-fg:      #6a4a14;
+    --layout-insert-outline: #2f9e5f;
+    --layout-insert-bg:      rgba(47, 158, 95, 0.16);
+    --layout-insert-fg:      #1f6b3f;
+
+    /* 波形画布 */
+    --wave-row-bg:          #dfe4ea;
+    --wave-row-border:      #c4cbd6;
+    --wave-row-tick:        #aeb6c2;
+    --wave-peak:            #2f9e6f;
+    --wave-peak-dim:        #aab2c0;
+    --wave-cue-mix:         rgba(255, 255, 255, 0.82);
+    --wave-cue-text:        #16202c;
+    --wave-cue-active-mix:  #a9c8e8;
+    --wave-cue-handle:      rgba(32, 52, 80, 0.14);
+    --wave-badge-bg:        rgba(255, 255, 255, 0.82);
+    --wave-badge-sticker:   #2f6bb8;
+    --wave-playhead:        #e63946;
+    --wave-playhead-glow:   rgba(230, 57, 70, 0.55);
+    --wave-disabled-text:   #8a93a3;
+    --wave-disabled-border: #c2c8d2;
+    --wave-disabled-a:      rgba(120, 128, 140, 0.55);
+    --wave-disabled-b:      rgba(200, 206, 216, 0.82);
+
+    /* 空状态 / dock 拖拽栏 */
+    --empty-overlay-1: rgba(245, 246, 248, 0.72);
+    --empty-overlay-2: rgba(245, 246, 248, 0.92);
+    --empty-raised-1:  rgba(238, 240, 244, 0.72);
+    --empty-raised-2:  rgba(238, 240, 244, 0.92);
+    --dock-bg:         rgba(238, 240, 244, 0.96);
+    --dock-bg-hover:   rgba(226, 230, 236, 0.98);
+
+    /* 危险态悬停前景 —— 亮底红软底上需深色文字 */
+    --danger-hover-fg: #b53030;
+
+    /* 活动字幕行前景 —— 亮底蓝软底上需深色文字 */
+    --active-cue-fg: #1f2530;
+
+    /* 禁用字幕行底色 —— 亮底用深色低透明压暗 */
+    --disabled-cue-bg: rgba(15, 23, 35, 0.025);
+
+    /* 面板顶部工具栏背板：亮底改为轻微压暗的浅灰，而非混黑 */
+    --panel-toolbar-bg: rgba(226, 231, 237, 0.92);
+    --panel-toolbar-shadow: rgba(15, 23, 35, 0.08);
+    --wave-hover-brightness: 1.08;
+    --wave-gap-hover-brightness: 1.08;
+    --wave-drag-brightness: 1.1;
+    /* 字幕行悬停底色：亮底同样需要明显一档 */
+    --cue-hover-bg: rgba(61, 127, 207, 0.18);
+
+    /* 静音空隙工具窗：整窗改为浅色卡片 */
+    --gap-panel-bg-1:     rgba(255, 255, 255, 0.99);
+    --gap-panel-bg-2:     rgba(246, 248, 250, 0.99);
+    --gap-panel-inset:    rgba(15, 23, 35, 0.06);
+    --gap-panel-drag-inset: rgba(176, 122, 40, 0.22);
+    --gap-header-bg-1:    rgba(238, 242, 246, 0.9);
+    --gap-header-bg-2:    rgba(228, 234, 240, 0.75);
+    --gap-close-bg:       rgba(15, 23, 35, 0.05);
+    --gap-close-hover-bg: #f7ded2;
+    --gap-close-hover-fg: #8a3d20;
+    --gap-close-hover-border: #dda98f;
+    --gap-unit-bg:        rgba(210, 218, 226, 0.75);
+
+    /* 空隙强调按钮：亮底用更亮更饱和的橙，保持"暖色=空隙操作"的语义 */
+    /* 柔橙底上白字仅 2.4:1，改用深棕（4.45:1，达 AA） */
+    --gap-accent-fg:        #5a3312;
+    --gap-accent-bg-1:      #e6965b;
+    --gap-accent-bg-2:      #e49254;
+    --gap-accent-border:    #d3823f;
+    --gap-accent-hover-fg:  #4d2b0d;
+    --gap-accent-hover-1:   #eda169;
+    --gap-accent-hover-2:   #ea9d63;
+    --gap-accent-hover-border: #dc8e4c;
+    --gap-accent-menu-border:  #e3ad86;
+    --gap-accent-inset:     rgba(255, 255, 255, 0.22);
+    --gap-scan-fg:          #5a3312;
+    --gap-scan-bg-1:        #e6965b;
+    --gap-scan-bg-2:        #e49254;
+    --gap-scan-border:      #d3823f;
+    --gap-scan-hover-1:     #eda169;
+    --gap-scan-hover-2:     #ea9d63;
+    --gap-scan-hover-border:#dc8e4c;
+    --gap-scan-inset:       rgba(255, 255, 255, 0.26);
+    --gap-scan-shadow:      rgba(176, 105, 45, 0.18);
   }
 
   * { box-sizing: border-box; }
@@ -155,10 +431,10 @@
     text-align: center; pointer-events: none;
   }
   .player-empty {
-    background: linear-gradient(180deg, rgba(23, 29, 35, 0.72), rgba(23, 29, 35, 0.92));
+    background: linear-gradient(180deg, var(--empty-overlay-1), var(--empty-overlay-2));
   }
   .cues-empty {
-    background: linear-gradient(180deg, rgba(34, 38, 46, 0.72), rgba(34, 38, 46, 0.92));
+    background: linear-gradient(180deg, var(--empty-raised-1), var(--empty-raised-2));
   }
   .player-empty.hidden, .cues-empty.hidden { display: none; }
   .subtitle-overlay {
@@ -298,7 +574,7 @@
   .toolbar button.dirty { background: var(--amber-tint); border-color: var(--amber); color: var(--amber-hover); }
   .toolbar button.dirty:hover { background: var(--amber-soft); border-color: var(--amber-hover); }
   .toolbar button.danger { background: var(--red-soft); border-color: var(--red); color: var(--red-hover); }
-  .toolbar button.danger:hover { background: rgba(224, 122, 122, 0.22); border-color: var(--red-hover); color: #ffd6d6; }
+  .toolbar button.danger:hover { background: color-mix(in srgb, var(--red) 22%, transparent); border-color: var(--red-hover); color: var(--danger-hover-fg); }
   .toolbar button.active { background: var(--accent-tint-strong); border-color: var(--accent); color: var(--accent-hover); }
   /* hover 不改 border-color：按钮组共享边框，单边变色会出现奇怪的蓝色分隔线 */
   .toolbar button.active:hover { background: var(--accent-soft); }
@@ -326,9 +602,9 @@
     overflow-y: hidden;
     align-items: center;
     gap: 6px;
-    background: color-mix(in srgb, var(--bg-raised) 92%, black);
+    background: var(--panel-toolbar-bg);
     border-bottom: 1px solid var(--border-subtle);
-    box-shadow: 0 1px 0 rgba(0, 0, 0, 0.22);
+    box-shadow: 0 1px 0 var(--panel-toolbar-shadow);
   }
   .toolbar.player-toolbar > *,
   .toolbar.cue-list-toolbar > *,
@@ -618,7 +894,8 @@
   }
   .cue.has-color { background: color-mix(in srgb, var(--color-bar, #777) 30%, transparent); }
   .cue.has-color:hover { background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--bg-raised)); }
-  .cue:hover { background: var(--hover-bg); }
+  /* 悬停反馈与下拉/右键菜单一致：accent 淡蓝 + 中性内描边；选中（琥珀）与激活（蓝）行仍各自优先。 */
+  .cue:hover { background: var(--cue-hover-bg); box-shadow: inset 0 0 0 1px var(--border-strong); }
   .cue.hidden { display: none; }
   .cue .color-bar {
     flex-shrink: 0; width: 4px; align-self: stretch;
@@ -701,21 +978,41 @@
   .cue .charcount.over {
     background: var(--red-soft); border-color: var(--red); color: var(--red-hover); font-weight: 600;
   }
-  .cue.active .charcount.over { background: rgba(224, 122, 122, 0.22); border-color: var(--red-hover); color: #ffd6d6; }
-  .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: #fff; }
+  .cue.active .charcount.over { background: color-mix(in srgb, var(--red) 22%, transparent); border-color: var(--red-hover); color: var(--danger-hover-fg); }
+  .cue.active { background: var(--accent-tint-strong); border-left-color: var(--accent); color: var(--active-cue-fg); }
+  /* 播放中行的悬停：必须保持蓝色身份（此前缺规则，会被后面的琥珀规则染黄）。 */
+  .cue.active:hover {
+    background: color-mix(in srgb, var(--accent) 34%, transparent);
+    box-shadow: inset 0 0 0 1px var(--accent-hover);
+  }
   .cue.active .time { color: var(--accent-hover); }
   .cue.active .index { color: var(--accent-hover); }
   .cue.dirty { border-left-color: var(--amber); }
   .cue.editing { background: var(--amber-soft); border-left-color: var(--amber); cursor: text; }
   /* 选中用琥珀色系（内描边环），与 active 的蓝色系明确区分 */
   .cue.selected { background: var(--amber-soft); box-shadow: inset 0 0 0 1px var(--amber); }
-  .cue.selected.active { background: rgba(108, 165, 232, 0.30); box-shadow: inset 0 0 0 1px var(--amber); }
+  .cue.selected.active { background: color-mix(in srgb, var(--accent) 30%, transparent); box-shadow: inset 0 0 0 1px var(--amber); }
+  /* 选中行的悬停：.cue.selected 源序晚于 .cue:hover 会在等特异性下盖住悬停，
+     故显式补 selected:hover —— 保持琥珀身份但加深底色、把内环升到 amber-hover。 */
+  .cue.selected:hover {
+    background: color-mix(in srgb, var(--amber) 26%, transparent);
+    box-shadow: inset 0 0 0 1px var(--amber-hover);
+  }
+  .cue.selected.active:hover {
+    background: color-mix(in srgb, var(--accent) 42%, transparent);
+    box-shadow: inset 0 0 0 1px var(--accent-hover);
+  }
+  .cue.selected.has-color:hover {
+    background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--amber-soft));
+    box-shadow: inset 0 0 0 1px var(--amber-hover);
+  }
   /* 禁用项：灰色底不透明，文字变淡；active 高亮照常覆盖以便播放时定位 */
-  .cue.disabled { background: rgba(255, 255, 255, 0.02); border-left-color: var(--border-strong); }
+  .cue.disabled { background: var(--disabled-cue-bg); border-left-color: var(--border-strong); }
   .cue.disabled .text { color: var(--text-muted); }
   .cue.disabled .time, .cue.disabled .index { color: var(--text-faint); }
   .cue.disabled.active { background: var(--accent-tint-strong); border-left: 3px dashed var(--accent); }
   .cue.disabled.selected { background: var(--accent-tint); border-left: 3px dashed var(--accent-hover); }
+  .cue.disabled.selected:hover { background: var(--accent-tint-strong); border-left: 3px dashed var(--accent); }
   .cue.disabled.active .text { color: var(--text-secondary); }
   /* 隐藏禁用项开关：开启后禁用项从列表移除，不参与选择 */
   .cues-container.hide-disabled .cue.disabled { display: none; }
@@ -762,7 +1059,7 @@
   .modal .actions button:hover { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
   .modal .actions button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
 .modal .actions button.danger { background: var(--red-soft); border-color: var(--red); color: var(--red-hover); }
-.modal .actions button.danger:hover { background: rgba(224, 122, 122, 0.22); border-color: var(--red-hover); color: #ffd6d6; }
+.modal .actions button.danger:hover { background: color-mix(in srgb, var(--red) 22%, transparent); border-color: var(--red-hover); color: var(--danger-hover-fg); }
   .modal .actions button.primary { background: var(--accent-tint-strong); border-color: var(--accent); color: var(--accent-hover); }
   .modal .actions button.primary:hover { background: var(--accent-soft); }
   /* 模态正文辅助元素（描述 / 提示 / 字段行） */
@@ -799,21 +1096,21 @@
     border-top: 1px solid var(--border-subtle);
   }
   .replace-preview-before { color: var(--red-hover); }
-  .replace-preview-after { color: #8fcfa0; }
+  .replace-preview-after { color: var(--green-hover); }
 
   /* 移除静音空隙 —— 琥珀 CTA 家族保留可识别性 */
   .toolbar #gap-remove-manage,
   .toolbar #gap-removed-export-btn {
-    color: #fff0df; background: linear-gradient(180deg, #a96535, #824723);
-    border-color: #c27a42; box-shadow: 0 1px 0 rgba(255, 221, 183, .12) inset;
+    color: var(--gap-accent-fg); background: linear-gradient(180deg, var(--gap-accent-bg-1), var(--gap-accent-bg-2));
+    border-color: var(--gap-accent-border); box-shadow: 0 1px 0 var(--gap-accent-inset) inset;
   }
   .toolbar #gap-remove-manage:hover,
   .toolbar #gap-removed-export-btn:hover {
-    color: #fff7ef; background: linear-gradient(180deg, #ba7540, #96542a); border-color: #dc965c;
+    color: var(--gap-accent-hover-fg); background: linear-gradient(180deg, var(--gap-accent-hover-1), var(--gap-accent-hover-2)); border-color: var(--gap-accent-hover-border);
   }
   .toolbar #gap-remove-manage:focus-visible,
   .toolbar #gap-removed-export-btn:focus-visible { outline: 2px solid var(--amber-line); outline-offset: 1px; }
-  .toolbar .gap-removed-export-dropdown .dropdown-menu { border-color: #8d603d; }
+  .toolbar .gap-removed-export-dropdown .dropdown-menu { border-color: var(--gap-accent-menu-border); }
   .gap-remove-summary { color: var(--amber-hover); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .gap-skip-toggle { white-space: nowrap; }
   .gap-remove-panel {
@@ -821,20 +1118,20 @@
     display: none; flex-direction: column;
     width: min(430px, calc(100vw - 24px)); max-height: calc(100vh - 24px);
     overflow: hidden; color: var(--text-primary);
-    background: linear-gradient(155deg, rgba(28, 38, 47, .98), rgba(20, 26, 32, .98));
+    background: linear-gradient(155deg, var(--gap-panel-bg-1), var(--gap-panel-bg-2));
     border: 1px solid var(--border-subtle); border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-3), 0 0 0 1px rgba(124, 161, 187, .06) inset;
+    box-shadow: var(--shadow-3), 0 0 0 1px var(--gap-panel-inset) inset;
     backdrop-filter: blur(10px);
   }
   .gap-remove-panel.show { display: flex; animation: gap-remove-panel-in .14s ease-out; }
   .gap-remove-panel.dragging {
-    user-select: none; box-shadow: var(--shadow-3), 0 0 0 1px rgba(217, 158, 91, .15) inset;
+    user-select: none; box-shadow: var(--shadow-3), 0 0 0 1px var(--gap-panel-drag-inset) inset;
   }
   @keyframes gap-remove-panel-in { from { opacity: 0; } to { opacity: 1; } }
   .gap-remove-panel-header {
     flex: 0 0 auto; display: flex; align-items: center; justify-content: space-between; gap: 14px;
     min-height: 58px; padding: 10px 10px 10px 15px;
-    background: linear-gradient(180deg, rgba(40, 52, 64, .55), rgba(28, 38, 47, .35));
+    background: linear-gradient(180deg, var(--gap-header-bg-1), var(--gap-header-bg-2));
     border-bottom: 1px solid var(--border-subtle); cursor: grab; touch-action: none;
   }
   .gap-remove-panel.dragging .gap-remove-panel-header { cursor: grabbing; }
@@ -846,11 +1143,11 @@
   .gap-remove-heading h3 { margin: 0; color: var(--text-primary); font-size: 15px; font-weight: 650; letter-spacing: .02em; }
   .gap-remove-close {
     flex: 0 0 auto; width: 30px; height: 30px; padding: 0;
-    color: var(--text-secondary); background: rgba(13, 19, 24, .32); border: 1px solid transparent;
+    color: var(--text-secondary); background: var(--gap-close-bg); border: 1px solid transparent;
     border-radius: var(--radius-sm); font: 21px/1 var(--font-mono); cursor: pointer;
     transition: color var(--t-fast), background var(--t-fast), border-color var(--t-fast);
   }
-  .gap-remove-close:hover { color: #f4d5c0; background: #50362f; border-color: #755048; }
+  .gap-remove-close:hover { color: var(--gap-close-hover-fg); background: var(--gap-close-hover-bg); border-color: var(--gap-close-hover-border); }
   .gap-remove-close:focus-visible { outline: 2px solid var(--amber-line); outline-offset: 1px; }
   .gap-remove-panel-body { min-height: 0; overflow-y: auto; padding: 14px; }
   .gap-remove-parameters-heading {
@@ -883,7 +1180,7 @@
   .gap-remove-number-control input[type=number]:focus { box-shadow: var(--focus-ring); }
   .gap-remove-unit {
     display: inline-flex; align-items: center; min-width: 27px; padding: 0 6px;
-    color: var(--text-muted); background: rgba(61, 79, 92, .42); border-left: 1px solid var(--border-subtle);
+    color: var(--text-muted); background: var(--gap-unit-bg); border-left: 1px solid var(--border-subtle);
     font: 9px/1 var(--font-mono);
   }
   .gap-remove-advanced { margin-top: 8px; }
@@ -924,13 +1221,13 @@
   .gap-remove-scan {
     display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
     width: 100%; min-height: 51px; margin: 11px 0; padding: 9px 13px;
-    color: #fff4e7; background: linear-gradient(180deg, #b66f36, #925128);
-    border: 1px solid #d08a50; border-radius: var(--radius-md); cursor: pointer;
-    box-shadow: 0 1px 0 rgba(255, 220, 176, .2) inset, 0 5px 14px rgba(77, 39, 17, .28);
+    color: var(--gap-scan-fg); background: linear-gradient(180deg, var(--gap-scan-bg-1), var(--gap-scan-bg-2));
+    border: 1px solid var(--gap-scan-border); border-radius: var(--radius-md); cursor: pointer;
+    box-shadow: 0 1px 0 var(--gap-scan-inset) inset, 0 5px 14px var(--gap-scan-shadow);
     text-align: left;
     transition: background var(--t-fast), border-color var(--t-fast);
   }
-  .gap-remove-scan:hover { background: linear-gradient(180deg, #c27a3e, #a05b2e); border-color: #dfa066; }
+  .gap-remove-scan:hover { background: linear-gradient(180deg, var(--gap-scan-hover-1), var(--gap-scan-hover-2)); border-color: var(--gap-scan-hover-border); }
   .gap-remove-scan:active { transform: translateY(1px); box-shadow: 0 1px 0 rgba(255, 220, 176, .12) inset; }
   .gap-remove-scan:focus-visible { outline: 2px solid var(--amber-line); outline-offset: 2px; }
   .gap-remove-scan > span { font-size: 13px; font-weight: 700; letter-spacing: .03em; }
@@ -997,9 +1294,14 @@
     position: fixed; background: var(--bg-overlay); border: 1px solid var(--border-subtle);
     border-radius: var(--radius-md); padding: 4px 0; min-width: 180px; font-size: 13px;
     box-shadow: var(--shadow-3); z-index: 200;
-    display: none;
+    display: block; opacity: 0; visibility: hidden; pointer-events: none;
+    /* 关闭时微弱淡出：可见性在淡出结束后才移除，淡出期间不再拦截点击 */
+    transition: opacity 140ms ease-out, visibility 0s linear 140ms;
   }
-  .ctxmenu.show { display: block; }
+  .ctxmenu.show {
+    opacity: 1; visibility: visible; pointer-events: auto;
+    transition: opacity 100ms ease-out;
+  }
   .ctxmenu .item {
     padding: 7px 14px; cursor: pointer; user-select: none; color: var(--text-secondary);
     display: flex; justify-content: space-between; gap: 12px;
@@ -1009,7 +1311,7 @@
   .ctxmenu .item.disabled { color: var(--text-faint); cursor: not-allowed; }
   .ctxmenu .item.disabled:hover { background: transparent; color: var(--text-faint); }
   .ctxmenu .item.danger { color: var(--red-hover); }
-  .ctxmenu .item.danger:hover { background: var(--red-soft); color: #ffd6d6; }
+  .ctxmenu .item.danger:hover { background: var(--red-soft); color: var(--danger-hover-fg); }
   .ctxmenu .sep { height: 1px; background: var(--border-subtle); margin: 4px 0; }
   .ctxmenu .item kbd {
     background: var(--bg-input); color: var(--text-muted); padding: 1px 6px; border-radius: var(--radius-sm);
@@ -1033,6 +1335,22 @@
     animation: hint-fade-in .18s ease-out;
   }
   .hint-card.hide { animation: hint-fade-out .2s ease-in forwards; }
+  /* 类型化提示卡片：3px 语义左条 + 淡色底 + 匹配色边框。默认卡片维持中性。 */
+  .hint-card.hint-success {
+    background: color-mix(in srgb, var(--green-soft), var(--bg-overlay));
+    border-color: color-mix(in srgb, var(--green) 35%, var(--border-strong));
+    border-left: 3px solid var(--green);
+  }
+  .hint-card.hint-invalid {
+    background: color-mix(in srgb, var(--text-muted) 8%, var(--bg-overlay));
+    border-color: var(--border-strong);
+    border-left: 3px solid var(--text-muted);
+  }
+  .hint-card.hint-warning {
+    background: color-mix(in srgb, var(--red-soft), var(--bg-overlay));
+    border-color: color-mix(in srgb, var(--red) 35%, var(--border-strong));
+    border-left: 3px solid var(--red);
+  }
   @keyframes hint-fade-in {
     from { opacity: 0; transform: translateY(-8px); }
     to { opacity: 1; transform: translateY(0); }
@@ -1045,7 +1363,7 @@
   /* === Drag & Drop 遮罩 === */
   .drag-overlay {
     position: fixed; inset: 0; z-index: 500;
-    background: rgba(108, 165, 232, 0.18);
+    background: var(--accent-tint-strong);
     display: none; align-items: center; justify-content: center;
     pointer-events: none;
   }
@@ -1451,7 +1769,7 @@
   left: 0;
   right: 0;
   z-index: 30;
-  background: color-mix(in srgb, var(--bg-wave) 88%, black);
+  background: var(--panel-toolbar-bg);
 }
 .editor-workspace.layout-editing .waveform-pane {
   --waveform-content-top: calc(var(--dock-handle-h) + var(--panel-toolbar-h));
@@ -1483,7 +1801,7 @@
   font-size: 13px;
   text-align: center;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(23, 29, 35, 0.72), rgba(23, 29, 35, 0.92));
+  background: linear-gradient(180deg, var(--empty-overlay-1), var(--empty-overlay-2));
 }
 .waveform-empty.hidden { display: none; }
 .workspace-divider {
@@ -1532,7 +1850,7 @@
 
 .dock-handle {
   display: none; position: absolute; z-index: 40; top: 0; left: 0; right: 0; height: var(--dock-handle-h);
-  align-items: center; padding: 0 8px; color: var(--text-secondary); background: rgba(21, 29, 36, 0.94);
+  align-items: center; padding: 0 8px; color: var(--text-secondary); background: var(--dock-bg);
   border-bottom: 1px solid var(--border-subtle); cursor: grab; user-select: none;
   font: 11px/1 var(--font-mono); letter-spacing: 0.02em;
 }
@@ -1544,7 +1862,7 @@
   margin: 0 -4px;
   border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
 }
-.dock-handle:hover { color: var(--amber-hover); background: rgba(45, 55, 62, 0.96); }
+  .dock-handle:hover { color: var(--amber-hover); background: var(--dock-bg-hover); }
 .dock-handle:active { cursor: grabbing; }
 .editor-workspace.layout-editing .dock-handle { display: flex; }
 .editor-workspace.layout-editing > .player-wrap,
@@ -1552,22 +1870,22 @@
 .editor-workspace.layout-editing > .waveform-pane,
 .editor-workspace.layout-editing > .cues-container,
 .editor-workspace.layout-editing .layout-module-slot > [data-dock-module] {
-  outline: 1px solid rgba(111, 160, 200, 0.18);
+  outline: 1px solid var(--accent-tint);
 }
 .editor-workspace.layout-dragging .layout-resizer { pointer-events: none; }
 .layout-drag-source { opacity: .38; }
-.layout-drop-target { outline: 2px solid #f0c66e !important; outline-offset: -2px; }
-.layout-drop-preview {
-  position: absolute;
-  z-index: 100;
-  display: none;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 34px;
-  border: 2px dashed #f0c66e;
-  border-radius: 7px;
-  background: rgba(240, 198, 110, 0.14);
-  color: #ffe0a1;
+  .layout-drop-target { outline: 2px solid var(--layout-drop-outline) !important; outline-offset: -2px; }
+  .layout-drop-preview {
+    position: absolute;
+    z-index: 100;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 34px;
+    border: 2px dashed var(--layout-drop-outline);
+    border-radius: 7px;
+    background: var(--layout-drop-bg);
+    color: var(--layout-drop-fg);
   font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
   box-sizing: border-box;
@@ -1576,9 +1894,9 @@
 .layout-drop-preview.layout-insert-preview {
   align-items: center;
   padding: 6px;
-  border-color: #80d8ae;
-  background: rgba(128, 216, 174, 0.16);
-  color: #b9f1d2;
+  border-color: var(--layout-insert-outline);
+  background: var(--layout-insert-bg);
+  color: var(--layout-insert-fg);
   text-align: center;
 }
 .layout-drop-preview.layout-root-insert-preview {
@@ -1621,7 +1939,7 @@
   padding: 2px 5px;
   border-radius: var(--radius-sm);
   color: var(--accent-hover);
-  background: rgba(9, 13, 17, 0.76);
+  background: var(--wave-badge-bg);
   font: 10px/1.3 var(--font-mono);
   pointer-events: none;
   font-variant-numeric: tabular-nums;
@@ -1632,8 +1950,8 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #ff5d67;
-  box-shadow: 0 0 5px rgba(255, 70, 82, 0.72);
+  background: var(--wave-playhead);
+  box-shadow: 0 0 5px var(--wave-playhead-glow);
   pointer-events: none;
   transform: translateX(-1px);
 }
@@ -1653,7 +1971,7 @@
   );
   cursor: pointer;
 }
-.waveform-gap-block:hover { filter: brightness(1.35); }
+.waveform-gap-block:hover { filter: brightness(var(--wave-gap-hover-brightness)); }
 .waveform-gap-block.restored {
   background: repeating-linear-gradient(
     135deg,
@@ -1734,6 +2052,16 @@
   color: #ffe1b4;
   background: rgba(49, 27, 14, 0.88);
 }
+/* Shift+左键框选：选框覆盖层。挂在 #waveform-content 内随行滚动，
+   z-index 与空隙范围预览同级（高于字幕块 5/6 与播放头 9），不接收指针事件。 */
+.waveform-marquee {
+  position: absolute;
+  z-index: 12;
+  box-sizing: border-box;
+  border: 1px dashed var(--selection-yellow-line);
+  background: var(--selection-yellow-soft);
+  pointer-events: none;
+}
 .waveform-cue-block {
   --cue-color: #4f8fc9;
   position: absolute;
@@ -1743,8 +2071,8 @@
   min-width: 3px;
   border: 1px solid color-mix(in srgb, var(--cue-color) 80%, white);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--cue-color) 42%, rgba(15, 22, 28, 0.82));
-  color: #eef6ff;
+  background: color-mix(in srgb, var(--cue-color) 42%, var(--wave-cue-mix));
+  color: var(--wave-cue-text);
   cursor: grab;
   overflow: hidden;
   white-space: nowrap;
@@ -1755,17 +2083,17 @@
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
   touch-action: none;
 }
-.waveform-cue-block:hover { filter: brightness(1.16); }
+.waveform-cue-block:hover { filter: brightness(var(--wave-hover-brightness)); }
 /* 分组徽章：放在块上方的行内区域（bottom = 块高35 + 块底7 + 间距2），
    纯视觉提示不遮挡块内文字；left 由 JS 按块位置写入 */
 .waveform-cue-badge {
   position: absolute; bottom: calc(44px + var(--badge-stack-index, 0) * 16px); z-index: 6;
   font-size: 11px; line-height: 1.3; padding: 1px 5px; white-space: nowrap;
-  color: var(--text-secondary); background: rgba(0, 0, 0, 0.65); border-radius: 3px;
+  color: var(--text-secondary); background: var(--wave-badge-bg); border-radius: 3px;
   pointer-events: none; font-family: var(--font-mono);
 }
-.waveform-cue-badge.color { color: #ffd54a; }
-.waveform-cue-badge.sticker { color: #b8d9ff; }
+.waveform-cue-badge.color { color: var(--selection-yellow); }
+.waveform-cue-badge.sticker { color: var(--wave-badge-sticker); }
 /* 单行（基础）模式块高不是固定 35px，而是 max(35px, min(72px, 40%))
    （见 .waveform-basic .waveform-cue-block）；徽章 bottom 同步按
    「块底 7 + 实际块高 + 间距 2」计算，否则会嵌进更高的单行块内。 */
@@ -1774,33 +2102,39 @@
 }
 .waveform-cue-block.selected {
   z-index: 6;
-  outline: 2px solid #ffd54a;
+  outline: 2px solid var(--selection-yellow);
   outline-offset: 1px;
-  box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px rgba(255, 213, 74, .45);
+  box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px var(--selection-yellow-glow);
+}
+/* 框选拖动中的命中预览：比正式选中的实线弱一档的虚线；
+   松开后由选中契约替换为 .selected。 */
+.waveform-cue-block.marquee-preview {
+  outline: 2px dashed var(--selection-yellow-line);
+  outline-offset: 1px;
 }
 .waveform-cue-block.active {
-  background: color-mix(in srgb, var(--cue-color) 70%, #28547a);
+  background: color-mix(in srgb, var(--cue-color) 70%, var(--wave-cue-active-mix));
   color: #fff;
 }
 .waveform-cue-block.disabled {
   opacity: 0.48;
-  color: #89939b;
-  border-color: #66717a;
+  color: var(--wave-disabled-text);
+  border-color: var(--wave-disabled-border);
   background: repeating-linear-gradient(
     135deg,
-    rgba(84, 94, 104, 0.68) 0 5px,
-    rgba(47, 54, 61, 0.82) 5px 10px
+    var(--wave-disabled-a) 0 5px,
+    var(--wave-disabled-b) 5px 10px
   );
 }
 .waveform-cue-block.disabled:hover { opacity: 0.7; }
-.waveform-cue-block.dragging { cursor: grabbing; filter: brightness(1.2); }
+.waveform-cue-block.dragging { cursor: grabbing; filter: brightness(var(--wave-drag-brightness)); }
 .waveform-cue-handle {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 7px;
   z-index: 2;
-  background: rgba(231, 244, 255, 0.2);
+  background: var(--wave-cue-handle);
   cursor: ew-resize;
 }
 .waveform-cue-handle.left { left: 0; border-radius: 3px 0 0 3px; }
@@ -1848,7 +2182,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-29 23:59</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-07-30 17:28</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -1918,7 +2252,7 @@
 
 <div class="toolbar main-toolbar">
   <span class="waveform-tool-switch" role="group" aria-label="波形工具">
-    <button type="button" data-waveform-tool="select" class="active" title="选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧">
+    <button type="button" data-waveform-tool="select" class="active" title="选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Shift+空白拖拽框选，Alt 切换禁用，Alt 拖共享边界只动一侧">
       <svg class="toolbar-button-icon" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 1.75 12.25 8 8 9.25 6.25 13.5 3 1.75Z"/><path d="m8.3 9.2 3.2 3.05"/></svg>
       <span>选择</span>
     </button>
@@ -1954,6 +2288,7 @@
     <button type="button" id="language-toggle" class="language-toggle" title="Switch to English">🌐English</button>
     <button type="button" id="editor-settings-toggle" title="展开字幕、波形与导出设置" aria-expanded="false" aria-controls="editor-settings-panel">🔧 设置</button>
     <button type="button" id="help-toggle" title="查看鼠标操作与键盘快捷键" aria-expanded="false" aria-controls="help-panel">🤔 帮助</button>
+    <button type="button" id="theme-toggle" title="切换到亮色主题" aria-label="切换到亮色主题">🌖</button>
   </span>
 </div>
 
@@ -2044,7 +2379,7 @@
       <span class="editor-settings-toggle-group">
         <label class="toggle"><input type="checkbox" id="cue-list-show-index" checked> 序号</label>
         <label class="toggle"><input type="checkbox" id="cue-list-show-time" checked> 时间码</label>
-        <label class="toggle"><input type="checkbox" id="cue-list-show-sticker"> 表情包</label>
+        <label class="toggle"><input type="checkbox" id="cue-list-show-sticker" checked> 表情包</label>
         <label class="toggle"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
       </span>
     </div>
@@ -2052,7 +2387,7 @@
       <span>字幕编辑显示</span>
       <span class="editor-settings-toggle-group">
         <label class="toggle"><input type="checkbox" id="cue-editor-show-navigation"> 跳转按钮</label>
-        <label class="toggle"><input type="checkbox" id="cue-editor-show-time-actions" checked> 时间操作</label>
+        <label class="toggle"><input type="checkbox" id="cue-editor-show-time-actions"> 时间操作</label>
         <label class="toggle"><input type="checkbox" id="cue-editor-show-sticker"> 表情包</label>
       </span>
     </div>
@@ -2171,9 +2506,12 @@
     <span><kbd>Shift+点击</kbd> 连选</span>
     <span><kbd>Ctrl+点击</kbd> 多选</span>
     <span><kbd>Alt+点击</kbd> 切换字幕禁用</span>
+    <span><kbd>T</kbd> 分配表情包</span>
+    <span><kbd>1~5</kbd> 标记颜色 <kbd>0</kbd> 清除颜色</span>
     <span><kbd>C</kbd> 合并所选字幕</span>
     <span><kbd id="help-split-key">Ctrl+Enter</kbd>（编辑字幕文本时）在文字光标处拆分</span>
     <span><kbd>Ctrl+A</kbd> 选中所有字幕（非编辑状态）</span>
+    <span><kbd>Ctrl+D</kbd> 取消选择</span>
   </div>
   <div class="help-group">
     <span class="help-title">波形</span>
@@ -2181,6 +2519,7 @@
     <span><kbd>右键波形背景</kbd> 显示菜单</span>
     <span><kbd id="help-waveform-split-key">B</kbd> 在红色播放指针处拆分字幕</span>
     <span><kbd>V</kbd> 选择工具 <kbd>R</kbd> 分割工具</span>
+    <span><kbd>Shift+拖拽空白处</kbd> 框选字幕</span>
     <span><kbd>Shift+滚轮</kbd> 调整波形振幅</span>
     <span><kbd>Ctrl+滚轮</kbd> 调整时间缩放/每行长度</span>
     <span><kbd>Ctrl+Shift+滚轮</kbd> 调整每行高度</span>
@@ -2204,7 +2543,7 @@
   </div>
 </section>
 
-<input type="file" id="open-project-file" accept=".json,application/json,video/*,audio/*" multiple style="display:none">
+<input type="file" id="open-project-file" accept=".json,.mosp,application/json,video/*,audio/*" multiple style="display:none">
 <input type="file" id="load-media-file" accept="video/*,audio/*" style="display:none">
 <input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
@@ -2695,7 +3034,7 @@
   }
 
   function projectMediaStem(projectName) {
-    const stem = fileBasename(projectName).replace(/\.json$/i, '');
+    const stem = fileBasename(projectName).replace(/\.(json|mosp)$/i, '');
     for (const tag of ['.qwen3-asr.', '.qwen3-asr-api.', '.funasr.', '.glm-asr.', '.paraformer.', '.sensevoice.', '.nano.']) {
       const index = stem.toLowerCase().indexOf(tag);
       if (index >= 0) return stem.slice(0, index).toLowerCase();
@@ -3154,7 +3493,7 @@
     '撤销': 'Undo', '重做': 'Redo', '↶ 撤销': '↶ Undo', '↷ 重做': '↷ Redo',
     '打开工程': 'Open project',
     '最近工程': 'Recent projects', '自动打开上次工程': 'Automatically open last project',
-    '加载媒体': 'Load media', '加载字幕': 'Load subtitles', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save',
+    '加载媒体': 'Load media', '加载字幕': 'Load subtitles', '保存工程': 'Save project', '另存为…': 'Save as…', '保存': 'Save', '保存成功！': 'Saved!',
     '📥 松开以加载文件（视频 / 音频 / JSON / SRT）': '📥 Drop to load files (video / audio / JSON / SRT)',
     '自动保存': 'Auto-save', '自动保存间隔（秒）': 'Auto-save interval (seconds)',
     '导出字幕': 'Export subtitles', '导出字幕 ▾': 'Export subtitles ▾',
@@ -3197,6 +3536,7 @@
     '每段空隙结尾保留的静音，避免下一句贴得太紧': 'Keep this much silence at each gap end so the next line is not too tight',
     '当音频判定为有声时，需要降低到比阈值更低 2 dB 的时候才视作恢复静音。建议 1–3 dB，过高会延迟回到静音': 'After audio becomes active, it must fall 2 dB below the threshold to become silent again. Recommended: 1–3 dB.',
     '滚轮可调数值 · Esc 关闭': 'Use the wheel to adjust values · Esc to close',
+    '未加载媒体': 'No media loaded', '需重新扫描': 'Rescan needed', '人工修正': 'manually adjusted',
     '全部清理': 'Clear all', '字幕列表显示': 'Subtitle list fields',
     '序号': 'Index', '时间码': 'Timecode', '表情包': 'Stickers', '字数': 'Characters',
     '字幕编辑显示': 'Subtitle editor fields', '跳转按钮': 'Navigation buttons', '前后跳转': 'Navigation buttons', '时间操作': 'Time actions',
@@ -3218,6 +3558,7 @@
     'SRT 首条从 0 开始': 'Start first SRT cue at 0',
     '菜单': 'Menu', '显示菜单': 'Show menu', '单击': 'Click',
     'Shift+点击': 'Shift+click', 'Ctrl+点击': 'Ctrl+click',
+    'Shift+拖拽空白处': 'Shift+drag blank area', '框选字幕': 'Box-select subtitles',
     'Shift+滚轮': 'Shift+wheel', 'Ctrl+滚轮': 'Ctrl+wheel',
     'Ctrl+Shift+滚轮': 'Ctrl+Shift+wheel',
     '（编辑字幕文本时）在文字光标处拆分': 'Split at the text cursor (while editing)',
@@ -3283,12 +3624,15 @@
     '统一分配表情包…': 'Assign sticker to selection…',
     '批量替换选中字幕…': 'Batch replace selected subtitles…',
     '启用选中': 'Enable selection', '禁用选中': 'Disable selection',
-    '清除所有选中': 'Clear selection', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
+    '清除所有选中': 'Clear selection', '取消选中': 'Deselect', '取消选择': 'Deselect', '请选择至少两个字幕块！': 'Select at least two subtitle blocks!',
     '红': 'Red', '黄': 'Yellow',
-    '蓝': 'Blue', '绿': 'Green', '紫': 'Purple'
+    '蓝': 'Blue', '绿': 'Green', '紫': 'Purple',
+    '红色': 'red', '黄色': 'yellow', '蓝色': 'blue', '绿色': 'green', '紫色': 'purple'
   };
 
   const EN_ATTR = {
+    '切换到亮色主题': 'Switch to light theme',
+    '切换到暗色主题': 'Switch to dark theme',
     '撤销 (Ctrl/Cmd+Z)': 'Undo (Ctrl/Cmd+Z)',
     '重做 (Ctrl/Cmd+Shift+Z)': 'Redo (Ctrl/Cmd+Shift+Z)',
     '撤销重做': 'Undo and redo',
@@ -3335,7 +3679,7 @@
     '导出颜色与表情包的 Resolve JSON，供兼容执行脚本批量导入': 'Export color and sticker Resolve JSON for compatible import scripts',
     '导出只包含表情包图片轨道的 OTIO 工程': 'Export an OTIO project containing only sticker image tracks',
     '在视频画面右上角预览当前时间的表情包': 'Preview stickers at the current time over the video',
-    '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Alt toggles disabled, Alt-drag changes one shared edge',
+    '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Shift+空白拖拽框选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Shift+drag on blank area to box-select, Alt toggles disabled, Alt-drag changes one shared edge',
     '分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool (R): click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
     '打开可拖动的移除静音空隙工具窗': 'Open the draggable silent-gap tool',
     '播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览': 'Skip removed silent gaps during playback; clicking inside a gap previews it temporarily',
@@ -3420,14 +3764,48 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
-    let match = /^生成时间\s+(.+)$/.exec(text);
+    let     match = /^生成时间\s+(.+)$/.exec(text);
     if (match) return `Generated ${match[1]}`;
+    // 时长片段（供下面各摘要规则递归调用，必须排在它们之前，且只匹配纯时长，
+    //  不能吞掉前缀文字，否则会抢先匹配整句）：6秒 / 6秒（占比 2.1%） / 1分 6秒
+    match = /^(\d+(?:\.\d+)?)\s*秒（占比\s+(.+?)）$/.exec(text);
+    if (match) return `${match[1]}s (${match[2]} of media)`;
+    match = /^(\d+)\s*分\s*(\d+(?:\.\d+)?)\s*秒（占比\s+(.+?)）$/.exec(text);
+    if (match) return `${match[1]}m ${match[2]}s (${match[3]} of media)`;
+    match = /^(\d+(?:\.\d+)?)\s*秒$/.exec(text);
+    if (match) return `${match[1]}s`;
+    match = /^(\d+)\s*分\s*(\d+(?:\.\d+)?)\s*秒$/.exec(text);
+    if (match) return `${match[1]}m ${match[2]}s`;
+    // 空隙摘要（工具栏紧凑版）：已移除 4/4 段 · 6秒（占比 2.1%）[ · 人工修正]
+    // 先剥离可选的「· 人工修正」尾巴，再整体翻译中间的时长片段。
+    {
+      const manual = / ·\s*人工修正$/.test(text);
+      const body = manual ? text.replace(/ ·\s*人工修正$/, '') : text;
+      const m = /^已移除\s+(\d+)\/(\d+)\s+段\s+·\s+(.+)$/.exec(body);
+      if (m) {
+        return `${m[1]}/${m[2]} gaps removed · ${translateText(m[3], EN)}`
+          + (manual ? ' · manually adjusted' : '');
+      }
+    }
+    // 空隙摘要（工具窗完整版）
+    match = /^已移除\s+(\d+)\/(\d+)\s+段，共\s+(.+)；左键空隙跳转播放头，Alt\+左键切换移除。$/.exec(text);
+    if (match) {
+      return `${match[1]}/${match[2]} gaps removed, ${translateText(match[3], EN)} total. `
+        + 'Left-click a gap to move the playhead; Alt+left-click toggles removal.';
+    }
+    // flashHint：已移除 N 段音量空隙，共 6秒（占比 2.1%）
+    match = /^已移除\s+(\d+)\s+段音量空隙，共\s+(.+)$/.exec(text);
+    if (match) return `Removed ${match[1]} loudness gaps, ${translateText(match[2], EN)} total`;
+    // 波形状态：12:34.567 · 缓存波形（未加载媒体）
+    match = /^(.+?)\s+·\s+缓存波形（未加载媒体）$/.exec(text);
+    if (match) return `${match[1]} · cached waveform (no media loaded)`;
+    match = /^未扫描空隙(?:\s+·\s+人工修正)?$/.exec(text);
+    if (match) return text.includes('人工修正') ? 'No gap scan yet · manually adjusted' : 'No gap scan yet';
+    if (text === ' · 人工修正') return ' · manually adjusted';
+    match = /^(.+?)\s+·\s+人工修正$/.exec(text);
+    if (match) return `${translateText(match[1])} · manually adjusted`;
     match = /^上次打开：(.+)$/.exec(text);
     if (match) return `Last opened: ${match[1]}`;
-    match = /^已保存工程：(.+?)（已备份为 (.+)）$/.exec(text);
-    if (match) return `Project saved: ${match[1]} (backup: ${match[2]})`;
-    match = /^已保存工程：(.+)$/.exec(text);
-    if (match) return `Project saved: ${match[1]}`;
     match = /^保存失败：(.+)$/.exec(text);
     if (match) return `Save failed: ${match[1]}`;
     match = /^打开工程失败：(.+)$/.exec(text);
@@ -3448,6 +3826,10 @@
     if (match) return `Merge ${match[1]} subtitles`;
     match = /^删除\s+(\d+)\s+条字幕$/.exec(text);
     if (match) return `Delete ${match[1]} subtitles`;
+    match = /^已将关联字幕统一设为「(.+)」$/.exec(text);
+    if (match) return `All linked subtitles set to ${translateText(match[1])}`;
+    match = /^已将字幕设为「(.+)」$/.exec(text);
+    if (match) return `Subtitle set to ${translateText(match[1])}`;
     if (text === '无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？') {
       return 'The local editor server is unavailable. Export the project JSON instead so your changes are not lost?';
     }
@@ -3689,10 +4071,10 @@
     showGroupBadges: true,
     dragPlayhead: true,
   };
-  // 内置工作区默认的列表/编辑区显示开关；traditional 默认开启字幕列表表情包列。
+  // 内置工作区默认的列表/编辑区显示开关：列表默认显示表情包列；编辑区默认收起时间操作与表情包。
   const BUILTIN_EDITOR_DISPLAY = {
-    cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: false, cueListShowCharcount: true,
-    cueEditorShowNavigation: false, cueEditorShowTimeActions: true, cueEditorShowSticker: false,
+    cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: true, cueListShowCharcount: true,
+    cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
   };
   const BUILTIN_WORKSPACES = {
     // 字幕列表编辑（界面显示名）：聚焦右侧整列字幕列表，以 custom 渲染器渲染。
@@ -3710,7 +4092,7 @@
     traditional: {
       preset: 'custom', waveformMode: 'basic', splitPercent: 60, columnPercent: 36,
       rows: [42, 18, 40], tree: TRADITIONAL_SUBTITLE_LAYOUT_TREE,
-      editorDisplay: { ...BUILTIN_EDITOR_DISPLAY, cueListShowSticker: true },
+      editorDisplay: BUILTIN_EDITOR_DISPLAY,
     },
   };
   const PALETTE = {
@@ -5262,7 +5644,30 @@
       });
     }
 
+    // 画布颜色取自 CSS 令牌，以便跟随暗/亮主题。每次 render() 前刷新缓存。
+    _readWaveColors() {
+      const styles = getComputedStyle(document.documentElement);
+      const get = (name, fallback) => {
+        const value = styles.getPropertyValue(name).trim();
+        return value || fallback;
+      };
+      this._waveColors = {
+        rowBg: get('--wave-row-bg', '#1d252d'),
+        rowBorder: get('--wave-row-border', '#2d3944'),
+        rowTick: get('--wave-row-tick', '#3b4b59'),
+        peak: get('--wave-peak', '#65b89a'),
+        peakDim: get('--wave-peak-dim', '#83909a'),
+      };
+    }
+
+    _getWaveColors() {
+      if (!this._waveColors) this._readWaveColors();
+      return this._waveColors;
+    }
+
     render() {
+      // 主题切换后令牌值变化：每次全量渲染前刷新画布颜色缓存，供 drawRow 读取。
+      this._readWaveColors();
       this.applyLayout();
       if (!this.payload || !this.peaks) {
         this.content.replaceChildren();
@@ -5529,6 +5934,21 @@
           this.beginGapRangeDrag(event, row);
           return;
         }
+        // Shift+左键在空白处拖动：框选字幕块（追加进现有多选），
+        // 不进入下方的清除选中/seek/播放头拖拽路径
+        if (
+          event.button === 0 &&
+          event.shiftKey &&
+          !event.ctrlKey &&
+          !event.metaKey &&
+          !event.altKey &&
+          !event.target.closest('.waveform-cue-block, .waveform-gap-block') &&
+          !this.isCustomLayout()
+        ) {
+          event.preventDefault();
+          this.beginMarqueeDrag(event);
+          return;
+        }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
         event.preventDefault();
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
@@ -5616,7 +6036,8 @@
       canvas.style.height = `${height}px`;
       const ctx = canvas.getContext('2d', { alpha: false });
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.fillStyle = '#1d252d';
+      const colors = this._getWaveColors();
+      ctx.fillStyle = colors.rowBg;
       ctx.fillRect(0, 0, width, height);
 
       const startMs = Number(row.dataset.startMs);
@@ -5624,7 +6045,7 @@
       const rangeMs = Math.max(1, endMs - startMs);
       const tickSeconds = rangeMs <= 10000 ? 1 : rangeMs <= 30000 ? 2 : 5;
       const firstTick = Math.ceil(startMs / (tickSeconds * 1000)) * tickSeconds * 1000;
-      ctx.strokeStyle = '#2d3944';
+      ctx.strokeStyle = colors.rowBorder;
       ctx.lineWidth = 1;
       for (let tick = firstTick; tick < endMs; tick += tickSeconds * 1000) {
         const x = ((tick - startMs) / rangeMs) * width;
@@ -5633,7 +6054,7 @@
         ctx.lineTo(x + 0.5, height);
         ctx.stroke();
       }
-      ctx.strokeStyle = '#3b4b59';
+      ctx.strokeStyle = colors.rowTick;
       ctx.beginPath();
       ctx.moveTo(0, height * 0.46);
       ctx.lineTo(width, height * 0.46);
@@ -5648,7 +6069,7 @@
       const amplitude = waveformAmplitude(height, this.settings.waveformScale);
       const minWaveY = 2;
       const maxWaveY = Math.max(minWaveY, height - 2);
-      ctx.strokeStyle = this.mediaAvailable ? '#65b89a' : '#83909a';
+      ctx.strokeStyle = this.mediaAvailable ? colors.peak : colors.peakDim;
       ctx.lineWidth = 1;
       ctx.beginPath();
       for (let x = 0; x < width; x++) {
@@ -5723,6 +6144,98 @@
       };
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
+    }
+
+    // Shift+左键框选：在波形空白处按下并拖动，画出选框，松开后把与选框相交的
+    // 字幕块追加进当前多选（与 Shift 范围选同为追加语义）。选框挂在
+    // #waveform-content 内、与行同坐标系，滚动时自动跟随；多行虚拟化重建
+    // 会清掉覆盖层与块上的预览类，因此每帧重新挂载、重新命中。位移低于
+    // 阈值的 Shift+点击视为空操作，不触发空白区既有的清除选中/seek。
+    beginMarqueeDrag(event) {
+      const content = this.content;
+      const startRect = content.getBoundingClientRect();
+      const start = { x: event.clientX - startRect.left, y: event.clientY - startRect.top };
+      let lastEvent = event;
+      let overlay = null;
+      let frame = 0;
+      let drawing = false;
+      let hits = new Set();
+
+      const clearPreview = () => {
+        content.querySelectorAll('.waveform-cue-block.marquee-preview').forEach((block) => {
+          block.classList.remove('marquee-preview');
+        });
+      };
+      const removeOverlay = () => {
+        if (overlay) overlay.remove();
+        overlay = null;
+      };
+      const update = () => {
+        frame = 0;
+        const rect = content.getBoundingClientRect();
+        const current = { x: lastEvent.clientX - rect.left, y: lastEvent.clientY - rect.top };
+        if (!drawing) {
+          if (Math.hypot(current.x - start.x, current.y - start.y) < 4) return;
+          drawing = true;
+        }
+        if (!overlay || !overlay.isConnected) {
+          overlay = document.createElement('div');
+          overlay.className = 'waveform-marquee';
+          content.appendChild(overlay);
+        }
+        const left = Math.min(start.x, current.x);
+        const top = Math.min(start.y, current.y);
+        overlay.style.left = `${left}px`;
+        overlay.style.top = `${top}px`;
+        overlay.style.width = `${Math.abs(current.x - start.x)}px`;
+        overlay.style.height = `${Math.abs(current.y - start.y)}px`;
+        const marqueeRect = overlay.getBoundingClientRect();
+        const next = new Set();
+        content.querySelectorAll('.waveform-cue-block').forEach((block) => {
+          const blockRect = block.getBoundingClientRect();
+          const hit =
+            !block.hidden &&
+            blockRect.right > marqueeRect.left &&
+            blockRect.left < marqueeRect.right &&
+            blockRect.bottom > marqueeRect.top &&
+            blockRect.top < marqueeRect.bottom;
+          block.classList.toggle('marquee-preview', hit);
+          if (hit) next.add(Number(block.dataset.idx));
+        });
+        hits = next;
+      };
+      const finish = (commit) => {
+        window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
+        if (frame) {
+          cancelAnimationFrame(frame);
+          frame = 0;
+        }
+        // 以指针最终位置补一次命中计算，避免快速松开时结果落后一帧
+        if (commit) update();
+        clearPreview();
+        removeOverlay();
+        if (commit && drawing && hits.size > 0) {
+          this.options.addCueSelection?.([...hits].sort((a, b) => a - b));
+        }
+      };
+      const onMove = (moveEvent) => {
+        if (!(moveEvent.buttons & 1)) {
+          finish(true);
+          return;
+        }
+        lastEvent = moveEvent;
+        if (!frame) frame = requestAnimationFrame(update);
+      };
+      const onUp = (upEvent) => {
+        lastEvent = upEvent;
+        finish(true);
+      };
+      const onCancel = () => finish(false);
+      window.addEventListener('pointermove', onMove);
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onCancel);
     }
 
     handleWheel(event) {
@@ -6326,10 +6839,10 @@ const DEFAULT_EDITOR_SETTINGS = {
   exportStartAtZero: true,
   cueListShowIndex: true,
   cueListShowTime: true,
-  cueListShowSticker: false,
+  cueListShowSticker: true,
   cueListShowCharcount: true,
   cueEditorShowNavigation: false,
-  cueEditorShowTimeActions: true,
+  cueEditorShowTimeActions: false,
   cueEditorShowSticker: false,
   selectGroupMembers: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
@@ -6343,6 +6856,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   stickerOverlayEnabled: false,
   // 字幕列表单击行为：select-only 仅选中（默认），select-and-seek 选中并跳转播放头。
   clickBehavior: 'select-only',
+  // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
+  theme: 'dark',
 };
 
 function readEditorSettings() {
@@ -6354,10 +6869,10 @@ function readEditorSettings() {
       exportStartAtZero: saved.exportStartAtZero !== false,
       cueListShowIndex: saved.cueListShowIndex !== false,
       cueListShowTime: saved.cueListShowTime !== false,
-      cueListShowSticker: saved.cueListShowSticker === true,
+      cueListShowSticker: saved.cueListShowSticker !== false,
       cueListShowCharcount: saved.cueListShowCharcount !== false,
       cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
-      cueEditorShowTimeActions: saved.cueEditorShowTimeActions !== false,
+      cueEditorShowTimeActions: saved.cueEditorShowTimeActions === true,
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
       selectGroupMembers: saved.selectGroupMembers === true,
       mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
@@ -6366,6 +6881,7 @@ function readEditorSettings() {
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
+      theme: saved.theme === 'light' ? 'light' : 'dark',
     };
   } catch (_) {
     return { ...DEFAULT_EDITOR_SETTINGS };
@@ -6646,6 +7162,7 @@ const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-stic
 const selectGroupMembersToggle = document.getElementById('select-group-members');
 const exportColorUnifiedToggle = document.getElementById('export-color-unified');
 const helpToggle = document.getElementById('help-toggle');
+const themeToggle = document.getElementById('theme-toggle');
 const helpPanel = document.getElementById('help-panel');
 const helpSplitKey = document.getElementById('help-split-key');
 const clickBehaviorSelect = document.getElementById('click-behavior');
@@ -6817,6 +7334,32 @@ helpToggle?.addEventListener('click', () => {
   if (helpPanel) helpPanel.hidden = !open;
   helpToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   helpToggle.classList.toggle('active', open);
+});
+// 明暗主题：令牌全部定义在 CSS（:root 暗色 / [data-theme="light"] 亮色），
+// 这里只负责写 <html data-theme>、持久化、同步按钮，以及通知波形重绘画布。
+// 按钮显示的是「目标主题」（与相邻 🌐 语言按钮同一约定）：暗色时显示 🌖（点击转亮）。
+// title 用中文源串，英文界面由 i18n 的属性 MutationObserver 自动翻译。
+function refreshThemeToggle(theme) {
+  if (!themeToggle) return;
+  const toLight = theme !== 'light';
+  themeToggle.textContent = toLight ? '🌖' : '🌘';
+  const title = toLight ? '切换到亮色主题' : '切换到暗色主题';
+  themeToggle.title = title;
+  themeToggle.setAttribute('aria-label', title);
+}
+function applyTheme(theme, { rerenderWaveform = true } = {}) {
+  const next = theme === 'light' ? 'light' : 'dark';
+  if (next === 'light') document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  refreshThemeToggle(next);
+  // 画布颜色是 JS 读取的令牌快照，必须全量重绘才能跟随主题
+  if (rerenderWaveform && waveformEditor) waveformEditor.render();
+}
+applyTheme(EDITOR_SETTINGS.theme, { rerenderWaveform: false });
+themeToggle?.addEventListener('click', () => {
+  const next = EDITOR_SETTINGS.theme === 'light' ? 'dark' : 'light';
+  updateEditorSettings({ theme: next });
+  applyTheme(next);
 });
 splitKeySel.addEventListener('change', () => {
   updateEditorSettings({ splitKey: splitKeySel.value });
@@ -8333,17 +8876,6 @@ function scrollCueIntoViewIfNeeded(cueEl) {
 
 // === seek ===
 let seekWarned = false;
-function seekTo(timeSec) {
-  const seekableEnd = player.seekable.length ? player.seekable.end(player.seekable.length - 1) : 0;
-  if (seekableEnd <= 0 && !seekWarned) {
-    seekWarned = true;
-    flashHint('媒体不可 seek！请用 file:// 直接打开 HTML，或使用支持 Range 的服务器');
-  }
-  player.currentTime = timeSec;
-  const p = player.play();
-  if (p && p.catch) p.catch(() => {});
-}
-
 // === 单击/双击/Shift/Ctrl ===
 function bindCueEvents(el, idx) {
   let clickTimer = null;
@@ -8620,6 +9152,85 @@ document.addEventListener('keydown', (e) => {
   if (ctxmenu.classList.contains('show')) return;
   e.preventDefault();
   selectAll();
+});
+
+// Ctrl/Cmd+D：取消选中（清空当前字幕选择）。浏览器默认是「添加书签」，这里接管；
+// 与 Ctrl/Cmd+A 同样仅在非编辑字幕状态下生效。ESC 清除选中的行为保持不变。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'd' && e.key !== 'D') return;
+  if (!e.ctrlKey && !e.metaKey) return;
+  if (e.altKey || e.shiftKey) return;
+  if (editingState) return;
+  if (e.target === cuePanelText) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (selectedIdxs.size === 0) return;
+  e.preventDefault();
+  clearSelection();
+});
+
+// T：给选中字幕分配表情包。单选直接分配本条，多选统一分配（与右键菜单一致）。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 't' && e.key !== 'T') return;
+  if (editingState || e.repeat) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (selectedIdxs.size === 0) return;
+  e.preventDefault();
+  const idxs = [...selectedIdxs].sort((x, y) => x - y);
+  openStickerPicker(idxs, idxs.length > 1);
+});
+
+// 数字键 1~5：给选中字幕标记对应颜色（红黄蓝绿紫）；0：清除颜色。
+document.addEventListener('keydown', (e) => {
+  if (!/^[0-5]$/.test(e.key)) return;
+  if (editingState || e.repeat) return;
+  const a = document.activeElement;
+  if (a && (
+    a.tagName === 'INPUT'
+    || a.tagName === 'TEXTAREA'
+    || a.tagName === 'SELECT'
+    || a.isContentEditable
+  )) return;
+  if (replaceModal.classList.contains('show')) return;
+  if (stickerModal.classList.contains('show')) return;
+  if (stickerPreviewModal.classList.contains('show')) return;
+  if (projectMediaModal.classList.contains('show')) return;
+  if (document.getElementById('sticker-root-modal').classList.contains('show')) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (e.ctrlKey || e.altKey || e.metaKey || e.shiftKey) return;
+  if (selectedIdxs.size === 0) return;
+  e.preventDefault();
+  const idxs = [...selectedIdxs].sort((x, y) => x - y);
+  if (e.key === '0') {
+    clearColorOnTargets(idxs);
+    return;
+  }
+  const color = COLOR_PALETTE[Number(e.key) - 1];
+  if (color) assignColor(idxs, color.name);
 });
 
 // Enter：仅选中单条字幕（列表或波形均可）时，进入字幕编辑区并聚焦文本框，
@@ -9828,13 +10439,25 @@ function configureRecentProjects() {
   projects.forEach((project, index) => {
     if (!project || typeof project.path !== 'string' || typeof project.name !== 'string') return;
     const item = document.createElement('div');
-    item.className = 'dropdown-item';
-    item.textContent = index === 0 ? `上次打开：${project.name}` : project.name;
-    item.title = project.path;
-    item.addEventListener('click', () => {
-      recentProjectsEl.classList.remove('open');
-      openRecentProject(project);
-    });
+    if (project.exists === false) {
+      item.className = 'dropdown-item';
+      item.style.opacity = '0.4';
+      item.style.cursor = 'not-allowed';
+      item.textContent = project.name;
+      item.title = `工程路径失效：${project.path}`;
+      item.addEventListener('click', () => {
+        recentProjectsEl.classList.remove('open');
+        flashHint('工程路径失效，文件可能已被移动或删除');
+      });
+    } else {
+      item.className = 'dropdown-item';
+      item.textContent = index === 0 ? `上次打开：${project.name}` : project.name;
+      item.title = project.path;
+      item.addEventListener('click', () => {
+        recentProjectsEl.classList.remove('open');
+        openRecentProject(project);
+      });
+    }
     recentProjectsList.appendChild(item);
   });
   recentProjectsToggle.addEventListener('click', (event) => {
@@ -10140,7 +10763,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   DATA.segments.forEach((segment) => { delete segment._dirty; });
   gapRemoveDirty = false;
   previewGeometryDirty = false;
-  FILENAME_BASE = filename.replace(/\.json$/i, '');
+  FILENAME_BASE = filename.replace(/\.(json|mosp)$/i, '');
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
@@ -10148,7 +10771,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
     jsonEl.classList.remove('empty');
   }
   renderAll();
-  if (!silent) flashHint(backupName ? `已保存工程：${filename}（已备份为 ${backupName}）` : `已保存工程：${filename}`);
+  if (!silent) flashHint('保存成功！');
 }
 
 async function saveProjectToServer({ silent = false } = {}) {
@@ -10181,8 +10804,8 @@ async function saveProjectToServer({ silent = false } = {}) {
     // completed edits, while making clear that the bound JSON was not overwritten.
     if (error instanceof TypeError
         && confirm('无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？')) {
-      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.json`, 'application/json', {
-        desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+      const saved = await downloadFile(projectJson, `${FILENAME_BASE}.mosp`, 'application/json', {
+        desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
       });
       if (saved) flashHint('服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续');
     }
@@ -10196,18 +10819,18 @@ async function saveProjectToServer({ silent = false } = {}) {
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新）。
 async function saveProjectAsToFile() {
   if (editingState) finishEdit(true);
-  const suggested = `${FILENAME_BASE}.json`;
+  const suggested = `${FILENAME_BASE}.mosp`;
   // 无原生保存对话框的浏览器：退化为普通下载（文件名不可考，标题保持不变）。
   if (!window.showSaveFilePicker) {
     await downloadFile(buildJson(), suggested, 'application/json', {
-      desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+      desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
     });
     return;
   }
   try {
     const handle = await window.showSaveFilePicker({
       suggestedName: suggested,
-      types: [{ description: '编辑器工程文件', accept: { 'application/json': ['.json'] } }],
+      types: [{ description: 'MOSE 工程文件', accept: { 'application/json': ['.mosp', '.json'] } }],
     });
     const writable = await handle.createWritable();
     await writable.write(new Blob([buildJson()], { type: 'application/json;charset=utf-8' }));
@@ -10256,8 +10879,8 @@ document.getElementById('download-plain-text').addEventListener('click', async (
 });
 document.getElementById('download-json').addEventListener('click', async () => {
   if (editingState) finishEdit(true);
-  await downloadFile(buildJson(), `${FILENAME_BASE}.json`, 'application/json', {
-    desc: '编辑器工程文件', types: { 'application/json': ['.json'] }
+  await downloadFile(buildJson(), `${FILENAME_BASE}.mosp`, 'application/json', {
+    desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
   });
 });
 saveProjectButton?.addEventListener('click', () => saveProjectToServer());
@@ -11177,8 +11800,13 @@ function assignColor(idxs, colorName) {
       DATA.segments[sorted[k]].color_ref = { name: colorName, headIdx };
     }
   }
+  // 单条修改 lead（其 color_ref 成员仍指向它）或多选统一分配时，视为整组联动修改
+  const isUnifiedGroup = sorted.length > 1
+    || DATA.segments.some((s) => s.color_ref && s.color_ref.headIdx === sorted[0]);
   renderAll();
-  flashHint(`已标记「${def.label}」`);
+  flashHint(isUnifiedGroup
+    ? `已将关联字幕统一设为「${def.label}色」`
+    : `已将字幕设为「${def.label}色」`);
 }
 
 // 删除颜色（级联清理）：
@@ -11281,12 +11909,14 @@ function addCueAtWaveformTime(timeMs, clickX, clickY) {
 // 右键波形背景：创建字幕，或按右键对应的音频位置拆分命中的字幕。
 function showWaveformBlankMenu(timeMs, clickX, clickY) {
   ctxmenu.innerHTML = '';
-  function addItem(label, fn, disabled = false) {
+  function addItem(label, kbd, fn, disabled = false) {
     const it = document.createElement('div');
     it.className = `item${disabled ? ' disabled' : ''}`;
     const lbl = document.createElement('span'); lbl.textContent = label;
     it.appendChild(lbl);
-    const kb = document.createElement('kbd'); kb.style.visibility = 'hidden';
+    const kb = document.createElement('kbd');
+    kb.textContent = kbd || '';
+    if (!kbd) kb.style.visibility = 'hidden';
     it.appendChild(kb);
     if (!disabled) {
       it.addEventListener('click', () => { ctxmenu.classList.remove('show'); fn(); });
@@ -11296,9 +11926,10 @@ function showWaveformBlankMenu(timeMs, clickX, clickY) {
   const splitIdx = DATA.segments.findIndex((segment) => (
     timeMs > segment.start && timeMs < segment.end
   ));
-  addItem('创建字幕', () => addCueAtWaveformTime(timeMs, clickX, clickY));
+  addItem('创建字幕', '', () => addCueAtWaveformTime(timeMs, clickX, clickY));
   addItem(
     '按音频位置拆分当前字幕',
+    'B',
     () => splitFromContextMenu(splitIdx, clickX, clickY, timeMs),
     splitIdx < 0,
   );
@@ -11339,24 +11970,29 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     const s = document.createElement('div'); s.className = 'sep'; ctxmenu.appendChild(s);
   }
 
-  // 颜色子菜单：一行 5 色块 + "清除颜色"项
-  // targets 来自外层闭包；但参数化以保持函数纯粹
+  // 颜色子菜单：首行「标记颜色 + 1~5 键位提示」，下方一排加大号色块（好辨认也好点击）
   function addColorSubmenu(targets) {
     const row = document.createElement('div');
     row.className = 'item';
-    row.style.cursor = 'default';
+    row.style.cssText = 'cursor:default;display:block;';
     row.addEventListener('click', e => e.stopPropagation());
+    const head = document.createElement('div');
+    head.style.cssText = 'display:flex;align-items:center;';
     const lbl = document.createElement('span');
     lbl.textContent = '标记颜色';
-    lbl.style.flex = '0 0 auto';
-    row.appendChild(lbl);
-    const swatches = document.createElement('span');
-    swatches.style.cssText = 'display:flex;gap:4px;align-items:center;margin-left:auto;';
-    COLOR_PALETTE.forEach(c => {
+    head.appendChild(lbl);
+    const rangeHint = document.createElement('kbd');
+    rangeHint.textContent = '1~5';
+    rangeHint.style.marginLeft = 'auto';
+    head.appendChild(rangeHint);
+    row.appendChild(head);
+    const swatches = document.createElement('div');
+    swatches.style.cssText = 'display:flex;gap:8px;margin-top:8px;';
+    COLOR_PALETTE.forEach((c, colorIndex) => {
       const sw = document.createElement('span');
-      sw.title = c.label;
-      sw.style.cssText = `width:14px;height:14px;border-radius:50%;background:${c.value};border:1px solid #555;cursor:pointer;display:inline-block;`;
-      sw.addEventListener('mouseenter', () => sw.style.transform = 'scale(1.2)');
+      sw.title = `${c.label}（按 ${colorIndex + 1}）`;
+      sw.style.cssText = `width:22px;height:22px;border-radius:50%;background:${c.value};border:1px solid rgba(255,255,255,.25);cursor:pointer;display:inline-block;box-sizing:border-box;flex:0 0 auto;`;
+      sw.addEventListener('mouseenter', () => sw.style.transform = 'scale(1.15)');
       sw.addEventListener('mouseleave', () => sw.style.transform = '');
       sw.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -11371,30 +12007,28 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
     const hasColorInRange = targets.some(i =>
       DATA.segments[i].color || DATA.segments[i].color_ref);
     if (hasColorInRange) {
-      addItem('清除颜色', '', () => clearColorOnTargets(targets), { danger: true });
+      addItem('清除颜色', '0', () => clearColorOnTargets(targets), { danger: true });
     }
   }
 
   if (!isMulti) {
-    // 仅「仅选中」模式提供：「选中并跳转」时左键单击本身就会跳转，右键菜单项是多余的
+    // 组 1：跳转与拆分。仅「仅选中」模式提供「跳转并播放」——「选中并跳转」时左键单击本身就会跳转。
     if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
-      addItem('跳转并播放', '', () => {
+      addItem('跳转并播放', 'F', () => {
         seekFromWaveform(DATA.segments[idx].start / 1000);
         if (player.paused) togglePlayback();
       });
-      addSep();
     }
     const splitLabel = Number.isFinite(waveformTimeMs)
       ? '按音频位置拆分'
       : '按文字位置拆分';
-    // 不显示 splitKeyLabel()：Enter/Ctrl+Enter 拆分仅在文本编辑态有效，
-    // 右键菜单里展示快捷键会误导用户以为菜单场景下也能按键触发。
-    addItem(splitLabel, '', () => splitFromContextMenu(idx, x, y, waveformTimeMs));
-    if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
-      addItem('跳转到字幕并播放', '', () => seekTo(DATA.segments[idx].start / 1000));
-    }
+    // 「按音频位置拆分」与波形 B 键（在红色播放指针处拆分）同类；「按文字位置拆分」
+    // 的 Enter/Ctrl+Enter 仅在文本编辑态有效，菜单里展示会误导，故不显示。
+    const splitKbd = Number.isFinite(waveformTimeMs) ? 'B' : '';
+    addItem(splitLabel, splitKbd, () => splitFromContextMenu(idx, x, y, waveformTimeMs));
     addSep();
-    addItem('分配表情包…', '', () => openStickerPicker([idx], false));
+    // 组 2：外观（表情包与颜色）
+    addItem('分配表情包…', 'T', () => openStickerPicker([idx], false));
     if (DATA.segments[idx].sticker || DATA.segments[idx].sticker_ref) {
       addItem('删除表情包', '', () => {
         removeStickerCascade(idx);
@@ -11402,44 +12036,42 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
         flashHint('已删除');
       }, { danger: true });
     }
-    addSep();
     addColorSubmenu(targetIdxs);
     addSep();
+    // 组 3：状态与删除
     addItem(
       DATA.segments[idx].disabled ? '启用此条' : '禁用此条',
       'Alt+点击',
       () => toggleDisabled([idx])
     );
-    addSep();
-    addItem('删除字幕', '', () => {
+    addItem('删除字幕', 'Delete', () => {
       deleteSegments([idx]);
     }, { danger: true });
   } else {
+    // 组 1：合并与批量文本操作
     addItem(`合并 ${targetIdxs.length} 条字幕`, 'C', () => mergeSegments(targetIdxs));
+    addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
     addSep();
-    // 只在选中范围内存在表情包时才显示「拓展表情包时长」，且放在「统一分配」前面
+    // 组 2：外观（表情包与颜色）；「拓展表情包时长」仅在范围内已有表情包时显示
     const hasStickerInRange = targetIdxs.some(i =>
       DATA.segments[i].sticker || DATA.segments[i].sticker_ref);
     if (hasStickerInRange) {
       addItem('拓展表情包时长', '', () => expandStickerTime(targetIdxs));
     }
-    addItem('统一分配表情包…', '', () => openStickerPicker(targetIdxs, true));
-    addSep();
+    addItem('统一分配表情包…', 'T', () => openStickerPicker(targetIdxs, true));
     addColorSubmenu(targetIdxs);
     addSep();
-    addItem('批量替换选中字幕…', '', () => openReplaceModal(targetIdxs));
-    addSep();
+    // 组 3：状态与删除
     const _disabledInSel = targetIdxs.filter(i => DATA.segments[i].disabled).length;
     addItem(
       _disabledInSel === targetIdxs.length ? '启用选中' : '禁用选中',
       '',
       () => toggleDisabled(targetIdxs)
     );
-    addSep();
-    addItem(`删除 ${targetIdxs.length} 条字幕`, '', () => {
+    addItem(`删除 ${targetIdxs.length} 条字幕`, 'Delete', () => {
       deleteSegments(targetIdxs);
     }, { danger: true });
-    addItem('清除所有选中', '', () => clearSelection());
+    addItem('取消选择', 'Ctrl+D', () => clearSelection());
   }
 
   // 调整 ctxmenu 位置（避免溢出）
@@ -11509,7 +12141,7 @@ function dismissHintCard(card) {
   setTimeout(() => card.remove(), HINT_FADE_OUT_MS);
 }
 
-function flashHint(msg) {
+function flashHint(msg, type = 'default') {
   let stack = document.getElementById('hint-stack');
   if (!stack) {
     stack = document.createElement('div'); stack.id = 'hint-stack';
@@ -11523,7 +12155,12 @@ function flashHint(msg) {
     oldest.remove();
   }
   const card = document.createElement('div');
-  card.className = 'hint-card';
+  // type → 语义类：default 中性 / success 成功 / invalid 不可用提醒 / warning 失败。
+  // 仅在有效类型时追加类名，default 维持原 .hint-card 中性外观。
+  const typeClass = type === 'success' ? 'hint-success'
+    : type === 'invalid' ? 'hint-invalid'
+    : type === 'warning' ? 'hint-warning' : '';
+  card.className = typeClass ? `hint-card ${typeClass}` : 'hint-card';
   card.textContent = msg;
   stack.appendChild(card);
   setTimeout(() => dismissHintCard(card), HINT_DURATION_MS);
@@ -11621,6 +12258,10 @@ function initWaveformEditor() {
       else selectOnly(idx);
       lastClickedIdx = idx;
     },
+    // 波形 Shift+框选：把命中的一批下标追加进当前多选（追加语义，不改 Shift 锚点）
+    addCueSelection: (idxs) => {
+      idxs.forEach((idx) => addToSelection(idx));
+    },
     seek: seekFromWaveform,
     togglePlayback,
     toggleDisabled: (idxs) => toggleDisabled(idxs),
@@ -11665,7 +12306,8 @@ function initWaveformEditor() {
 // === Drag & Drop：拖入视频/音频/JSON/SRT 自动加载 ===
 const dragOverlay = document.getElementById('drag-overlay');
 function isJsonFile(f) {
-  return f.type === 'application/json' || f.name.toLowerCase().endsWith('.json');
+  const name = f.name.toLowerCase();
+  return f.type === 'application/json' || name.endsWith('.json') || name.endsWith('.mosp');
 }
 function isSrtFile(f) {
   return f.name.toLowerCase().endsWith('.srt');

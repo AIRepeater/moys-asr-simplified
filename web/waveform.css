@@ -341,7 +341,7 @@
   left: 0;
   right: 0;
   z-index: 30;
-  background: color-mix(in srgb, var(--bg-wave) 88%, black);
+  background: var(--panel-toolbar-bg);
 }
 .editor-workspace.layout-editing .waveform-pane {
   --waveform-content-top: calc(var(--dock-handle-h) + var(--panel-toolbar-h));
@@ -373,7 +373,7 @@
   font-size: 13px;
   text-align: center;
   pointer-events: none;
-  background: linear-gradient(180deg, rgba(23, 29, 35, 0.72), rgba(23, 29, 35, 0.92));
+  background: linear-gradient(180deg, var(--empty-overlay-1), var(--empty-overlay-2));
 }
 .waveform-empty.hidden { display: none; }
 .workspace-divider {
@@ -422,7 +422,7 @@
 
 .dock-handle {
   display: none; position: absolute; z-index: 40; top: 0; left: 0; right: 0; height: var(--dock-handle-h);
-  align-items: center; padding: 0 8px; color: var(--text-secondary); background: rgba(21, 29, 36, 0.94);
+  align-items: center; padding: 0 8px; color: var(--text-secondary); background: var(--dock-bg);
   border-bottom: 1px solid var(--border-subtle); cursor: grab; user-select: none;
   font: 11px/1 var(--font-mono); letter-spacing: 0.02em;
 }
@@ -434,7 +434,7 @@
   margin: 0 -4px;
   border-radius: calc(var(--radius-md) - 2px) calc(var(--radius-md) - 2px) 0 0;
 }
-.dock-handle:hover { color: var(--amber-hover); background: rgba(45, 55, 62, 0.96); }
+  .dock-handle:hover { color: var(--amber-hover); background: var(--dock-bg-hover); }
 .dock-handle:active { cursor: grabbing; }
 .editor-workspace.layout-editing .dock-handle { display: flex; }
 .editor-workspace.layout-editing > .player-wrap,
@@ -442,22 +442,22 @@
 .editor-workspace.layout-editing > .waveform-pane,
 .editor-workspace.layout-editing > .cues-container,
 .editor-workspace.layout-editing .layout-module-slot > [data-dock-module] {
-  outline: 1px solid rgba(111, 160, 200, 0.18);
+  outline: 1px solid var(--accent-tint);
 }
 .editor-workspace.layout-dragging .layout-resizer { pointer-events: none; }
 .layout-drag-source { opacity: .38; }
-.layout-drop-target { outline: 2px solid #f0c66e !important; outline-offset: -2px; }
-.layout-drop-preview {
-  position: absolute;
-  z-index: 100;
-  display: none;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 34px;
-  border: 2px dashed #f0c66e;
-  border-radius: 7px;
-  background: rgba(240, 198, 110, 0.14);
-  color: #ffe0a1;
+  .layout-drop-target { outline: 2px solid var(--layout-drop-outline) !important; outline-offset: -2px; }
+  .layout-drop-preview {
+    position: absolute;
+    z-index: 100;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    padding-top: 34px;
+    border: 2px dashed var(--layout-drop-outline);
+    border-radius: 7px;
+    background: var(--layout-drop-bg);
+    color: var(--layout-drop-fg);
   font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
   pointer-events: none;
   box-sizing: border-box;
@@ -466,9 +466,9 @@
 .layout-drop-preview.layout-insert-preview {
   align-items: center;
   padding: 6px;
-  border-color: #80d8ae;
-  background: rgba(128, 216, 174, 0.16);
-  color: #b9f1d2;
+  border-color: var(--layout-insert-outline);
+  background: var(--layout-insert-bg);
+  color: var(--layout-insert-fg);
   text-align: center;
 }
 .layout-drop-preview.layout-root-insert-preview {
@@ -511,7 +511,7 @@
   padding: 2px 5px;
   border-radius: var(--radius-sm);
   color: var(--accent-hover);
-  background: rgba(9, 13, 17, 0.76);
+  background: var(--wave-badge-bg);
   font: 10px/1.3 var(--font-mono);
   pointer-events: none;
   font-variant-numeric: tabular-nums;
@@ -522,8 +522,8 @@
   top: 0;
   bottom: 0;
   width: 2px;
-  background: #ff5d67;
-  box-shadow: 0 0 5px rgba(255, 70, 82, 0.72);
+  background: var(--wave-playhead);
+  box-shadow: 0 0 5px var(--wave-playhead-glow);
   pointer-events: none;
   transform: translateX(-1px);
 }
@@ -543,7 +543,7 @@
   );
   cursor: pointer;
 }
-.waveform-gap-block:hover { filter: brightness(1.35); }
+.waveform-gap-block:hover { filter: brightness(var(--wave-gap-hover-brightness)); }
 .waveform-gap-block.restored {
   background: repeating-linear-gradient(
     135deg,
@@ -630,8 +630,8 @@
   position: absolute;
   z-index: 12;
   box-sizing: border-box;
-  border: 1px dashed rgba(255, 213, 74, 0.95);
-  background: rgba(255, 213, 74, 0.1);
+  border: 1px dashed var(--selection-yellow-line);
+  background: var(--selection-yellow-soft);
   pointer-events: none;
 }
 .waveform-cue-block {
@@ -643,8 +643,8 @@
   min-width: 3px;
   border: 1px solid color-mix(in srgb, var(--cue-color) 80%, white);
   border-radius: 4px;
-  background: color-mix(in srgb, var(--cue-color) 42%, rgba(15, 22, 28, 0.82));
-  color: #eef6ff;
+  background: color-mix(in srgb, var(--cue-color) 42%, var(--wave-cue-mix));
+  color: var(--wave-cue-text);
   cursor: grab;
   overflow: hidden;
   white-space: nowrap;
@@ -655,17 +655,17 @@
   box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
   touch-action: none;
 }
-.waveform-cue-block:hover { filter: brightness(1.16); }
+.waveform-cue-block:hover { filter: brightness(var(--wave-hover-brightness)); }
 /* 分组徽章：放在块上方的行内区域（bottom = 块高35 + 块底7 + 间距2），
    纯视觉提示不遮挡块内文字；left 由 JS 按块位置写入 */
 .waveform-cue-badge {
   position: absolute; bottom: calc(44px + var(--badge-stack-index, 0) * 16px); z-index: 6;
   font-size: 11px; line-height: 1.3; padding: 1px 5px; white-space: nowrap;
-  color: var(--text-secondary); background: rgba(0, 0, 0, 0.65); border-radius: 3px;
+  color: var(--text-secondary); background: var(--wave-badge-bg); border-radius: 3px;
   pointer-events: none; font-family: var(--font-mono);
 }
-.waveform-cue-badge.color { color: #ffd54a; }
-.waveform-cue-badge.sticker { color: #b8d9ff; }
+.waveform-cue-badge.color { color: var(--selection-yellow); }
+.waveform-cue-badge.sticker { color: var(--wave-badge-sticker); }
 /* 单行（基础）模式块高不是固定 35px，而是 max(35px, min(72px, 40%))
    （见 .waveform-basic .waveform-cue-block）；徽章 bottom 同步按
    「块底 7 + 实际块高 + 间距 2」计算，否则会嵌进更高的单行块内。 */
@@ -674,39 +674,39 @@
 }
 .waveform-cue-block.selected {
   z-index: 6;
-  outline: 2px solid #ffd54a;
+  outline: 2px solid var(--selection-yellow);
   outline-offset: 1px;
-  box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px rgba(255, 213, 74, .45);
+  box-shadow: 0 0 0 1px rgba(89, 62, 0, .72), 0 0 8px var(--selection-yellow-glow);
 }
 /* 框选拖动中的命中预览：比正式选中的实线弱一档的虚线；
    松开后由选中契约替换为 .selected。 */
 .waveform-cue-block.marquee-preview {
-  outline: 2px dashed rgba(255, 213, 74, 0.85);
+  outline: 2px dashed var(--selection-yellow-line);
   outline-offset: 1px;
 }
 .waveform-cue-block.active {
-  background: color-mix(in srgb, var(--cue-color) 70%, #28547a);
+  background: color-mix(in srgb, var(--cue-color) 70%, var(--wave-cue-active-mix));
   color: #fff;
 }
 .waveform-cue-block.disabled {
   opacity: 0.48;
-  color: #89939b;
-  border-color: #66717a;
+  color: var(--wave-disabled-text);
+  border-color: var(--wave-disabled-border);
   background: repeating-linear-gradient(
     135deg,
-    rgba(84, 94, 104, 0.68) 0 5px,
-    rgba(47, 54, 61, 0.82) 5px 10px
+    var(--wave-disabled-a) 0 5px,
+    var(--wave-disabled-b) 5px 10px
   );
 }
 .waveform-cue-block.disabled:hover { opacity: 0.7; }
-.waveform-cue-block.dragging { cursor: grabbing; filter: brightness(1.2); }
+.waveform-cue-block.dragging { cursor: grabbing; filter: brightness(var(--wave-drag-brightness)); }
 .waveform-cue-handle {
   position: absolute;
   top: 0;
   bottom: 0;
   width: 7px;
   z-index: 2;
-  background: rgba(231, 244, 255, 0.2);
+  background: var(--wave-cue-handle);
   cursor: ew-resize;
 }
 .waveform-cue-handle.left { left: 0; border-radius: 3px 0 0 3px; }

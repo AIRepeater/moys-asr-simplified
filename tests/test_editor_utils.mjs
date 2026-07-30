@@ -18,10 +18,7 @@ test('translates editor project controls and dynamic save messages to English', 
   assert.equal(i18n.translateText('保存工程', 'en'), 'Save project');
   assert.equal(i18n.translateText('自动打开上次工程', 'en'), 'Automatically open last project');
   assert.equal(i18n.translateText('上次打开：demo.json', 'en'), 'Last opened: demo.json');
-  assert.equal(
-    i18n.translateText('已保存工程：demo.json（已备份为 demo.json.bak）', 'en'),
-    'Project saved: demo.json (backup: demo.json.bak)',
-  );
+  assert.equal(i18n.translateText('保存成功！', 'en'), 'Saved!');
   assert.equal(i18n.translateText('保存工程', 'zh'), '保存工程');
 });
 

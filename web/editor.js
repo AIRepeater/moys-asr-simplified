@@ -28,6 +28,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   stickerOverlayEnabled: false,
   // 字幕列表单击行为：select-only 仅选中（默认），select-and-seek 选中并跳转播放头。
   clickBehavior: 'select-only',
+  // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
+  theme: 'dark',
 };
 
 function readEditorSettings() {
@@ -51,6 +53,7 @@ function readEditorSettings() {
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
+      theme: saved.theme === 'light' ? 'light' : 'dark',
     };
   } catch (_) {
     return { ...DEFAULT_EDITOR_SETTINGS };
@@ -331,6 +334,7 @@ const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-stic
 const selectGroupMembersToggle = document.getElementById('select-group-members');
 const exportColorUnifiedToggle = document.getElementById('export-color-unified');
 const helpToggle = document.getElementById('help-toggle');
+const themeToggle = document.getElementById('theme-toggle');
 const helpPanel = document.getElementById('help-panel');
 const helpSplitKey = document.getElementById('help-split-key');
 const clickBehaviorSelect = document.getElementById('click-behavior');
@@ -502,6 +506,32 @@ helpToggle?.addEventListener('click', () => {
   if (helpPanel) helpPanel.hidden = !open;
   helpToggle.setAttribute('aria-expanded', open ? 'true' : 'false');
   helpToggle.classList.toggle('active', open);
+});
+// 明暗主题：令牌全部定义在 CSS（:root 暗色 / [data-theme="light"] 亮色），
+// 这里只负责写 <html data-theme>、持久化、同步按钮，以及通知波形重绘画布。
+// 按钮显示的是「目标主题」（与相邻 🌐 语言按钮同一约定）：暗色时显示 🌖（点击转亮）。
+// title 用中文源串，英文界面由 i18n 的属性 MutationObserver 自动翻译。
+function refreshThemeToggle(theme) {
+  if (!themeToggle) return;
+  const toLight = theme !== 'light';
+  themeToggle.textContent = toLight ? '🌖' : '🌘';
+  const title = toLight ? '切换到亮色主题' : '切换到暗色主题';
+  themeToggle.title = title;
+  themeToggle.setAttribute('aria-label', title);
+}
+function applyTheme(theme, { rerenderWaveform = true } = {}) {
+  const next = theme === 'light' ? 'light' : 'dark';
+  if (next === 'light') document.documentElement.dataset.theme = 'light';
+  else delete document.documentElement.dataset.theme;
+  refreshThemeToggle(next);
+  // 画布颜色是 JS 读取的令牌快照，必须全量重绘才能跟随主题
+  if (rerenderWaveform && waveformEditor) waveformEditor.render();
+}
+applyTheme(EDITOR_SETTINGS.theme, { rerenderWaveform: false });
+themeToggle?.addEventListener('click', () => {
+  const next = EDITOR_SETTINGS.theme === 'light' ? 'dark' : 'light';
+  updateEditorSettings({ theme: next });
+  applyTheme(next);
 });
 splitKeySel.addEventListener('change', () => {
   updateEditorSettings({ splitKey: splitKeySel.value });

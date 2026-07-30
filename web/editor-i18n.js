@@ -55,6 +55,7 @@
     '每段空隙结尾保留的静音，避免下一句贴得太紧': 'Keep this much silence at each gap end so the next line is not too tight',
     '当音频判定为有声时，需要降低到比阈值更低 2 dB 的时候才视作恢复静音。建议 1–3 dB，过高会延迟回到静音': 'After audio becomes active, it must fall 2 dB below the threshold to become silent again. Recommended: 1–3 dB.',
     '滚轮可调数值 · Esc 关闭': 'Use the wheel to adjust values · Esc to close',
+    '未加载媒体': 'No media loaded', '需重新扫描': 'Rescan needed', '人工修正': 'manually adjusted',
     '全部清理': 'Clear all', '字幕列表显示': 'Subtitle list fields',
     '序号': 'Index', '时间码': 'Timecode', '表情包': 'Stickers', '字数': 'Characters',
     '字幕编辑显示': 'Subtitle editor fields', '跳转按钮': 'Navigation buttons', '前后跳转': 'Navigation buttons', '时间操作': 'Time actions',
@@ -149,6 +150,8 @@
   };
 
   const EN_ATTR = {
+    '切换到亮色主题': 'Switch to light theme',
+    '切换到暗色主题': 'Switch to dark theme',
     '撤销 (Ctrl/Cmd+Z)': 'Undo (Ctrl/Cmd+Z)',
     '重做 (Ctrl/Cmd+Shift+Z)': 'Redo (Ctrl/Cmd+Shift+Z)',
     '撤销重做': 'Undo and redo',
@@ -280,8 +283,46 @@
     if (lang !== EN) return text;
     if (EN_TEXT[text]) return EN_TEXT[text];
     if (EN_ATTR[text]) return EN_ATTR[text];
-    let match = /^生成时间\s+(.+)$/.exec(text);
+    let     match = /^生成时间\s+(.+)$/.exec(text);
     if (match) return `Generated ${match[1]}`;
+    // 时长片段（供下面各摘要规则递归调用，必须排在它们之前，且只匹配纯时长，
+    //  不能吞掉前缀文字，否则会抢先匹配整句）：6秒 / 6秒（占比 2.1%） / 1分 6秒
+    match = /^(\d+(?:\.\d+)?)\s*秒（占比\s+(.+?)）$/.exec(text);
+    if (match) return `${match[1]}s (${match[2]} of media)`;
+    match = /^(\d+)\s*分\s*(\d+(?:\.\d+)?)\s*秒（占比\s+(.+?)）$/.exec(text);
+    if (match) return `${match[1]}m ${match[2]}s (${match[3]} of media)`;
+    match = /^(\d+(?:\.\d+)?)\s*秒$/.exec(text);
+    if (match) return `${match[1]}s`;
+    match = /^(\d+)\s*分\s*(\d+(?:\.\d+)?)\s*秒$/.exec(text);
+    if (match) return `${match[1]}m ${match[2]}s`;
+    // 空隙摘要（工具栏紧凑版）：已移除 4/4 段 · 6秒（占比 2.1%）[ · 人工修正]
+    // 先剥离可选的「· 人工修正」尾巴，再整体翻译中间的时长片段。
+    {
+      const manual = / ·\s*人工修正$/.test(text);
+      const body = manual ? text.replace(/ ·\s*人工修正$/, '') : text;
+      const m = /^已移除\s+(\d+)\/(\d+)\s+段\s+·\s+(.+)$/.exec(body);
+      if (m) {
+        return `${m[1]}/${m[2]} gaps removed · ${translateText(m[3], EN)}`
+          + (manual ? ' · manually adjusted' : '');
+      }
+    }
+    // 空隙摘要（工具窗完整版）
+    match = /^已移除\s+(\d+)\/(\d+)\s+段，共\s+(.+)；左键空隙跳转播放头，Alt\+左键切换移除。$/.exec(text);
+    if (match) {
+      return `${match[1]}/${match[2]} gaps removed, ${translateText(match[3], EN)} total. `
+        + 'Left-click a gap to move the playhead; Alt+left-click toggles removal.';
+    }
+    // flashHint：已移除 N 段音量空隙，共 6秒（占比 2.1%）
+    match = /^已移除\s+(\d+)\s+段音量空隙，共\s+(.+)$/.exec(text);
+    if (match) return `Removed ${match[1]} loudness gaps, ${translateText(match[2], EN)} total`;
+    // 波形状态：12:34.567 · 缓存波形（未加载媒体）
+    match = /^(.+?)\s+·\s+缓存波形（未加载媒体）$/.exec(text);
+    if (match) return `${match[1]} · cached waveform (no media loaded)`;
+    match = /^未扫描空隙(?:\s+·\s+人工修正)?$/.exec(text);
+    if (match) return text.includes('人工修正') ? 'No gap scan yet · manually adjusted' : 'No gap scan yet';
+    if (text === ' · 人工修正') return ' · manually adjusted';
+    match = /^(.+?)\s+·\s+人工修正$/.exec(text);
+    if (match) return `${translateText(match[1])} · manually adjusted`;
     match = /^上次打开：(.+)$/.exec(text);
     if (match) return `Last opened: ${match[1]}`;
     match = /^保存失败：(.+)$/.exec(text);
