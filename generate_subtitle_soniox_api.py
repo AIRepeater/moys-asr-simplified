@@ -248,7 +248,7 @@ def main():
         print(f"处理用时: {em}分{es}秒")
 
     if args.json_out:
-        json_path = output_path.with_suffix(".json")
+        json_path = output_path.with_suffix(".mosp")
         json_data = {
             "media": str(input_path),
             "language": result.get("language", ""),

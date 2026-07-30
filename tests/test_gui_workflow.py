@@ -42,7 +42,7 @@ class GuiWorkflowTests(unittest.TestCase):
         paths = build_output_paths(self.srt_path)
 
         self.assertEqual(paths.srt, self.srt_path)
-        self.assertEqual(paths.json, self.root / "out.json")
+        self.assertEqual(paths.json, self.root / "out.mosp")
         self.assertEqual(paths.html, self.root / "out.edit.html")
 
     def test_build_transcribe_command_source_mode_uses_script_and_forces_json_no_html(self) -> None:
@@ -86,7 +86,7 @@ class GuiWorkflowTests(unittest.TestCase):
             ui_language="en",
         )
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".json").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
         events: list[str] = []
 
         class FakeProcess:
@@ -112,17 +112,17 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertNotEqual(os.environ.get("DASHSCOPE_API_KEY"), "secret-key")
         self.assertEqual(events, ["started", "done"])
         self.assertEqual(result.srt_path, self.srt_path)
-        self.assertEqual(result.json_path, self.srt_path.with_suffix(".json"))
+        self.assertEqual(result.json_path, self.srt_path.with_suffix(".mosp"))
         self.assertEqual(result.html_path, self.srt_path.with_suffix(".edit.html"))
         render_html.assert_called_once_with(
-            self.srt_path.with_suffix(".json"),
+            self.srt_path.with_suffix(".mosp"),
             self.media_path,
             self.srt_path.with_suffix(".edit.html"),
             "en",
         )
 
     def test_render_editor_html_embeds_requested_gui_language(self) -> None:
-        json_path = self.srt_path.with_suffix(".json")
+        json_path = self.srt_path.with_suffix(".mosp")
         html_path = self.srt_path.with_suffix(".edit.html")
         json_path.write_text(json.dumps({"segments": []}), encoding="utf-8")
 
@@ -181,7 +181,7 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_run_transcription_reports_child_pid_after_popen(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".json").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
         started: list[int] = []
 
         class FakeProcess:
@@ -204,7 +204,7 @@ class GuiWorkflowTests(unittest.TestCase):
     def test_run_transcription_keeps_json_when_optional_html_render_fails(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
         self.srt_path.write_text("1\n", encoding="utf-8")
-        self.srt_path.with_suffix(".json").write_text('{"segments": []}\n', encoding="utf-8")
+        self.srt_path.with_suffix(".mosp").write_text('{"segments": []}\n', encoding="utf-8")
         events: list[str] = []
 
         class FakeProcess:
@@ -222,7 +222,7 @@ class GuiWorkflowTests(unittest.TestCase):
             with mock.patch("maw.gui_workflow.render_editor_html", side_effect=ValueError("invalid preview")):
                 result = run_transcription(request, on_event=events.append)
 
-        self.assertEqual(result.json_path, self.srt_path.with_suffix(".json"))
+        self.assertEqual(result.json_path, self.srt_path.with_suffix(".mosp"))
         self.assertIsNone(result.html_path)
         self.assertTrue(any("SRT/JSON 已保留" in event for event in events))
 

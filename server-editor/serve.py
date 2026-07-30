@@ -453,10 +453,10 @@ def safe_project_filename(directory: Path, filename: str) -> Path:
     if (
         not filename
         or candidate.name != filename
-        or candidate.suffix.lower() != ".json"
+        or candidate.suffix.lower() not in {".json", ".mosp"}
         or filename in {".", ".."}
     ):
-        raise SaveProjectError("另存为只能使用当前工程目录内的 .json 文件名")
+        raise SaveProjectError("另存为只能使用当前工程目录内的 .mosp 或 .json 文件名")
     return directory / candidate.name
 
 

@@ -88,7 +88,7 @@ class MissingOutputError(Exception):
 
 def build_output_paths(srt_path: Path) -> OutputPaths:
     srt = Path(srt_path).expanduser().resolve()
-    return OutputPaths(srt=srt, json=srt.with_suffix(".json"), html=srt.with_suffix(".edit.html"))
+    return OutputPaths(srt=srt, json=srt.with_suffix(".mosp"), html=srt.with_suffix(".edit.html"))
 
 
 PROVIDER_SRT_TAGS: Final = {"qwen": ".qwen3-asr-api", "soniox": ".soniox"}
