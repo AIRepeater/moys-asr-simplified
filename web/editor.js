@@ -4383,7 +4383,7 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     renderAll();
     updateUnloadedMediaLabel(DATA.media);
 
-    FILENAME_BASE = file.name.replace(/\.json$/i, '');
+    FILENAME_BASE = file.name.replace(/\.(json|mosp)$/i, '');
     const jsonEl = document.getElementById('json-name');
     if (jsonEl) {
       jsonEl.textContent = file.name;

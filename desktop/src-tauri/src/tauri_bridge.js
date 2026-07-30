@@ -34,7 +34,8 @@
     );
   }
 
-  // 把工程数据注入 editor.js（模拟 file input change）+ 启用保存 + 自动加载媒体
+  // 把工程数据注入 editor.js：直接调 openProjectFile（全局函数），不模拟 file input。
+  // openProjectFile 处理完后（.then），启用保存 + 更新最近工程 + 自动加载媒体。
   function loadProjectData(result) {
     if (!result || !result.ok) {
       if (result && result.error) {
@@ -43,47 +44,47 @@
       return;
     }
 
-    var fileInput = document.getElementById('open-project-file');
-    if (!fileInput) return;
-
     var jsonContent = JSON.stringify(result.data);
     var file = new File([jsonContent], result.filename || 'untitled.mosp', {
       type: 'application/json',
     });
-    var dt = new DataTransfer();
-    dt.items.add(file);
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
 
-    // 启用"保存工程"按钮 + 实时更新最近工程列表
-    if (typeof SERVER_CONFIG !== 'undefined') {
-      SERVER_CONFIG.canSave = true;
-      // 把刚打开的工程加到最近列表头部（去重）
-      if (!Array.isArray(SERVER_CONFIG.recentProjects)) SERVER_CONFIG.recentProjects = [];
-      SERVER_CONFIG.recentProjects = SERVER_CONFIG.recentProjects.filter(function (p) {
-        return p.path !== result.path;
+    if (typeof openProjectFile === 'function') {
+      openProjectFile(file, [], null).then(function (success) {
+        if (!success) return;
+
+        // 启用保存按钮 + 实时更新最近工程
+        if (typeof SERVER_CONFIG !== 'undefined') {
+          SERVER_CONFIG.canSave = true;
+          if (!Array.isArray(SERVER_CONFIG.recentProjects)) SERVER_CONFIG.recentProjects = [];
+          SERVER_CONFIG.recentProjects = SERVER_CONFIG.recentProjects.filter(function (p) {
+            return p.path !== result.path;
+          });
+          SERVER_CONFIG.recentProjects.unshift({
+            path: result.path, name: result.filename, exists: true,
+          });
+        }
+        var saveDropdown = document.getElementById('save-project-dropdown');
+        if (saveDropdown) saveDropdown.hidden = false;
+        var saveBtn = document.getElementById('save-project');
+        if (saveBtn) saveBtn.disabled = false;
+
+        if (typeof configureRecentProjects === 'function') {
+          configureRecentProjects();
+        }
+
+        // 自动加载关联媒体
+        if (result.data && result.data.media) {
+          autoLoadMedia(result.data.media);
+        }
       });
-      SERVER_CONFIG.recentProjects.unshift({
-        path: result.path, name: result.filename, exists: true,
-      });
-    }
-    var saveDropdown = document.getElementById('save-project-dropdown');
-    if (saveDropdown) saveDropdown.hidden = false;
-    var saveBtn = document.getElementById('save-project');
-    if (saveBtn) saveBtn.disabled = false;
-
-    // 重新渲染最近工程下拉列表（让新打开的工程立刻可见）
-    if (typeof configureRecentProjects === 'function') {
-      configureRecentProjects();
-    }
-
-    // 自动加载关联媒体（如果有 media 路径）
-    if (result.data && result.data.media) {
-      autoLoadMedia(result.data.media);
+    } else {
+      console.error('[MOSE] openProjectFile 函数不可用');
     }
   }
 
-  // 自动加载媒体：关闭 editor.js 弹出的"选择媒体" modal，然后设置 player.src
+  // 自动加载媒体：用 invoke('resolve_media') 获取 file:// URL，直接设 player.src。
+  // 直接调 openProjectFile 不经过 change handler，不会弹"选择媒体" modal。
   async function autoLoadMedia(mediaPath) {
     if (!mediaPath) return;
     try {
@@ -93,30 +94,22 @@
         return;
       }
 
-      // 等 editor.js 弹出"选择关联媒体" modal 后自动关闭它
-      setTimeout(function () {
-        var laterBtn = document.getElementById('project-media-later');
-        if (laterBtn) laterBtn.click();
+      var player = document.getElementById('player');
+      if (player) {
+        var source = player.querySelector('source');
+        if (source) source.src = result.url;
+        else player.src = result.url;
+        player.load();
+      }
 
-        // 设置 player 媒体源
-        var player = document.getElementById('player');
-        if (player) {
-          var source = player.querySelector('source');
-          if (source) source.src = result.url;
-          else player.src = result.url;
-          player.load();
-        }
+      var mediaNameEl = document.getElementById('media-name');
+      if (mediaNameEl) {
+        mediaNameEl.textContent = result.name;
+        mediaNameEl.classList.remove('empty');
+        mediaNameEl.title = '点击复制媒体名：' + result.name;
+      }
 
-        // 更新标题里的媒体名
-        var mediaNameEl = document.getElementById('media-name');
-        if (mediaNameEl) {
-          mediaNameEl.textContent = result.name;
-          mediaNameEl.classList.remove('empty');
-          mediaNameEl.title = '点击复制媒体名：' + result.name;
-        }
-
-        console.log('[MOSE] 媒体已自动加载:', result.name);
-      }, 300);
+      console.log('[MOSE] 媒体已自动加载:', result.name);
     } catch (e) {
       console.warn('[MOSE] 媒体加载异常:', e);
     }
