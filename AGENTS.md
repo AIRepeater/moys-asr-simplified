@@ -49,6 +49,7 @@ uv run python server-editor\serve.py --blank
 
 ## 代码与安全约束
 
+- 提交信息不附加任何代理 / AI 署名：禁止 `Co-authored-by`、`Ultraworked with`、工具链接等尾注；提交身份只能是维护者本人。
 - `.env` 只存本机 Key；绝不读取、打印、提交或放进测试夹具。
 - 不加入媒体、识别结果、波形 sidecar、截图或个人绝对路径。
 - 本地服务器必须只监听 `127.0.0.1`；不可改成任意本地文件浏览或任意路径写入接口。
