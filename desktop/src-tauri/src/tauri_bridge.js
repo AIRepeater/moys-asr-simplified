@@ -110,6 +110,22 @@
       }
 
       console.log('[MOSE] 媒体已自动加载:', result.name);
+
+      // 自动提取波形（调 ffmpeg sidecar，非致命——失败不影响编辑器使用）
+      try {
+        var wave = await invoke('extract_waveform', { mediaPath: mediaPath });
+        if (wave && wave.data) {
+          if (typeof DATA !== 'undefined') {
+            DATA.waveform = wave;
+          }
+          if (typeof waveformEditor !== 'undefined' && waveformEditor) {
+            waveformEditor.setPayload(wave);
+          }
+          console.log('[MOSE] 波形已生成:', wave.peak_count, 'peaks');
+        }
+      } catch (waveErr) {
+        console.warn('[MOSE] 波形提取失败（非致命）:', waveErr);
+      }
     } catch (e) {
       console.warn('[MOSE] 媒体加载异常:', e);
     }

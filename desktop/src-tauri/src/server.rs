@@ -474,3 +474,126 @@ pub async fn pick_and_scan_stickers(app: tauri::AppHandle) -> Result<serde_json:
         "count": items.len(),
     }))
 }
+
+// === 波形提取（移植自 waveform.py） ===
+
+/// 从媒体提取波形峰值（等价 waveform.py:extract_waveform）。
+/// 调 ffmpeg sidecar 输出 mono PCM s16le → 流式读 → 分桶 min/max → 量化 int8 → base64。
+#[tauri::command]
+pub async fn extract_waveform(
+    app: tauri::AppHandle,
+    media_path: String,
+    peaks_per_second: Option<u32>,
+) -> Result<serde_json::Value, String> {
+    use tauri_plugin_shell::ShellExt;
+    use tauri_plugin_shell::process::CommandEvent;
+
+    let pps = peaks_per_second.unwrap_or(100);
+    let pcm_sample_rate = pps * 10;
+
+    let path = PathBuf::from(&media_path);
+    if !path.exists() {
+        return Err(format!("媒体文件不存在: {}", media_path));
+    }
+
+    // 文件签名（用于缓存失效检查，与 waveform.py:media_signature 对齐）
+    let stat = fs::metadata(&path).map_err(|e| format!("读取文件信息失败: {}", e))?;
+    let source = serde_json::json!({
+        "name": path.file_name().and_then(|s| s.to_str()).unwrap_or(""),
+        "size": stat.len(),
+        "modified_ms": stat.modified()
+            .ok()
+            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+            .map(|d| d.as_millis() as u64)
+            .unwrap_or(0),
+    });
+
+    // 调 ffmpeg sidecar
+    let sidecar = app
+        .shell()
+        .sidecar("ffmpeg")
+        .map_err(|e| format!("无法找到 ffmpeg sidecar: {}", e))?;
+
+    let (mut rx, _child) = sidecar
+        .args([
+            "-nostdin", "-hide_banner", "-loglevel", "error",
+            "-i", &media_path,
+            "-map", "0:a:0", "-vn", "-ac", "1",
+            "-ar", &pcm_sample_rate.to_string(),
+            "-f", "s16le", "pipe:1",
+        ])
+        .spawn()
+        .map_err(|e| format!("ffmpeg 启动失败: {}", e))?;
+
+    // 流式收集 PCM s16le 字节
+    let mut pcm_data = Vec::new();
+    let mut stderr_output = String::new();
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(bytes) => {
+                pcm_data.extend_from_slice(bytes.as_slice());
+            }
+            CommandEvent::Stderr(bytes) => {
+                if let Ok(s) = std::str::from_utf8(bytes.as_slice()) {
+                    stderr_output.push_str(s);
+                }
+            }
+            CommandEvent::Terminated(_) => break,
+            _ => {}
+        }
+    }
+
+    if pcm_data.is_empty() {
+        return Err(if stderr_output.trim().is_empty() {
+            "ffmpeg 没有输出音频数据".to_string()
+        } else {
+            format!("ffmpeg 错误: {}", stderr_output.trim())
+        });
+    }
+
+    // PCM s16le → i16 样本
+    let samples: Vec<i16> = pcm_data
+        .chunks_exact(2)
+        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
+        .collect();
+
+    // 分桶 min/max → 量化 int8（与 waveform.py:_append_bucket 一致）
+    let bucket = (pcm_sample_rate / pps) as usize;
+    let bucket = bucket.max(1);
+    let mut peaks_bytes = Vec::new();
+
+    for chunk in samples.chunks(bucket) {
+        let min_val = chunk.iter().min().copied().unwrap_or(0);
+        let max_val = chunk.iter().max().copied().unwrap_or(0);
+        let min_q = (min_val as f32 * 127.0 / 32768.0).round().clamp(-127.0, 127.0) as i8;
+        let max_q = (max_val as f32 * 127.0 / 32768.0).round().clamp(-127.0, 127.0) as i8;
+        peaks_bytes.push(min_q as u8);
+        peaks_bytes.push(max_q as u8);
+    }
+
+    let peak_count = peaks_bytes.len() / 2;
+    let actual_pps = if !samples.is_empty() && bucket > 0 {
+        pcm_sample_rate / bucket as u32
+    } else {
+        pps
+    };
+    let duration_ms = if !samples.is_empty() {
+        (samples.len() as u64 * 1000) / pcm_sample_rate as u64
+    } else {
+        0
+    };
+
+    // base64 编码
+    use base64::Engine;
+    let data = base64::engine::general_purpose::STANDARD.encode(&peaks_bytes);
+
+    Ok(serde_json::json!({
+        "schema": "moy.asr.waveform.v1",
+        "encoding": "i8-minmax-base64",
+        "peaks_per_second": actual_pps,
+        "peak_count": peak_count,
+        "duration_ms": duration_ms,
+        "data": data,
+        "source": source,
+    }))
+}

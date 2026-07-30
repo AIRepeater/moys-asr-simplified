@@ -12,8 +12,9 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use server::{
-    open_project, open_project_at_path, pick_and_scan_stickers, remember_project,
-    resolve_media, save_project, settings_path, update_settings, AppState, ServerSettings,
+    extract_waveform, open_project, open_project_at_path, pick_and_scan_stickers,
+    remember_project, resolve_media, save_project, settings_path, update_settings,
+    AppState, ServerSettings,
 };
 
 /// web/ 目录（MAW 仓库根的 web/），基于 Cargo.toml 编译时位置推算。
@@ -114,6 +115,7 @@ pub fn run() {
     // 3. 启动 Tauri（注册 commands + dialog plugin + 共享状态）
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_shell::init())
         .manage(AppState {
             current_project_path: Mutex::new(None),
             settings: Mutex::new(settings),
@@ -127,6 +129,7 @@ pub fn run() {
             update_settings,
             resolve_media,
             pick_and_scan_stickers,
+            extract_waveform,
         ])
         .run(tauri::generate_context!())
         .expect("MOSE 启动失败");
