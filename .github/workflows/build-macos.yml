@@ -97,6 +97,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         with:
           target_commitish: ${{ github.sha }}
+          prerelease: ${{ contains(github.ref_name, '-') }}
           files: |
             MAW-macOS-arm64-*.zip
             MAW-macOS-arm64-*.zip.sha256
