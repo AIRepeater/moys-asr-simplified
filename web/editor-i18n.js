@@ -123,14 +123,14 @@
     '取消': 'Cancel', '替换全部': 'Replace all', '分配表情包': 'Assign sticker',
     '清除当前': 'Clear current', '替换': 'Replace', '删除': 'Delete', '关闭': 'Close',
     '设置表情包根目录': 'Set sticker root folder',
-    '仅服务器版编辑器可将改动保存回当前工程 JSON': 'Only the server editor can save changes back to the current project JSON',
+    '仅服务器版编辑器可将改动保存回当前工程文件': 'Only the server editor can save changes back to the current project file',
     '所有表情包路径都基于此根目录。修改后页面所有缩略图会立刻按新路径加载。': 'All sticker paths are relative to this root. Thumbnails update immediately after it changes.',
     '支持 OS 路径（D:/foo/bar）或 file:// URL。手动改路径只替换前缀；点 📁 浏览选本地文件夹会重新扫描表情包。': 'Supports OS paths (D:/foo/bar) and file:// URLs. Editing the path only changes the prefix; Browse rescans the folder.',
     '当前根目录（绝对路径）': 'Current root folder (absolute path)',
     '📁 浏览…': '📁 Browse…', '应用': 'Apply',
     '选择关联媒体': 'Choose related media',
-    '是否同时选择该工程关联的媒体文件？': 'Would you also like to choose the media associated with this project?',
-    '也可以稍后点击“加载媒体”。': 'You can also click “Load media” later.',
+    '浏览器无法自动读取工程所在目录的关联媒体。': 'The browser cannot automatically read media from the project folder.',
+    '现在选择一次，或稍后点击“加载媒体”。': 'Choose it once now, or click “Load media” later.',
     '选择媒体': 'Choose media', '稍后加载': 'Load later',
     '📥 松开以加载文件（视频 / 音频 / JSON）': '📥 Drop to load files (video / audio / JSON)',
     '本机工程': 'Local projects', '时长': 'Duration', '总长度': 'Total length',
@@ -157,14 +157,14 @@
     '波形显示模式': 'Waveform display mode',
     '打开更多文件': 'Open more files',
     '导出或导入工作区配置': 'Export or import workspace configuration',
-    '点击复制 JSON 文件名': 'Click to copy the JSON file name',
+    '点击复制工程文件名': 'Click to copy the project file name',
     '点击替换；右键删除': 'Click to replace; right-click to remove',
     '点击选择表情包；右键删除引用': 'Click to pick a sticker; right-click to remove the reference',
     '点击添加表情包': 'Click to add a sticker',
-    '请用带 JSON 工程路径的服务器命令启动，才能直接保存':
-      'Start the server with a project JSON path to enable direct saving',
-    'SRT 字幕只能通过导出下载保存为工程 JSON':
-      'SRT subtitles can only be saved as a project JSON through export',
+    '请用带工程文件路径的服务器命令启动，才能直接保存':
+      'Start the server with a project file path to enable direct saving',
+    'SRT 字幕只能通过导出下载保存为工程文件':
+      'SRT subtitles can only be saved as a project file through export',
     '字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。':
       'Subtitle preview position. Drag to adjust; arrow keys move, hold Shift to speed up, hold Alt with arrows to resize, Enter or Space shows handles, Esc exits.',
     '表情包预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。':
@@ -173,14 +173,14 @@
     '重做 (Ctrl/Cmd+Shift+Z)': 'Redo (Ctrl/Cmd+Shift+Z)',
     '撤销重做': 'Undo and redo',
     '打开本机最近使用的工程': 'Open a recently used local project',
-    '保存回服务器启动时指定的工程 JSON': 'Save to the project JSON bound when the server started',
-    '保存回当前工程 JSON（Ctrl/Cmd+S）': 'Save to the current project JSON (Ctrl/Cmd+S)',
+    '保存回服务器启动时指定的工程文件': 'Save to the project file bound when the server started',
+    '保存回当前工程文件（Ctrl/Cmd+S）': 'Save to the current project file (Ctrl/Cmd+S)',
     '另存为到当前工程目录': 'Save as in the current project folder',
-    '另存为 JSON 文件（Ctrl/Cmd+Shift+S）': 'Save as JSON file (Ctrl/Cmd+Shift+S)',
+    '另存为工程文件（Ctrl/Cmd+Shift+S）': 'Save as a project file (Ctrl/Cmd+Shift+S)',
     '🦊 表情包': '🦊 Stickers',
     '另存为到当前工程目录（Ctrl/Cmd+Shift+S）': 'Save as in the current project folder (Ctrl/Cmd+Shift+S)',
     '选择本地媒体文件并加载到播放器': 'Choose a local media file and load it in the player',
-    '可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体': 'Choose project JSON and media together; choosing only JSON will prompt for related media',
+    '单独打开工程；浏览器无法自动读取关联媒体时会提示选择': 'Open a project by itself; the browser will prompt when it cannot read related media automatically',
     '设置表情包根目录': 'Set sticker root folder',
     '过滤字幕…': 'Filter subtitles…', '清空': 'Clear',
     '只显示超过阈值的字幕（再次点击关闭）': 'Show only subtitles over the threshold (click again to turn off)',
@@ -315,8 +315,8 @@
     if (match) return `Inherits the sticker of subtitle ${match[1]}`;
     match = /^工程路径失效：(.+)$/.exec(text);
     if (match) return `Project path is no longer valid: ${match[1]}`;
-    match = /^点击复制 JSON 文件名：(.+)$/.exec(text);
-    if (match) return `Click to copy the JSON file name: ${match[1]}`;
+    match = /^点击复制工程文件名：(.+)$/.exec(text);
+    if (match) return `Click to copy the project file name: ${match[1]}`;
     match = /^点击复制媒体名：(.+)$/.exec(text);
     if (match) return `Click to copy the media name: ${match[1]}`;
     match = /^工程关联媒体：(.+)$/.exec(text);
@@ -387,11 +387,11 @@
     if (match) return `All linked subtitles set to ${translateText(match[1])}`;
     match = /^已将字幕设为「(.+)」$/.exec(text);
     if (match) return `Subtitle set to ${translateText(match[1])}`;
-    if (text === '无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？') {
-      return 'The local editor server is unavailable. Export the project JSON instead so your changes are not lost?';
+    if (text === '无法连接本地编辑器服务器。是否改为导出工程文件，以免丢失改动？') {
+      return 'The local editor server is unavailable. Export the project file instead so your changes are not lost?';
     }
-    if (text === '服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续') {
-      return 'The server is disconnected. The project was saved as JSON; restart the local editor to continue.';
+    if (text === '服务器未连接；工程已另存为工程文件，请重新启动本地编辑器后继续') {
+      return 'The server is disconnected. The project was saved as a project file; restart the local editor to continue.';
     }
     if (text === '另存为到当前工程目录（仅文件名）：') {
       return 'Save as in the current project folder (filename only):';

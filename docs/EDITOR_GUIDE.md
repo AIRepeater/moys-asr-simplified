@@ -3,7 +3,7 @@
 MAWE（Moy's ASR Workflow Editor）是 MAW 自带的字幕编辑器，提供两种入口，并共享同一份 JSON 工程格式与前端代码。
 
 - 推荐：`uv run python server-editor\serve.py "subtitle-project.json"`。它通过 `http://127.0.0.1` 提供媒体 Range 请求，适合日常编辑和大型视频 Seek。
-- 便携：双击转写生成的 `.edit.html`，或打开仓库根目录的 `blank-editor.html` 后选择 JSON 与媒体。它不需要启动服务，适合携带和离线检查。
+- 便携：双击转写生成的 `.edit.html`，或打开仓库根目录的 `blank-editor.html` 后单独选择 `.mosp` / `.json` 工程；浏览器无法自动读取关联媒体时会提示选择。它不需要启动服务，适合携带和离线检查。
 - Windows 图形版：双击 Release 压缩包中的 `MAW.exe` 生成工程；完成后可从窗口打开输出目录或便携编辑器 HTML。
 
 无论用哪种方式，`.json` 都是工程真源；SRT 只能保留文本和时间，不能完整保留字/词级时间码、表情包、颜色、波形、布局与静音空隙决定。
@@ -43,7 +43,7 @@ MAW 的 JSON 工程会保存 `segments[*].items` 字/词级时间码。存在这
 
 ## 保存和导出
 
-在 localhost 编辑器中，“保存工程”（`Ctrl/Cmd+S`）会原子写回当前 JSON，并在覆盖前创建同目录 `.json.bak`；“另存为”（`Ctrl/Cmd+Shift+S`）可在当前工程目录内换用新的 `.json` 文件名。若浏览器标签页仍开着但 localhost 服务已经退出，编辑器会提示改为导出工程 JSON，避免只报网络错误而丢失改动。便携 HTML 没有安全的原路径写入能力，因此使用“导出工程”下载 JSON。
+在 localhost 编辑器中，“保存工程”（`Ctrl/Cmd+S`）会原子写回当前 `.mosp` / `.json` 工程，并在覆盖前创建同目录 `.mosp.bak` / `.json.bak`；“另存为”（`Ctrl/Cmd+Shift+S`）可在当前工程目录内换用新的 `.mosp` 或 `.json` 文件名。若浏览器标签页仍开着但 localhost 服务已经退出，编辑器会提示改为导出工程文件，避免只报网络错误而丢失改动。便携 HTML 没有安全的原路径写入能力，因此使用“导出工程”下载工程文件。
 
 - **JSON 工程**：继续编辑时优先保存它。
 - **SRT / TXT**：SRT 用于播放器、剪辑软件和普通字幕交付；可选择让首条字幕从 0 开始。工程存在颜色标记时，可导出完整字幕，或按每种已使用颜色（含无颜色的 `default`）分别生成带颜色名后缀的 SRT。也可导出逐字幕行排列的纯文本 TXT。

@@ -264,29 +264,6 @@ test('builds a gap-mapped color SRT with positive cue durations', () => {
 });
 
 
-test('prefers the media named by a project when JSON and media are selected together', () => {
-  const files = [
-    { name: 'other.mp3' },
-    { name: 'take.mov' },
-  ];
-  assert.equal(
-    helpers.findProjectMediaFile(files, 'D:/footage/take.mov', 'take.qwen3-asr.2.1x.json'),
-    files[1],
-  );
-});
-
-
-test('falls back to a matching project stem or one unambiguous selected media file', () => {
-  const matchingStem = { name: 'take.wav' };
-  assert.equal(
-    helpers.findProjectMediaFile([matchingStem, { name: 'other.mp3' }], '', 'take.qwen3-asr.2.1x.json'),
-    matchingStem,
-  );
-  const onlyFile = { name: 'anything.mp3' };
-  assert.equal(helpers.findProjectMediaFile([onlyFile], '', 'project.json'), onlyFile);
-});
-
-
 test('finds only internal audio gaps that pass the gate threshold and minimum duration', () => {
   const gaps = helpers.detectAudioGapRemoveGaps({
     peaks: new Int8Array([

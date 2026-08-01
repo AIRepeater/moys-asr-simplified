@@ -384,7 +384,8 @@ pub fn save_project(
     // .bak 备份
     let mut backup_name = None;
     if path.exists() {
-        let bak_path = path.with_extension("json.bak");
+        let extension = path.extension().and_then(|value| value.to_str()).unwrap_or("json");
+        let bak_path = path.with_extension(format!("{}.bak", extension));
         if fs::copy(&path, &bak_path).is_ok() {
             backup_name = bak_path
                 .file_name()

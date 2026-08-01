@@ -275,7 +275,7 @@ class LauncherApi:
     def check_server_media(self, payload: Mapping[str, object]) -> dict[str, object]:
         json_text = str(payload.get("jsonPath") or "").strip()
         if not json_text:
-            return {"ok": False, "hasMedia": False, "mediaPath": "", "mediaExists": False, "error": "Project JSON is required."}
+            return {"ok": False, "hasMedia": False, "mediaPath": "", "mediaExists": False, "error": "Project file is required."}
         json_path = Path(json_text).expanduser()
         try:
             data = json.loads(json_path.read_text(encoding="utf-8"))

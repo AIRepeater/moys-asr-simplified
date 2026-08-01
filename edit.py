@@ -171,7 +171,7 @@ def build_blank_html() -> str:
     """生成一个空壳全功能编辑器 HTML（不预先自包含任何工程数据）。
 
     页面功能与 .edit.html 完全一致（始终是最新模板），但初始没有字幕 / 媒体。
-    打开后可用「打开工程」同时选择 .json 和媒体，或仅选 JSON 后按提示继续选择媒体，
+    打开后可用「打开工程」单独选择 .mosp 或 .json；浏览器无法自动读取关联媒体时会提示选择，
     即可用最新功能编辑旧工程。
 
     表情包根目录从 .env 的 STICKER_DIR 读取（若有），方便直接显示缩略图；
@@ -250,7 +250,7 @@ def main():
         # Path.write_text() 在 Windows 上会把换行转换成 CRLF；HTML 资产统一保持 LF。
         output_path.write_bytes(build_blank_html().encode("utf-8"))
         print(f"MAWE 空壳编辑器已生成: {output_path}")
-        print("用法: file:// 打开 → 点「打开工程」同选 .json + 媒体（或按提示再选媒体）")
+        print("用法: file:// 打开 → 点「打开工程」选择 .mosp/.json（需要时按提示选择关联媒体）")
         return 0
 
     if not args.json_path:

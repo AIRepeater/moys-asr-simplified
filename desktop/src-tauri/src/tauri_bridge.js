@@ -50,7 +50,7 @@
     });
 
     if (typeof openProjectFile === 'function') {
-      openProjectFile(file, [], null).then(function (success) {
+      openProjectFile(file, { suppressMediaPrompt: true }).then(function (success) {
         if (!success) return;
 
         // 启用保存按钮 + 实时更新最近工程

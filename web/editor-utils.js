@@ -304,34 +304,6 @@
     return String(value || '').trim().split(/[\\/]/).pop() || '';
   }
 
-  function projectMediaStem(projectName) {
-    const stem = fileBasename(projectName).replace(/\.(json|mosp)$/i, '');
-    for (const tag of ['.qwen3-asr.', '.qwen3-asr-api.', '.funasr.', '.glm-asr.', '.paraformer.', '.sensevoice.', '.nano.']) {
-      const index = stem.toLowerCase().indexOf(tag);
-      if (index >= 0) return stem.slice(0, index).toLowerCase();
-    }
-    return stem.toLowerCase();
-  }
-
-  // Choose an explicitly user-selected media file. The browser never exposes the
-  // directory of a separately selected JSON file, so this deliberately matches
-  // only the files selected in the same picker.
-  function findProjectMediaFile(files, mediaPath, projectName) {
-    const candidates = Array.from(files || []).filter((file) => file && file.name);
-    if (!candidates.length) return null;
-    const expectedName = fileBasename(mediaPath).toLowerCase();
-    if (expectedName) {
-      const exact = candidates.find((file) => file.name.toLowerCase() === expectedName);
-      if (exact) return exact;
-    }
-    const expectedStem = projectMediaStem(projectName);
-    if (expectedStem) {
-      const sameStem = candidates.find((file) => file.name.replace(/\.[^.]+$/, '').toLowerCase() === expectedStem);
-      if (sameStem) return sameStem;
-    }
-    return candidates.length === 1 ? candidates[0] : null;
-  }
-
   function gapKey(gap) {
     return `${Math.round(Number(gap.start))}:${Math.round(Number(gap.end))}`;
   }
@@ -729,7 +701,6 @@
     buildSrtPayload,
     buildPlainTextPayload,
     fileBasename,
-    findProjectMediaFile,
     normalizeGapRemoveGaps,
     applyGapRemoveRange,
     resizeGapRemoveBoundary,

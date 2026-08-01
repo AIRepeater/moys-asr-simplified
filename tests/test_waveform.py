@@ -284,6 +284,8 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn("this.pane.addEventListener('pointerdown', () => this.focusWaveform());", page)
         self.assertIn('id="project-media-modal"', page)
         self.assertIn("projectMediaSelectButton.addEventListener('click'", page)
+        self.assertIn('accept=".json,.mosp,application/json"', page)
+        self.assertNotIn('id="open-project-file" accept=".json,.mosp,application/json" multiple', page)
         self.assertNotIn("confirm('是否同时选择该工程关联的媒体文件？", page)
         self.assertIn("flashHint('请先加载媒体，然后才能预览');", page)
         self.assertIn('event.composedPath?.().includes(player)', page)

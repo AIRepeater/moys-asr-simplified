@@ -588,10 +588,12 @@ class GuiWebBridgeTests(unittest.TestCase):
         """Given dropped paths, When routed, Then event type mirrors launcher drop behavior."""
         media = _route_dropped_path(r"D:\Videos\clip.MP4")
         project = _route_dropped_path(r"D:\Videos\clip.json")
+        mosp_project = _route_dropped_path(r"D:\Videos\clip.mosp")
         rejected = _route_dropped_path(r"D:\Videos\clip.txt")
 
         self.assertEqual(media, {"type": "dropMedia", "path": r"D:\Videos\clip.MP4"})
         self.assertEqual(project, {"type": "dropJson", "path": r"D:\Videos\clip.json"})
+        self.assertEqual(mosp_project, {"type": "dropJson", "path": r"D:\Videos\clip.mosp"})
         self.assertEqual(rejected, {"type": "dropReject", "path": r"D:\Videos\clip.txt"})
 
 

@@ -74,7 +74,7 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('id="load-srt-file"', page)
         self.assertIn('function parseSrtSegments(text)', page)
         self.assertIn('function isMawProject(data)', page)
-        self.assertIn('请使用 MAW 生成的 JSON 工程文件', page)
+        self.assertIn('请使用 MAW 生成的工程文件', page)
 
         self.assertIn('id="server-auto-save-settings"', page)
         self.assertIn('id="auto-save-project"', page)
@@ -126,6 +126,15 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertEqual(project.media_path, converted)
         self.assertEqual(project.source_media_path, source.resolve())
         self.assertEqual(project.data["media"], str(source.resolve()))
+
+    def test_mosp_save_backup_keeps_mosp_extension(self) -> None:
+        target = self.root / "copy.mosp"
+        target.write_text('{"segments": []}\n', encoding="utf-8")
+        backup = server_editor.write_project_json(target, {"segments": [{"start": 0, "end": 1, "text": "x"}]})
+
+        self.assertIsNotNone(backup)
+        self.assertEqual(backup.name, "copy.mosp.bak")
+        self.assertEqual(backup.read_text(encoding="utf-8"), '{"segments": []}\n')
 
     def test_recent_projects_are_limited_to_ten_and_persisted_as_lf_json(self) -> None:
         settings = server_editor.ServerSettings()

@@ -3504,7 +3504,7 @@ async function downloadFile(content, filename, mime, accept) {
   return true;
 }
 
-// === 标题区：媒体名点击复制 / JSON 文件名点击复制 ===
+// === 标题区：媒体名点击复制 / 工程文件名点击复制 ===
 function copyText(text, hint) {
   navigator.clipboard.writeText(text).then(
     () => flashHint(hint || `已复制：${text}`),
@@ -3524,14 +3524,14 @@ function configureServerSaveControls() {
   [saveProjectButton, document.getElementById('save-project-menu-btn')].forEach((button) => {
     if (!button) return;
     button.disabled = !serverProjectSavingEnabled();
-    if (!serverProjectSavingEnabled()) button.title = '请用带 JSON 工程路径的服务器命令启动，才能直接保存';
+     if (!serverProjectSavingEnabled()) button.title = '请用带工程文件路径的服务器命令启动，才能直接保存';
   });
   if (saveProjectButton && serverProjectSavingEnabled()) {
-    saveProjectButton.title = '保存回当前工程 JSON（Ctrl/Cmd+S）';
+    saveProjectButton.title = '保存回当前工程文件（Ctrl/Cmd+S）';
   }
   // 另存为走系统文件对话框，不依赖服务器绑定，始终可用。
   if (saveProjectAsButton) {
-    saveProjectAsButton.title = '另存为 JSON 文件（Ctrl/Cmd+Shift+S）';
+    saveProjectAsButton.title = '另存为工程文件（Ctrl/Cmd+Shift+S）';
   }
 }
 
@@ -3955,7 +3955,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
   const jsonEl = document.getElementById('json-name');
   if (jsonEl) {
     jsonEl.textContent = filename;
-    jsonEl.title = `点击复制 JSON 文件名：${filename}`;
+    jsonEl.title = `点击复制工程文件名：${filename}`;
     jsonEl.classList.remove('empty');
   }
   renderAll();
@@ -3964,7 +3964,7 @@ function markProjectSaved(filename, backupName, { silent = false } = {}) {
 
 async function saveProjectToServer({ silent = false } = {}) {
   if (!serverProjectSavingEnabled()) {
-    if (!silent) flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带 JSON 路径重新启动服务器');
+    if (!silent) flashHint('此服务器没有绑定可保存的工程；请使用“导出工程”或带工程文件路径重新启动服务器');
     return false;
   }
   if (projectSaveInFlight) return false;
@@ -3991,11 +3991,11 @@ async function saveProjectToServer({ silent = false } = {}) {
     // ERR_CONNECTION_REFUSED). Offer a real file save so Ctrl+S never strands
     // completed edits, while making clear that the bound JSON was not overwritten.
     if (error instanceof TypeError
-        && confirm('无法连接本地编辑器服务器。是否改为导出工程 JSON，以免丢失改动？')) {
+        && confirm('无法连接本地编辑器服务器。是否改为导出工程文件，以免丢失改动？')) {
       const saved = await downloadFile(projectJson, `${FILENAME_BASE}.mosp`, 'application/json', {
         desc: 'MOSE 工程文件', types: { 'application/json': ['.mosp', '.json'] }
       });
-      if (saved) flashHint('服务器未连接；工程已另存为 JSON，请重新启动本地编辑器后继续');
+      if (saved) flashHint('服务器未连接；工程已另存为工程文件，请重新启动本地编辑器后继续');
     }
     return false;
   } finally {
@@ -4003,7 +4003,7 @@ async function saveProjectToServer({ silent = false } = {}) {
   }
 }
 
-// 另存为：打开系统文件浏览对话框把工程 JSON 保存到用户选择的位置。
+// 另存为：打开系统文件浏览对话框把工程文件保存到用户选择的位置。
 // 与「导出工程」的区别：保存成功后当前工程名跟随新文件（标题、导出默认名随之更新）。
 async function saveProjectAsToFile() {
   if (editingState) finishEdit(true);
@@ -4326,7 +4326,7 @@ async function openSrtFile(file) {
     const jsonEl = document.getElementById('json-name');
     if (jsonEl) {
       jsonEl.textContent = `导入字幕：${file.name}`;
-      jsonEl.title = 'SRT 字幕只能通过导出下载保存为工程 JSON';
+      jsonEl.title = 'SRT 字幕只能通过导出下载保存为工程文件';
       jsonEl.classList.add('empty');
     }
     configureServerSaveControls();
@@ -4339,13 +4339,13 @@ async function openSrtFile(file) {
   }
 }
 
-async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null) {
+async function openProjectFile(file, options = {}) {
+  const suppressMediaPrompt = options.suppressMediaPrompt === true;
   try {
     const text = await file.text();
     const data = JSON.parse(text);
     if (!isMawProject(data)) {
-      flashHint('打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。');
-      if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
+      flashHint('打开了错误的文件，请使用 MAW 生成的工程文件。');
       return false;
     }
     // 单独选 JSON 时，浏览器没有授权访问它所在目录；先清理旧媒体，避免旧音轨配上新字幕。
@@ -4387,7 +4387,7 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
     const jsonEl = document.getElementById('json-name');
     if (jsonEl) {
       jsonEl.textContent = file.name;
-      jsonEl.title = `点击复制 JSON 文件名：${file.name}`;
+      jsonEl.title = `点击复制工程文件名：${file.name}`;
       jsonEl.classList.remove('empty');
       jsonEl.onclick = () => copyText(file.name, `已复制：${file.name}`);
     }
@@ -4398,31 +4398,19 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
       timeEl.textContent = `打开时间 ${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
     }
 
-    const chosenMedia = window.AsrEditorUtils.findProjectMediaFile(mediaFiles, DATA.media, file.name)
-      || (mediaFiles.length === 1 ? mediaFiles[0] : null);
-    if (chosenMedia) {
-      await loadMediaFile(chosenMedia);
-      flashHint(`已加载工程和媒体：${file.name} · ${chosenMedia.name}`);
-      return true;
-    }
-    if (pendingMediaRequest && pendingProjectMediaSelection === pendingMediaRequest) {
-      pendingMediaRequest.projectReady = true;
-      if (pendingMediaRequest.file) {
-        pendingProjectMediaSelection = null;
-        await loadMediaFile(pendingMediaRequest.file);
-        flashHint(`已加载工程和媒体：${file.name} · ${pendingMediaRequest.file.name}`);
-        return true;
-      }
-    }
     const expectedName = window.AsrEditorUtils.fileBasename(DATA.media);
+    if (expectedName && !suppressMediaPrompt) {
+      pendingProjectMediaSelection = { projectReady: true };
+      showProjectMediaModal();
+    }
     flashHint(expectedName
-      ? `已加载工程：${file.name}（等待选择关联媒体：${expectedName}）`
+      ? `已加载工程：${file.name}（${suppressMediaPrompt ? '正在加载关联媒体' : `等待选择关联媒体：${expectedName}`}）`
       : `已加载工程：${file.name}（${DATA.segments.length} 条字幕）`);
     return true;
   } catch (error) {
-    if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
+    pendingProjectMediaSelection = null;
     flashHint(error instanceof SyntaxError
-      ? '打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。'
+      ? '打开了错误的文件，请使用 MAW 生成的工程文件。'
       : `加载失败：${error.message}`);
     console.error(error);
     return false;
@@ -4438,21 +4426,12 @@ document.getElementById('open-project').addEventListener('click', () => {
 });
 
 openProjectFileInput.addEventListener('change', async (e) => {
-  const files = Array.from(e.target.files || []);
-  const file = files.find(isJsonFile);
-  if (!file) {
-    flashHint('请选择一个 JSON 工程文件；可同时按 Ctrl/Shift 选择对应媒体。');
+  const file = e.target.files?.[0];
+  if (!file || !isJsonFile(file)) {
+    flashHint('请选择一个 .mosp 或 .json 工程文件。');
     return;
   }
-  const mediaFiles = files.filter(isMediaFile);
-  let pendingMediaRequest = null;
-  if (!mediaFiles.length) {
-    pendingMediaRequest = { file: null, projectReady: false };
-    pendingProjectMediaSelection = pendingMediaRequest;
-    showProjectMediaModal();
-  }
-  const opened = await openProjectFile(file, mediaFiles, pendingMediaRequest);
-  if (!opened && pendingMediaRequest) closeProjectMediaModal(true);
+  await openProjectFile(file);
 });
 
 // === 加载媒体 ===
@@ -4603,12 +4582,7 @@ function mediaLoadErrorMessage(file) {
 loadMediaFileInput.addEventListener('change', async (e) => {
   const file = e.target.files[0];
   if (!file) return;
-  const pendingMediaRequest = pendingProjectMediaSelection;
-  if (pendingMediaRequest) {
-    pendingMediaRequest.file = file;
-    if (!pendingMediaRequest.projectReady) return;
-    pendingProjectMediaSelection = null;
-  }
+  pendingProjectMediaSelection = null;
   await loadMediaFile(file);
 });
 
@@ -5572,7 +5546,7 @@ async function handleDroppedFiles(files) {
     if (!confirm('当前有未保存的改动，是否确定加载新工程？将丢失未保存内容。')) return;
   }
   if (jsonFile) {
-    await openProjectFile(jsonFile, mediaFile ? [mediaFile] : []);
+    await openProjectFile(jsonFile);
     return;
   }
   if (srtFile && hasUnsavedProjectChanges()

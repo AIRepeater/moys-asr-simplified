@@ -25,11 +25,11 @@ __WAVEFORM_CSS__
 <h1>
   <span class="media-name __MEDIA_NAME_CLASS__" id="media-name" title="__MEDIA_NAME_TITLE__">__MEDIA_NAME_DISPLAY__</span>
   <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 __GENERATED_AT__</span>
-  <span class="json-name __JSON_NAME_CLASS__" id="json-name" title="点击复制 JSON 文件名">__JSON_DISPLAY__</span>
+  <span class="json-name __JSON_NAME_CLASS__" id="json-name" title="点击复制工程文件名">__JSON_DISPLAY__</span>
 </h1>
 <div class="toolbar row-actions">
   <span class="dropdown button-split" id="open-project-dropdown">
-    <button id="open-project" title="可同选工程 JSON 与媒体；仅选 JSON 时会询问是否继续选择关联媒体">打开工程</button>
+    <button id="open-project" title="单独打开工程；浏览器无法自动读取关联媒体时会提示选择">打开工程</button>
     <button type="button" id="open-project-menu-btn" class="split-caret" aria-label="打开更多文件">▾</button>
     <div class="dropdown-menu" id="open-project-menu">
       <div class="dropdown-item" id="load-media" role="menuitem" tabindex="0">加载媒体</div>
@@ -48,7 +48,7 @@ __WAVEFORM_CSS__
     </div>
   </div>
   <span class="dropdown button-split" id="save-project-dropdown" hidden>
-    <button id="save-project" title="保存回服务器启动时指定的工程 JSON">保存工程</button>
+    <button id="save-project" title="保存回服务器启动时指定的工程文件">保存工程</button>
     <button type="button" id="save-project-menu-btn" class="split-caret" aria-label="保存工程的更多选项">▾</button>
     <div class="dropdown-menu" id="save-project-menu">
       <div class="dropdown-item" id="save-project-as" role="menuitem" tabindex="0">另存为…</div>
@@ -328,7 +328,7 @@ __WAVEFORM_CSS__
     <small class="editor-settings-hint">选中时，会将所有不同颜色的字幕按「文件名_颜色」格式统一导出；否则每个颜色都会弹出单独的保存框。</small>
     <div id="server-auto-save-settings" hidden>
       <span class="editor-settings-title">保存</span>
-      <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程 JSON">
+      <label class="toggle editor-settings-item" title="仅服务器版编辑器可将改动保存回当前工程文件">
         <input type="checkbox" id="auto-save-project" checked> 自动保存
       </label>
       <label class="editor-settings-item" id="auto-save-interval-field" hidden>自动保存间隔（秒）
@@ -387,7 +387,7 @@ __WAVEFORM_CSS__
   </div>
 </section>
 
-<input type="file" id="open-project-file" accept=".json,.mosp,application/json,video/*,audio/*" multiple style="display:none">
+<input type="file" id="open-project-file" accept=".json,.mosp,application/json" style="display:none">
 <input type="file" id="load-media-file" accept="video/*,audio/*" style="display:none">
 <input type="file" id="load-srt-file" accept=".srt,text/plain" style="display:none">
 
@@ -479,13 +479,13 @@ __WAVEFORM_CSS__
   </div>
 </div>
 
-<!-- 工程未同选媒体时，用真实按钮点击打开第二个文件选择器，保留浏览器的用户激活状态。 -->
+<!-- 浏览器无法直接读取工程所在目录的关联媒体时，只通过这个按钮请求一次媒体授权。 -->
 <div class="modal-mask" id="project-media-modal">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="project-media-modal-title">
     <h3 id="project-media-modal-title">选择关联媒体</h3>
     <div style="font-size:13px;color:#bbb;line-height:1.7;">
-      是否同时选择该工程关联的媒体文件？<br>
-      也可以稍后点击“加载媒体”。
+      浏览器无法自动读取工程所在目录的关联媒体。<br>
+      现在选择一次，或稍后点击“加载媒体”。
     </div>
     <div class="actions">
       <button type="button" id="project-media-later">稍后加载</button>
