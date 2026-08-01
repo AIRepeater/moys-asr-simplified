@@ -31,6 +31,15 @@ const DEFAULT_EDITOR_SETTINGS = {
   // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
   theme: 'dark',
 };
+const SUBTITLE_FONT_SIZE_MIN = 12;
+const SUBTITLE_FONT_SIZE_MAX = 96;
+const SUBTITLE_FONT_FAMILY_CSS = Object.freeze({
+  default: '',
+  yahei: '"Microsoft YaHei", "PingFang SC", sans-serif',
+  hei: '"SimHei", "Microsoft YaHei", sans-serif',
+  song: '"SimSun", "Songti SC", serif',
+  sans: 'Arial, "Segoe UI", sans-serif',
+});
 
 function readEditorSettings() {
   try {
@@ -198,7 +207,7 @@ function pushPreviewUndo(label, preview) {
 function snapshotPreviewState() {
   return {
     overlay: !!overlayToggle.checked,
-    subtitle: { ...getPreviewGeometry() },
+    subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() },
     sticker: { ...getStickerGeometry() },
   };
 }
@@ -318,6 +327,8 @@ const overlayEl = document.getElementById('overlay');
 const overlayTextEl = overlayEl.querySelector('span:not(.overlay-handle)');
 const overlayToggle = document.getElementById('overlay-toggle');
 const stickerOverlayToggle = document.getElementById('sticker-overlay-toggle');
+const subtitleFontSizeSelect = document.getElementById('subtitle-font-size');
+const subtitleFontFamilySelect = document.getElementById('subtitle-font-family');
 const playerEmpty = document.getElementById('player-empty');
 const playerWrap = document.querySelector('.player-wrap');
 // 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
@@ -500,6 +511,7 @@ if (stickerOverlayToggle) stickerOverlayToggle.checked = EDITOR_SETTINGS.sticker
 if (clickBehaviorSelect) clickBehaviorSelect.value = EDITOR_SETTINGS.clickBehavior;
 applyCueListDisplaySettings();
 applyCueEditorDisplaySettings();
+applySubtitleAppearance();
 editorSettingsToggle?.addEventListener('click', () => setEditorSettingsPanelOpen(editorSettingsPanel?.hidden));
 helpToggle?.addEventListener('click', () => {
   const open = helpPanel?.hidden === true;
@@ -559,6 +571,15 @@ exportColorUnifiedToggle?.addEventListener('change', () => {
 clickBehaviorSelect?.addEventListener('change', () => {
   updateEditorSettings({ clickBehavior: clickBehaviorSelect.value === 'select-and-seek' ? 'select-and-seek' : 'select-only' });
   refreshClickBehaviorHint();
+});
+subtitleFontSizeSelect?.addEventListener('change', () => {
+  const value = subtitleFontSizeSelect.value;
+  pushPreviewUndo('调整字幕字号', snapshotPreviewState());
+  setSubtitleAppearance({ font_size: value === 'auto' ? null : Number(value) });
+});
+subtitleFontFamilySelect?.addEventListener('change', () => {
+  pushPreviewUndo('调整字幕字体', snapshotPreviewState());
+  setSubtitleAppearance({ font_family: subtitleFontFamilySelect.value });
 });
 // 「仅选中」模式下提示可用右键菜单「跳转并播放」（或 F 快捷键）
 function refreshClickBehaviorHint() {
@@ -2580,13 +2601,66 @@ let previewGeometryDirty = false;
 function getPreviewGeometry() {
   return GEO_UTILS.normalizePreviewGeometry(DATA.preview?.subtitle);
 }
+function normalizeSubtitleAppearance(value) {
+  const result = {};
+  const fontSize = value && typeof value.font_size === 'number' && Number.isFinite(value.font_size)
+    ? Math.round(value.font_size) : null;
+  if (fontSize !== null && fontSize >= SUBTITLE_FONT_SIZE_MIN && fontSize <= SUBTITLE_FONT_SIZE_MAX) {
+    result.font_size = fontSize;
+  }
+  if (value && typeof value.font_family === 'string'
+      && Object.prototype.hasOwnProperty.call(SUBTITLE_FONT_FAMILY_CSS, value.font_family)) {
+    result.font_family = value.font_family;
+  }
+  return result;
+}
+function getSubtitleAppearance(value = DATA.preview?.subtitle) {
+  return normalizeSubtitleAppearance(value);
+}
+function syncSubtitleAppearanceControls(appearance = getSubtitleAppearance()) {
+  if (subtitleFontSizeSelect) {
+    const size = appearance.font_size ? String(appearance.font_size) : 'auto';
+    subtitleFontSizeSelect.value = Array.from(subtitleFontSizeSelect.options).some((option) => option.value === size)
+      ? size : 'auto';
+  }
+  if (subtitleFontFamilySelect) {
+    subtitleFontFamilySelect.value = appearance.font_family
+      && Object.prototype.hasOwnProperty.call(SUBTITLE_FONT_FAMILY_CSS, appearance.font_family)
+      ? appearance.font_family : 'default';
+  }
+}
+function applySubtitleAppearance(value = DATA.preview?.subtitle) {
+  const appearance = getSubtitleAppearance(value);
+  overlayTextEl.style.fontSize = appearance.font_size ? `${appearance.font_size}px` : '';
+  overlayTextEl.style.fontFamily = appearance.font_family
+    ? SUBTITLE_FONT_FAMILY_CSS[appearance.font_family] : '';
+  syncSubtitleAppearanceControls(appearance);
+}
+function setSubtitleAppearance(patch, { markDirty = true } = {}) {
+  const next = { ...getSubtitleAppearance() };
+  if (Object.prototype.hasOwnProperty.call(patch, 'font_size')) {
+    if (patch.font_size === null || patch.font_size === 'auto') delete next.font_size;
+    else Object.assign(next, normalizeSubtitleAppearance({ font_size: patch.font_size }));
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'font_family')) {
+    if (!patch.font_family || patch.font_family === 'default') delete next.font_family;
+    else Object.assign(next, normalizeSubtitleAppearance({ font_family: patch.font_family }));
+  }
+  if (!DATA.preview || typeof DATA.preview !== 'object') DATA.preview = {};
+  DATA.preview.subtitle = { ...getPreviewGeometry(), ...next };
+  if (markDirty) previewGeometryDirty = true;
+  applySubtitleAppearance(DATA.preview.subtitle);
+  return next;
+}
 // 写回 DATA.preview.subtitle 并刷新 DOM。markDirty=false 用于初次加载，不弄脏工程。
 function setPreviewGeometry(geo, { markDirty = true } = {}) {
   const clamped = GEO_UTILS.clampPreviewGeometry(GEO_UTILS.normalizePreviewGeometry(geo));
+  const appearance = { ...getSubtitleAppearance(), ...getSubtitleAppearance(geo) };
   if (!DATA.preview || typeof DATA.preview !== 'object') DATA.preview = {};
-  DATA.preview.subtitle = clamped;
+  DATA.preview.subtitle = { ...clamped, ...appearance };
   if (markDirty) previewGeometryDirty = true;
   applyPreviewGeometryToDom(clamped);
+  applySubtitleAppearance(DATA.preview.subtitle);
   return clamped;
 }
 function applyPreviewGeometryToDom(geo) {
@@ -3119,7 +3193,7 @@ function buildJson() {
   const workspace = buildCurrentWorkspaceData();
   if (workspace) out.workspace = workspace;
   // 预览几何：始终写入归一化后的当前几何，便于跨机/重开保持位置。
-  out.preview = { subtitle: getPreviewGeometry() };
+  out.preview = { subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() } };
   return JSON.stringify(out, null, 2);
 }
 

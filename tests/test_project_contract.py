@@ -108,13 +108,15 @@ class ProjectContractTests(unittest.TestCase):
     def test_validate_project_accepts_valid_preview_subtitle_geometry(self) -> None:
         project = {
             "segments": [{"start": 0, "end": 1000, "text": "hi"}],
-            "preview": {"subtitle": {"x": 0.0, "y": 0.76, "width": 1.0, "height": 0.16}},
+            "preview": {"subtitle": {"x": 0.0, "y": 0.76, "width": 1.0, "height": 0.16,
+                                        "font_size": 32, "font_family": "yahei"}},
         }
 
         result = validate_project(project)
 
         self.assertTrue(result.ok)
         self.assertEqual(result.project["preview"]["subtitle"]["y"], 0.76)
+        self.assertEqual(result.project["preview"]["subtitle"]["font_family"], "yahei")
 
     def test_validate_project_rejects_preview_subtitle_out_of_range(self) -> None:
         project = {
@@ -154,6 +156,21 @@ class ProjectContractTests(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("$.preview.subtitle.x", paths)
         self.assertIn("$.preview.subtitle.height", paths)
+
+    def test_validate_project_rejects_preview_subtitle_style_out_of_range(self) -> None:
+        project = {
+            "segments": [{"start": 0, "end": 1000, "text": "hi"}],
+            "preview": {"subtitle": {
+                "x": 0.0, "y": 0.76, "width": 1.0, "height": 0.16,
+                "font_size": 100, "font_family": "unknown",
+            }},
+        }
+
+        result = validate_project(project)
+        paths = {error.path for error in result.errors}
+
+        self.assertIn("$.preview.subtitle.font_size", paths)
+        self.assertIn("$.preview.subtitle.font_family", paths)
 
     def test_validate_project_rejects_non_object_preview(self) -> None:
         project = {

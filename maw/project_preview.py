@@ -10,6 +10,9 @@ JsonScalar: TypeAlias = str | int | float | bool | None
 JsonValue: TypeAlias = JsonScalar | list["JsonValue"] | dict[str, "JsonValue"]
 JsonDict: TypeAlias = dict[str, JsonValue]
 ValidationIssue: TypeAlias = tuple[str, str]
+SUBTITLE_FONT_SIZE_MIN = 12
+SUBTITLE_FONT_SIZE_MAX = 96
+SUBTITLE_FONT_FAMILIES = frozenset({"default", "yahei", "hei", "song", "sans"})
 
 
 def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
@@ -35,6 +38,15 @@ def validate_preview(project: JsonDict) -> tuple[ValidationIssue, ...]:
             issues.append((f"$.preview.subtitle.{field}", "must be in [0, 1]"))
         else:
             values[field] = float(value)
+    if "font_size" in subtitle:
+        font_size = subtitle.get("font_size")
+        if (not isinstance(font_size, (int, float)) or isinstance(font_size, bool)
+                or not SUBTITLE_FONT_SIZE_MIN <= float(font_size) <= SUBTITLE_FONT_SIZE_MAX):
+            issues.append(("$.preview.subtitle.font_size", "must be a number in [12, 96]"))
+    if "font_family" in subtitle:
+        font_family = subtitle.get("font_family")
+        if not isinstance(font_family, str) or font_family not in SUBTITLE_FONT_FAMILIES:
+            issues.append(("$.preview.subtitle.font_family", "must be one of default, yahei, hei, song, sans"))
     if len(values) != 4:
         return tuple(issues)
     if values["x"] + values["width"] > 1:

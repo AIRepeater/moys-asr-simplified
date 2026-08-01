@@ -239,9 +239,42 @@ __WAVEFORM_CSS__
       字幕（编辑状态下）拆分按键
       <select id="split-key">
         <option value="ctrl-enter" selected>Ctrl+Enter</option>
-        <option value="enter">Enter</option>
+      <option value="enter">Enter</option>
+    </select>
+  </label>
+  </div>
+  <div class="editor-settings-group">
+    <span class="editor-settings-title">字幕预览</span>
+    <label class="editor-settings-item" title="只影响播放器画面内的字幕预览，不改变字幕文本或时间">
+      字体大小
+      <select id="subtitle-font-size">
+        <option value="auto" selected>自动（响应式）</option>
+        <option value="12">12 px</option>
+        <option value="14">14 px</option>
+        <option value="18">18 px</option>
+        <option value="22">22 px</option>
+        <option value="26">26 px</option>
+        <option value="32">32 px</option>
+        <option value="40">40 px</option>
+        <option value="48">48 px</option>
+        <option value="56">56 px</option>
+        <option value="64">64 px</option>
+        <option value="72">72 px</option>
+        <option value="84">84 px</option>
+        <option value="96">96 px</option>
       </select>
     </label>
+    <label class="editor-settings-item" title="选择播放器画面内字幕预览使用的字体族">
+      字体
+      <select id="subtitle-font-family">
+        <option value="default" selected>默认无衬线</option>
+        <option value="yahei">微软雅黑 / 苹方</option>
+        <option value="hei">黑体</option>
+        <option value="song">宋体</option>
+        <option value="sans">Arial / Segoe UI</option>
+      </select>
+    </label>
+    <small class="editor-settings-hint">样式会保存到工程的 preview.subtitle；旧工程默认使用原来的响应式字号。</small>
   </div>
   <div class="editor-settings-group">
     <span class="editor-settings-title">通用操作</span>

@@ -2251,7 +2251,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-01 23:32</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-01 23:42</span>
   <span class="json-name empty" id="json-name" title="点击复制工程文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -2466,9 +2466,42 @@
       字幕（编辑状态下）拆分按键
       <select id="split-key">
         <option value="ctrl-enter" selected>Ctrl+Enter</option>
-        <option value="enter">Enter</option>
+      <option value="enter">Enter</option>
+    </select>
+  </label>
+  </div>
+  <div class="editor-settings-group">
+    <span class="editor-settings-title">字幕预览</span>
+    <label class="editor-settings-item" title="只影响播放器画面内的字幕预览，不改变字幕文本或时间">
+      字体大小
+      <select id="subtitle-font-size">
+        <option value="auto" selected>自动（响应式）</option>
+        <option value="12">12 px</option>
+        <option value="14">14 px</option>
+        <option value="18">18 px</option>
+        <option value="22">22 px</option>
+        <option value="26">26 px</option>
+        <option value="32">32 px</option>
+        <option value="40">40 px</option>
+        <option value="48">48 px</option>
+        <option value="56">56 px</option>
+        <option value="64">64 px</option>
+        <option value="72">72 px</option>
+        <option value="84">84 px</option>
+        <option value="96">96 px</option>
       </select>
     </label>
+    <label class="editor-settings-item" title="选择播放器画面内字幕预览使用的字体族">
+      字体
+      <select id="subtitle-font-family">
+        <option value="default" selected>默认无衬线</option>
+        <option value="yahei">微软雅黑 / 苹方</option>
+        <option value="hei">黑体</option>
+        <option value="song">宋体</option>
+        <option value="sans">Arial / Segoe UI</option>
+      </select>
+    </label>
+    <small class="editor-settings-hint">样式会保存到工程的 preview.subtitle；旧工程默认使用原来的响应式字号。</small>
   </div>
   <div class="editor-settings-group">
     <span class="editor-settings-title">通用操作</span>
@@ -3556,6 +3589,9 @@
     '下载 Resolve JSON': 'Download Resolve JSON',
     '下载表情包 OTIO 工程': 'Download sticker OTIO project',
     '字幕': 'Subtitles', '字幕预览': 'Subtitle preview', '表情包预览': 'Sticker preview', '字幕列表和编辑区': 'Subtitle list & editor',
+    '字体大小': 'Font size', '自动（响应式）': 'Auto (responsive)', '字体': 'Font', '默认无衬线': 'Default sans-serif',
+    '微软雅黑 / 苹方': 'Microsoft YaHei / PingFang', '黑体': 'SimHei', '宋体': 'SimSun', 'Arial / Segoe UI': 'Arial / Segoe UI',
+    '样式会保存到工程的 preview.subtitle；旧工程默认使用原来的响应式字号。': 'Styles are saved in preview.subtitle; legacy projects keep the original responsive font size.',
     '媒体': 'Media', '预览字幕': 'Subtitle preview', '预览表情包': 'Sticker preview',
     '显示': 'Showing', '隐藏禁用': 'Hide disabled', '批量替换…': 'Batch replace…',
     '字数阈值': 'Character threshold', '仅看超长': 'Long only',
@@ -3687,6 +3723,8 @@
     '波形显示模式': 'Waveform display mode',
     '打开更多文件': 'Open more files',
     '导出或导入工作区配置': 'Export or import workspace configuration',
+    '只影响播放器画面内的字幕预览，不改变字幕文本或时间': 'Only affects subtitle preview in the player; subtitle text and timing are unchanged',
+    '选择播放器画面内字幕预览使用的字体族': 'Choose the font family used by the subtitle preview in the player',
     '点击复制工程文件名': 'Click to copy the project file name',
     '点击替换；右键删除': 'Click to replace; right-click to remove',
     '点击选择表情包；右键删除引用': 'Click to pick a sticker; right-click to remove the reference',
@@ -6948,6 +6986,15 @@ const DEFAULT_EDITOR_SETTINGS = {
   // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
   theme: 'dark',
 };
+const SUBTITLE_FONT_SIZE_MIN = 12;
+const SUBTITLE_FONT_SIZE_MAX = 96;
+const SUBTITLE_FONT_FAMILY_CSS = Object.freeze({
+  default: '',
+  yahei: '"Microsoft YaHei", "PingFang SC", sans-serif',
+  hei: '"SimHei", "Microsoft YaHei", sans-serif',
+  song: '"SimSun", "Songti SC", serif',
+  sans: 'Arial, "Segoe UI", sans-serif',
+});
 
 function readEditorSettings() {
   try {
@@ -7115,7 +7162,7 @@ function pushPreviewUndo(label, preview) {
 function snapshotPreviewState() {
   return {
     overlay: !!overlayToggle.checked,
-    subtitle: { ...getPreviewGeometry() },
+    subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() },
     sticker: { ...getStickerGeometry() },
   };
 }
@@ -7235,6 +7282,8 @@ const overlayEl = document.getElementById('overlay');
 const overlayTextEl = overlayEl.querySelector('span:not(.overlay-handle)');
 const overlayToggle = document.getElementById('overlay-toggle');
 const stickerOverlayToggle = document.getElementById('sticker-overlay-toggle');
+const subtitleFontSizeSelect = document.getElementById('subtitle-font-size');
+const subtitleFontFamilySelect = document.getElementById('subtitle-font-family');
 const playerEmpty = document.getElementById('player-empty');
 const playerWrap = document.querySelector('.player-wrap');
 // 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
@@ -7417,6 +7466,7 @@ if (stickerOverlayToggle) stickerOverlayToggle.checked = EDITOR_SETTINGS.sticker
 if (clickBehaviorSelect) clickBehaviorSelect.value = EDITOR_SETTINGS.clickBehavior;
 applyCueListDisplaySettings();
 applyCueEditorDisplaySettings();
+applySubtitleAppearance();
 editorSettingsToggle?.addEventListener('click', () => setEditorSettingsPanelOpen(editorSettingsPanel?.hidden));
 helpToggle?.addEventListener('click', () => {
   const open = helpPanel?.hidden === true;
@@ -7476,6 +7526,15 @@ exportColorUnifiedToggle?.addEventListener('change', () => {
 clickBehaviorSelect?.addEventListener('change', () => {
   updateEditorSettings({ clickBehavior: clickBehaviorSelect.value === 'select-and-seek' ? 'select-and-seek' : 'select-only' });
   refreshClickBehaviorHint();
+});
+subtitleFontSizeSelect?.addEventListener('change', () => {
+  const value = subtitleFontSizeSelect.value;
+  pushPreviewUndo('调整字幕字号', snapshotPreviewState());
+  setSubtitleAppearance({ font_size: value === 'auto' ? null : Number(value) });
+});
+subtitleFontFamilySelect?.addEventListener('change', () => {
+  pushPreviewUndo('调整字幕字体', snapshotPreviewState());
+  setSubtitleAppearance({ font_family: subtitleFontFamilySelect.value });
 });
 // 「仅选中」模式下提示可用右键菜单「跳转并播放」（或 F 快捷键）
 function refreshClickBehaviorHint() {
@@ -9497,13 +9556,66 @@ let previewGeometryDirty = false;
 function getPreviewGeometry() {
   return GEO_UTILS.normalizePreviewGeometry(DATA.preview?.subtitle);
 }
+function normalizeSubtitleAppearance(value) {
+  const result = {};
+  const fontSize = value && typeof value.font_size === 'number' && Number.isFinite(value.font_size)
+    ? Math.round(value.font_size) : null;
+  if (fontSize !== null && fontSize >= SUBTITLE_FONT_SIZE_MIN && fontSize <= SUBTITLE_FONT_SIZE_MAX) {
+    result.font_size = fontSize;
+  }
+  if (value && typeof value.font_family === 'string'
+      && Object.prototype.hasOwnProperty.call(SUBTITLE_FONT_FAMILY_CSS, value.font_family)) {
+    result.font_family = value.font_family;
+  }
+  return result;
+}
+function getSubtitleAppearance(value = DATA.preview?.subtitle) {
+  return normalizeSubtitleAppearance(value);
+}
+function syncSubtitleAppearanceControls(appearance = getSubtitleAppearance()) {
+  if (subtitleFontSizeSelect) {
+    const size = appearance.font_size ? String(appearance.font_size) : 'auto';
+    subtitleFontSizeSelect.value = Array.from(subtitleFontSizeSelect.options).some((option) => option.value === size)
+      ? size : 'auto';
+  }
+  if (subtitleFontFamilySelect) {
+    subtitleFontFamilySelect.value = appearance.font_family
+      && Object.prototype.hasOwnProperty.call(SUBTITLE_FONT_FAMILY_CSS, appearance.font_family)
+      ? appearance.font_family : 'default';
+  }
+}
+function applySubtitleAppearance(value = DATA.preview?.subtitle) {
+  const appearance = getSubtitleAppearance(value);
+  overlayTextEl.style.fontSize = appearance.font_size ? `${appearance.font_size}px` : '';
+  overlayTextEl.style.fontFamily = appearance.font_family
+    ? SUBTITLE_FONT_FAMILY_CSS[appearance.font_family] : '';
+  syncSubtitleAppearanceControls(appearance);
+}
+function setSubtitleAppearance(patch, { markDirty = true } = {}) {
+  const next = { ...getSubtitleAppearance() };
+  if (Object.prototype.hasOwnProperty.call(patch, 'font_size')) {
+    if (patch.font_size === null || patch.font_size === 'auto') delete next.font_size;
+    else Object.assign(next, normalizeSubtitleAppearance({ font_size: patch.font_size }));
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'font_family')) {
+    if (!patch.font_family || patch.font_family === 'default') delete next.font_family;
+    else Object.assign(next, normalizeSubtitleAppearance({ font_family: patch.font_family }));
+  }
+  if (!DATA.preview || typeof DATA.preview !== 'object') DATA.preview = {};
+  DATA.preview.subtitle = { ...getPreviewGeometry(), ...next };
+  if (markDirty) previewGeometryDirty = true;
+  applySubtitleAppearance(DATA.preview.subtitle);
+  return next;
+}
 // 写回 DATA.preview.subtitle 并刷新 DOM。markDirty=false 用于初次加载，不弄脏工程。
 function setPreviewGeometry(geo, { markDirty = true } = {}) {
   const clamped = GEO_UTILS.clampPreviewGeometry(GEO_UTILS.normalizePreviewGeometry(geo));
+  const appearance = { ...getSubtitleAppearance(), ...getSubtitleAppearance(geo) };
   if (!DATA.preview || typeof DATA.preview !== 'object') DATA.preview = {};
-  DATA.preview.subtitle = clamped;
+  DATA.preview.subtitle = { ...clamped, ...appearance };
   if (markDirty) previewGeometryDirty = true;
   applyPreviewGeometryToDom(clamped);
+  applySubtitleAppearance(DATA.preview.subtitle);
   return clamped;
 }
 function applyPreviewGeometryToDom(geo) {
@@ -10036,7 +10148,7 @@ function buildJson() {
   const workspace = buildCurrentWorkspaceData();
   if (workspace) out.workspace = workspace;
   // 预览几何：始终写入归一化后的当前几何，便于跨机/重开保持位置。
-  out.preview = { subtitle: getPreviewGeometry() };
+  out.preview = { subtitle: { ...getPreviewGeometry(), ...getSubtitleAppearance() } };
   return JSON.stringify(out, null, 2);
 }
 

@@ -34,7 +34,7 @@
 | `waveform` | `object` | 否 | 可丢弃的紧凑波形缓存。由 `edit.py` 或浏览器自动生成；不影响字幕语义 |
 | `gap_remove` | `object` | 否 | 可逆的空隙移除决定。保留原始媒体/字幕时间，仅描述导出与跳过播放时使用的派生时间轴 |
 | `workspace` | `object` | 否 | 编辑器工作区：四个功能区的窗口布局与显示状态；不影响字幕和波形缓存。服务器版也可使用独立的本机命名工作区库跨工程复用 |
-| `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（字幕预览框）与 `preview.sticker`（表情包预览层）两个归一化几何。不影响字幕时间与文本 |
+| `preview` | `object` | 否 | 预览呈现设置。含 `preview.subtitle`（字幕预览框、可选字号与字体）与 `preview.sticker`（表情包预览层）两个归一化几何。不影响字幕时间与文本 |
 
 ### 1.1 waveform 波形缓存
 
@@ -158,7 +158,7 @@
 
 ```json
 {
-  "subtitle": { "x": 0.175, "y": 0.76, "width": 0.65, "height": 0.16 },
+  "subtitle": { "x": 0.175, "y": 0.76, "width": 0.65, "height": 0.16, "font_size": 32, "font_family": "yahei" },
   "sticker": { "x": 0.73, "y": 0.04, "width": 0.24, "height": 0.3 }
 }
 ```
@@ -169,10 +169,13 @@
 | `y` | `number` | 是 | 左上角纵坐标，占播放器高度的分数，范围 `[0, 1]` |
 | `width` | `number` | 是 | 预览框宽度，占播放器宽度的分数，范围 `[0, 1]` |
 | `height` | `number` | 是 | 预览框高度，占播放器高度的分数，范围 `[0, 1]` |
+| `font_size` | `number` | 否 | 字幕预览字号，单位 px，范围 `[12, 96]`；缺失时使用原来的响应式默认字号 |
+| `font_family` | `string` | 否 | 字幕预览字体族键：`default`、`yahei`、`hei`、`song` 或 `sans` |
 
 ### 约束
 
-- 四个字段都必须是数字（不接受字符串、布尔），且落在 `[0, 1]`。
+- `x`、`y`、`width`、`height` 四个字段都必须是数字（不接受字符串、布尔），且落在 `[0, 1]`。
+- 若存在 `font_size`，必须是 `[12, 96]` 内的数字；若存在 `font_family`，必须是规定的字体族键。
 - 盒子必须留在播放器内：`x + width <= 1` 且 `y + height <= 1`。
 - 编辑器额外强制最小可读尺寸 `width >= 0.20`、`height >= 0.08`（这是编辑器 UX 钳制，非数据契约的硬校验；导入时会被编辑器再钳制）。
 - `preview` 缺失或 `preview.subtitle` 缺失时按**旧工程**处理，编辑器使用默认几何 `{ x: 0.175, y: 0.76, width: 0.65, height: 0.16 }`——字幕带占 76%→92%（底部留 8%），宽度 65% 居中。
@@ -458,6 +461,8 @@ uv run python edit.py your_generated.json
 | `preview.subtitle.y` | number | ❌ | 归一化 `[0,1]`，`y + height <= 1` |
 | `preview.subtitle.width` | number | ❌ | 归一化 `[0,1]`，编辑器最小 0.20 |
 | `preview.subtitle.height` | number | ❌ | 归一化 `[0,1]`，编辑器最小 0.08 |
+| `preview.subtitle.font_size` | number | ❌ | px，范围 `[12,96]`；缺失时使用响应式默认字号 |
+| `preview.subtitle.font_family` | string | ❌ | `default` / `yahei` / `hei` / `song` / `sans` |
 | `preview.sticker.x` | number | ❌ | 归一化 `[0,1]`，`x + width <= 1` |
 | `preview.sticker.y` | number | ❌ | 归一化 `[0,1]`，`y + height <= 1` |
 | `preview.sticker.width` | number | ❌ | 归一化 `[0,1]`，编辑器最小 0.20 |
