@@ -73,9 +73,12 @@
           configureRecentProjects();
         }
 
-        // 自动加载关联媒体
-        if (result.data && result.data.media) {
-          autoLoadMedia(result.data.media);
+        // 自动加载关联媒体；Rust 已完成 media 字段和同目录候选解析。
+        var resolvedMedia = result.mediaResolution && result.mediaResolution.resolvedPath;
+        if (resolvedMedia) {
+          autoLoadMedia(resolvedMedia);
+        } else if (result.mediaResolution && result.mediaResolution.message) {
+          flashHint(result.mediaResolution.message);
         }
       });
     } else {
@@ -83,23 +86,73 @@
     }
   }
 
-  // 自动加载媒体：用 invoke('resolve_media') 获取 file:// URL，直接设 player.src。
+  function replacePlayerForMedia(isVideo) {
+    var current = document.getElementById('player');
+    if (!current || current.tagName === (isVideo ? 'VIDEO' : 'AUDIO')) return current;
+    var replacement = document.createElement(isVideo ? 'video' : 'audio');
+    replacement.id = 'player';
+    replacement.controls = true;
+    replacement.preload = 'metadata';
+    replacement.style.cssText = 'width:100%;display:block;';
+    current.parentNode.replaceChild(replacement, current);
+    if (typeof player !== 'undefined') player = replacement;
+    if (typeof waveformEditor !== 'undefined' && waveformEditor) waveformEditor.attachPlayer(replacement);
+    return replacement;
+  }
+
+  function waitForMediaMetadata(mediaElement, name) {
+    return new Promise(function (resolve, reject) {
+      var settled = false;
+      var timer = setTimeout(function () {
+        finish(new Error('无法播放 ' + name + '：WebView 未能解析该媒体。'));
+      }, 8000);
+      function cleanup() {
+        clearTimeout(timer);
+        mediaElement.removeEventListener('loadedmetadata', loaded);
+        mediaElement.removeEventListener('error', failed);
+      }
+      function finish(error) {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error) reject(error); else resolve();
+      }
+      function loaded() { finish(); }
+      function failed() { finish(new Error('无法播放 ' + name + '：媒体格式或编码不受支持。')); }
+      mediaElement.addEventListener('loadedmetadata', loaded, { once: true });
+      mediaElement.addEventListener('error', failed, { once: true });
+    });
+  }
+
+  // 自动加载媒体：先让 Rust 用 sidecar 准备浏览器可播放的 URL，再等待 metadata。
   // 直接调 openProjectFile 不经过 change handler，不会弹"选择媒体" modal。
   async function autoLoadMedia(mediaPath) {
     if (!mediaPath) return;
     try {
-      var result = await invoke('resolve_media', { path: mediaPath });
+      var result = await invoke('prepare_media', { path: mediaPath });
       if (!result || !result.ok) {
-        console.warn('[MOSE] 媒体加载失败:', result ? result.error : 'unknown');
+        var missingMessage = result && result.error ? result.error : '关联媒体无法加载';
+        console.warn('[MOSE] 媒体加载失败:', missingMessage);
+        if (typeof flashHint === 'function') flashHint(missingMessage);
         return;
       }
 
-      var player = document.getElementById('player');
-      if (player) {
-        var source = player.querySelector('source');
+      var mediaPlayer = replacePlayerForMedia(result.name && /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(result.name));
+      var previousSource = mediaPlayer && (mediaPlayer.currentSrc || mediaPlayer.src || mediaPlayer.querySelector('source')?.src || '');
+      var metadataPromise = waitForMediaMetadata(mediaPlayer, result.name);
+      if (mediaPlayer) {
+        var source = mediaPlayer.querySelector('source');
         if (source) source.src = result.url;
-        else player.src = result.url;
-        player.load();
+        else mediaPlayer.src = result.url;
+        mediaPlayer.load();
+      }
+      try {
+        await metadataPromise;
+      } catch (error) {
+        if (previousSource) mediaPlayer.src = previousSource;
+        else mediaPlayer.removeAttribute('src');
+        mediaPlayer.load();
+        throw error;
       }
 
       var mediaNameEl = document.getElementById('media-name');
@@ -113,7 +166,7 @@
 
       // 自动提取波形（调 ffmpeg sidecar，非致命——失败不影响编辑器使用）
       try {
-        var wave = await invoke('extract_waveform', { mediaPath: mediaPath });
+        var wave = await invoke('extract_waveform', { mediaPath: result.sourcePath || mediaPath });
         if (wave && wave.data) {
           if (typeof DATA !== 'undefined') {
             DATA.waveform = wave;

@@ -4482,6 +4482,9 @@ async function loadMediaFile(file) {
     /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(file.name);
   const oldPlayer = document.getElementById('player');
   const wantTag = isVideo ? 'VIDEO' : 'AUDIO';
+  const oldParent = oldPlayer.parentNode;
+  const previousSource = oldPlayer.querySelector('source')?.src || oldPlayer.currentSrc || oldPlayer.src || '';
+  let candidatePlayer = oldPlayer;
 
   if (oldPlayer.tagName === wantTag) {
     // 同类型：直接换 src，最简最安全
@@ -4503,12 +4506,35 @@ async function loadMediaFile(file) {
     source.src = url;
     newPlayer.appendChild(source);
     oldPlayer.parentNode.replaceChild(newPlayer, oldPlayer);
+    candidatePlayer = newPlayer;
     // 重新绑定全局引用与事件
     player = newPlayer;
     player.addEventListener('timeupdate', update);
     player.addEventListener('seeked', update);
     seekWarned = false;  // 新媒体重新探测 seek 能力
   }
+
+  try {
+    await waitForMediaMetadata(candidatePlayer, file);
+  } catch (error) {
+    if (candidatePlayer !== oldPlayer && oldParent) {
+      oldParent.replaceChild(oldPlayer, candidatePlayer);
+      player = oldPlayer;
+      waveformEditor?.attachPlayer(player);
+    } else if (previousSource) {
+      const previous = oldPlayer.querySelector('source');
+      if (previous) previous.src = previousSource; else oldPlayer.src = previousSource;
+      oldPlayer.load();
+    } else {
+      oldPlayer.removeAttribute('src');
+      oldPlayer.querySelector('source')?.removeAttribute('src');
+    }
+    URL.revokeObjectURL(url);
+    syncPlayerPlaceholder();
+    flashHint(error.message || `媒体加载失败：${file.name}`);
+    return false;
+  }
+
   if (waveformEditor) waveformEditor.attachPlayer(player);
   syncPlayerPlaceholder();
   // 部分浏览器会在 load() 完成前暂时不给 currentSrc；文件既已由用户选定，立即恢复彩色波形。
@@ -4540,6 +4566,38 @@ async function loadMediaFile(file) {
     }
   }
   updateGapRemoveUi();
+  return true;
+}
+
+function waitForMediaMetadata(mediaElement, file) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeout = window.setTimeout(() => finish(new Error(mediaLoadErrorMessage(file))), 8000);
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      mediaElement.removeEventListener('loadedmetadata', onLoaded);
+      mediaElement.removeEventListener('error', onError);
+    };
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error) reject(error); else resolve();
+    };
+    const onLoaded = () => finish();
+    const onError = () => finish(new Error(mediaLoadErrorMessage(file)));
+    mediaElement.addEventListener('loadedmetadata', onLoaded, { once: true });
+    mediaElement.addEventListener('error', onError, { once: true });
+    if (mediaElement.readyState >= 1) queueMicrotask(onLoaded);
+  });
+}
+
+function mediaLoadErrorMessage(file) {
+  const name = String(file?.name || '媒体文件');
+  if (/\.flv$/i.test(name)) {
+    return `无法播放 ${name}：当前浏览器未能解码 FLV，请先用 FFmpeg 转成 MP4。`;
+  }
+  return `无法播放 ${name}：浏览器不支持该媒体格式或编码。`;
 }
 
 loadMediaFileInput.addEventListener('change', async (e) => {

@@ -13,7 +13,7 @@ use std::sync::Mutex;
 
 use server::{
     extract_waveform, open_project, open_project_at_path, pick_and_scan_stickers,
-    remember_project, resolve_media, save_project, settings_path, update_settings,
+    prepare_media, remember_project, resolve_media, save_project, settings_path, update_settings,
     AppState, ServerSettings,
 };
 
@@ -138,6 +138,7 @@ pub fn run() {
             remember_project,
             update_settings,
             resolve_media,
+            prepare_media,
             pick_and_scan_stickers,
             extract_waveform,
         ])

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import html
 import json
+import locale
 import os
 import queue
 import subprocess
@@ -14,7 +15,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
-from typing import Final, TextIO, final
+from typing import BinaryIO, Final, TextIO, final
 
 from maw.gui_config import DEFAULT_MODEL_ID, DEFAULT_ENV_PATH, load_env
 from maw.gui_platform import asset_path
@@ -180,9 +181,6 @@ def run_transcription(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         env=env,
         cwd=str(Path(__file__).resolve().parents[1]),
     )
@@ -235,7 +233,7 @@ def render_editor_html(json_path: Path, media_path: Path, html_path: Path, ui_la
     return Path(html_path)
 
 
-def _stream_process(process: subprocess.Popen[str], on_event: ProgressCallback, cancel_event: Event | None) -> None:
+def _stream_process(process: subprocess.Popen[bytes], on_event: ProgressCallback, cancel_event: Event | None) -> None:
     lines: queue.Queue[str | None] = queue.Queue()
     reader = threading.Thread(target=_read_process_lines, args=(process.stdout, lines), daemon=True)
     reader.start()
@@ -257,10 +255,28 @@ def _stream_process(process: subprocess.Popen[str], on_event: ProgressCallback, 
     process.wait()
 
 
-def _read_process_lines(stdout: TextIO | None, lines: queue.Queue[str | None]) -> None:
+def _decode_process_output(value: bytes | str) -> str:
+    if isinstance(value, str):
+        return value
+    if value.startswith(b"\xef\xbb\xbf"):
+        value = value[3:]
+    utf8 = value.decode("utf-8", errors="replace")
+    if "\ufffd" not in utf8:
+        return utf8
+    encodings = ["mbcs", "cp936", locale.getpreferredencoding(False)]
+    candidates = []
+    for encoding in encodings:
+        try:
+            candidates.append(value.decode(encoding, errors="replace"))
+        except (LookupError, UnicodeError):
+            continue
+    return min(candidates or [utf8], key=lambda text: text.count("\ufffd"))
+
+
+def _read_process_lines(stdout: BinaryIO | TextIO | None, lines: queue.Queue[str | None]) -> None:
     if stdout is not None:
         for line in stdout:
-            lines.put(line)
+            lines.put(_decode_process_output(line))
     lines.put(None)
 
 
@@ -310,7 +326,7 @@ def _bundled_ffmpeg_directory() -> Path | None:
     return None
 
 
-def _terminate(process: subprocess.Popen[str]) -> None:
+def _terminate(process: subprocess.Popen[bytes]) -> None:
     process.terminate()
     try:
         process.wait(timeout=5)

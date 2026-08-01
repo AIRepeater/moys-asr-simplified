@@ -30,7 +30,9 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import edit  # noqa: E402
+from maw.gui_config import DEFAULT_ENV_PATH, load_env  # noqa: E402
 from maw.project import ProjectValidationFailed, normalize_project  # noqa: E402
+from maw.media import MediaConversionError, MediaResolutionError, MediaStatus, convert_media_for_browser, resolve_project_media  # noqa: E402
 
 
 MAX_RECENT_PROJECTS = 10
@@ -50,6 +52,7 @@ class ServerProject:
     media_path: Path | None
     sticker_root: Path | None
     stickers: list[dict]
+    source_media_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -200,21 +203,11 @@ def parse_byte_range(value: str | None, size: int) -> ByteRange | None:
 
 
 def resolve_media_path(json_path: Path, data: dict, explicit_media: str | None) -> Path:
-    if explicit_media:
-        candidate = Path(explicit_media).resolve()
-        if candidate.exists():
-            return candidate
-    elif data.get("media"):
-        candidate = Path(str(data["media"]))
-        if candidate.exists():
-            return candidate.resolve()
-
-    stem = json_path.stem.split(".")[0]
-    for extension in [*sorted(edit.VIDEO_EXTS), *sorted(edit.AUDIO_EXTS)]:
-        candidate = json_path.parent / f"{stem}{extension}"
-        if candidate.exists():
-            return candidate.resolve()
-    raise FileNotFoundError("找不到媒体文件，请用 -m 参数指定")
+    resolution = resolve_project_media(json_path, data, explicit_media)
+    if not resolution.loadable:
+        raise MediaResolutionError(resolution)
+    assert resolution.resolved_path is not None
+    return resolution.resolved_path
 
 
 def load_project(
@@ -230,9 +223,21 @@ def load_project(
         raise FileNotFoundError(f"JSON 文件不存在 - {json_path}")
     data = normalize_project(json.loads(json_path.read_text(encoding="utf-8")))
 
-    media_path = resolve_media_path(json_path, data, explicit_media)
+    resolution = resolve_project_media(json_path, data, explicit_media)
+    if not resolution.loadable:
+        raise MediaResolutionError(resolution)
+    assert resolution.resolved_path is not None
+    source_media_path = resolution.resolved_path
+    media_path = source_media_path
+    if resolution.status is MediaStatus.CONVERSION_NEEDED:
+        configured_ffmpeg = os.environ.get("FFMPEG_PATH") or load_env(DEFAULT_ENV_PATH).get("FFMPEG_PATH", "")
+        try:
+            media_path = convert_media_for_browser(source_media_path, ffmpeg_path=configured_ffmpeg)
+        except MediaConversionError as error:
+            raise MediaConversionError(f"{error}（源文件：{source_media_path}）") from error
+        print(f"[media] 已为浏览器准备播放缓存: {media_path}")
     # 保存时应沿用实际被服务器加载的媒体；这也会把 -m 覆盖的路径同步回工程。
-    data["media"] = str(media_path)
+    data["media"] = str(source_media_path)
     if not no_waveform:
         try:
             waveform, extracted = edit.load_or_extract_waveform(
@@ -248,7 +253,14 @@ def load_project(
     source = stickers_dir or edit.get_default_sticker_dir()
     sticker_root = Path(source).resolve() if source else None
     root_text, stickers = edit.scan_stickers(sticker_root) if sticker_root else ("", [])
-    return ServerProject(data, json_path, media_path, Path(root_text) if root_text else None, stickers)
+    return ServerProject(
+        data,
+        json_path,
+        media_path,
+        Path(root_text) if root_text else None,
+        stickers,
+        source_media_path=source_media_path,
+    )
 
 
 def load_blank_project(stickers_dir: str | None) -> ServerProject:
@@ -270,11 +282,12 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")
     if project.media_path:
         media_html = edit.media_tag(project.media_path, "/media")
-        title = html.escape(f"MAWE（本地服务器）- {project.media_path.name}")
-        filename_base = project.json_path.stem if project.json_path else project.media_path.stem
+        source_media = project.source_media_path or project.media_path
+        title = html.escape(f"MAWE（本地服务器）- {source_media.name}")
+        filename_base = project.json_path.stem if project.json_path else source_media.stem
         json_display = project.json_path.name if project.json_path else "未加载工程"
-        media_display = project.media_path.name
-        media_title = f"点击复制媒体名：{project.media_path.name}"
+        media_display = source_media.name
+        media_title = f"点击复制媒体名：{source_media.name}"
         json_class = "" if project.json_path else "empty"
         media_class = ""
     else:
@@ -305,7 +318,7 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
         server_config_json=json.dumps({
             "saveUrl": "/api/project",
             "canSave": project.json_path is not None,
-            "autoLoadedMediaName": project.media_path.name if project.media_path else None,
+            "autoLoadedMediaName": (project.source_media_path or project.media_path).name if project.media_path else None,
             "recentProjectsUrl": "/api/recent-projects/open",
             "settingsUrl": "/api/settings",
             "recentProjects": [item.to_json() for item in settings.recent_projects],
@@ -549,7 +562,7 @@ class EditorRequestHandler(BaseHTTPRequestHandler):
         self.send_json(HTTPStatus.OK, {
             "ok": True,
             "name": project.json_path.name if project.json_path else "",
-            "mediaName": project.media_path.name if project.media_path else "",
+            "mediaName": (project.source_media_path or project.media_path).name if project.media_path else "",
         })
 
     def update_settings(self) -> None:

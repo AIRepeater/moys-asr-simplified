@@ -2,12 +2,173 @@
 // 等价于 MAW server-editor/serve.py 的 host 能力，但用 Tauri IPC 替代 HTTP。
 
 use std::fs;
+use std::collections::hash_map::DefaultHasher;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
 
 pub const MAX_RECENT_PROJECTS: usize = 10;
+
+const VIDEO_EXTENSIONS: &[&str] = &["mp4", "mkv", "avi", "mov", "wmv", "flv", "webm", "ts", "m4v"];
+const AUDIO_EXTENSIONS: &[&str] = &["wav", "mp3", "m4a", "aac", "ogg", "flac", "opus"];
+
+#[derive(Clone)]
+struct MediaResolution {
+    status: &'static str,
+    requested_path: Option<PathBuf>,
+    resolved_path: Option<PathBuf>,
+    candidates: Vec<PathBuf>,
+    message: String,
+}
+
+fn normalized_extension(path: &Path) -> String {
+    path.extension()
+        .and_then(|value| value.to_str())
+        .unwrap_or_default()
+        .to_lowercase()
+}
+
+fn is_supported_media(path: &Path) -> bool {
+    let extension = normalized_extension(path);
+    VIDEO_EXTENSIONS
+        .iter()
+        .chain(AUDIO_EXTENSIONS)
+        .any(|item| *item == extension.as_str())
+}
+
+fn needs_conversion(path: &Path) -> bool {
+    normalized_extension(path) == "flv"
+}
+
+fn media_stem(value: &str) -> String {
+    let stem = Path::new(value)
+        .file_stem()
+        .and_then(|part| part.to_str())
+        .unwrap_or_default()
+        .to_lowercase();
+    [
+        ".qwen3-asr.", ".qwen3-asr-api.", ".funasr.", ".glm-asr.",
+        ".paraformer.", ".sensevoice.", ".nano.",
+    ]
+    .iter()
+    .find_map(|tag| stem.find(*tag).map(|index| stem[..index].to_string()))
+    .unwrap_or(stem)
+}
+
+fn absolute_path(path: PathBuf) -> PathBuf {
+    path.canonicalize().unwrap_or(path)
+}
+
+fn classify_media(path: PathBuf, requested_path: Option<PathBuf>) -> MediaResolution {
+    if !is_supported_media(&path) {
+        return MediaResolution {
+            status: "unsupported",
+            requested_path: Some(requested_path.unwrap_or_else(|| path.clone())),
+            resolved_path: None,
+            candidates: Vec::new(),
+            message: format!("不支持的媒体格式：{}", path.extension().and_then(|v| v.to_str()).unwrap_or("无扩展名")),
+        };
+    }
+    let conversion = needs_conversion(&path);
+    MediaResolution {
+        status: if conversion { "conversion_needed" } else { "success" },
+        requested_path: Some(requested_path.unwrap_or_else(|| path.clone())),
+        resolved_path: Some(path),
+        candidates: Vec::new(),
+        message: if conversion { "该媒体格式需要转换后才能在浏览器中播放".to_string() } else { String::new() },
+    }
+}
+
+fn same_name_candidates(project_path: &Path, data: &serde_json::Value) -> Vec<PathBuf> {
+    let source_name = data
+        .get("media")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .and_then(|value| Path::new(value).file_name().and_then(|part| part.to_str()).map(str::to_string))
+        .unwrap_or_else(|| project_path.file_name().and_then(|part| part.to_str()).unwrap_or_default().to_string());
+    let expected_stem = media_stem(&source_name);
+    let Some(parent) = project_path.parent() else { return Vec::new(); };
+    let Ok(entries) = fs::read_dir(parent) else { return Vec::new(); };
+    let mut candidates: Vec<PathBuf> = entries
+        .filter_map(|entry| entry.ok().map(|item| item.path()))
+        .filter(|path| path.is_file() && is_supported_media(path))
+        .filter(|path| {
+            path.file_name()
+                .and_then(|value| value.to_str())
+                .map(|value| media_stem(value) == expected_stem)
+                .unwrap_or(false)
+        })
+        .map(absolute_path)
+        .collect();
+    candidates.sort_by_key(|path| path.file_name().map(|value| value.to_string_lossy().to_lowercase()));
+    candidates
+}
+
+fn resolve_project_media(project_path: &Path, data: &serde_json::Value, explicit_media: Option<&str>) -> MediaResolution {
+    let project_path = absolute_path(project_path.to_path_buf());
+    let base_dir = project_path.parent().unwrap_or_else(|| Path::new("."));
+    if let Some(value) = explicit_media.filter(|value| !value.trim().is_empty()) {
+        let requested = absolute_path(if Path::new(value).is_absolute() {
+            PathBuf::from(value)
+        } else {
+            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join(value)
+        });
+        return if requested.is_file() {
+            classify_media(requested.clone(), Some(requested))
+        } else {
+            MediaResolution {
+                status: "missing",
+                requested_path: Some(requested.clone()),
+                resolved_path: None,
+                candidates: Vec::new(),
+                message: format!("找不到指定媒体文件：{}", requested.display()),
+            }
+        };
+    }
+
+    let requested = data
+        .get("media")
+        .and_then(|value| value.as_str())
+        .filter(|value| !value.trim().is_empty())
+        .map(|value| absolute_path(if Path::new(value).is_absolute() { PathBuf::from(value) } else { base_dir.join(value) }));
+    if let Some(path) = requested.as_ref().filter(|path| path.is_file()) {
+        return classify_media(path.clone(), requested.clone());
+    }
+
+    let candidates = same_name_candidates(&project_path, data);
+    if candidates.len() == 1 {
+        return classify_media(candidates[0].clone(), requested);
+    }
+    if candidates.len() > 1 {
+        return MediaResolution {
+            status: "conflict",
+            requested_path: requested,
+            resolved_path: None,
+            candidates,
+            message: "工程目录存在多个同名媒体文件，请手动指定一个".to_string(),
+        };
+    }
+    MediaResolution {
+        status: "missing",
+        requested_path: requested,
+        resolved_path: None,
+        candidates: Vec::new(),
+        message: "找不到工程关联媒体文件，请手动指定媒体".to_string(),
+    }
+}
+
+fn media_resolution_json(resolution: &MediaResolution, project_path: &Path) -> serde_json::Value {
+    serde_json::json!({
+        "status": resolution.status,
+        "projectPath": project_path.to_string_lossy(),
+        "requestedPath": resolution.requested_path.as_ref().map(|path| path.to_string_lossy().to_string()).unwrap_or_default(),
+        "resolvedPath": resolution.resolved_path.as_ref().map(|path| path.to_string_lossy().to_string()).unwrap_or_default(),
+        "candidates": resolution.candidates.iter().map(|path| path.to_string_lossy().to_string()).collect::<Vec<_>>(),
+        "message": resolution.message,
+    })
+}
 
 // === Settings 数据结构（与 serve.py:ServerSettings 对齐） ===
 
@@ -145,6 +306,19 @@ pub fn settings_path() -> PathBuf {
 
 // === IPC Commands ===
 
+fn read_project_file(path: &Path) -> Result<(serde_json::Value, MediaResolution), String> {
+    let content = fs::read_to_string(path).map_err(|e| format!("读取失败: {}", e))?;
+    let mut data: serde_json::Value = serde_json::from_str(&content)
+        .map_err(|e| format!("JSON 解析失败: {}", e))?;
+    let resolution = resolve_project_media(path, &data, None);
+    if let Some(resolved) = resolution.resolved_path.as_ref() {
+        if let Some(object) = data.as_object_mut() {
+            object.insert("media".to_string(), serde_json::Value::String(resolved.to_string_lossy().to_string()));
+        }
+    }
+    Ok((data, resolution))
+}
+
 #[tauri::command]
 pub async fn open_project(
     state: tauri::State<'_, AppState>,
@@ -167,10 +341,7 @@ pub async fn open_project(
         .ok_or_else(|| "无效的文件路径".to_string())?
         .to_path_buf();
 
-    let content = fs::read_to_string(&path)
-        .map_err(|e| format!("读取失败: {}", e))?;
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("JSON 解析失败: {}", e))?;
+    let (data, media_resolution) = read_project_file(&path)?;
 
     // 设置当前工程路径（后续 save_project 用）
     *state.current_project_path.lock().unwrap() = Some(path.clone());
@@ -193,6 +364,7 @@ pub async fn open_project(
         "data": data,
         "path": path.to_string_lossy(),
         "filename": filename,
+        "mediaResolution": media_resolution_json(&media_resolution, &path),
     }))
 }
 
@@ -340,10 +512,7 @@ pub fn open_project_at_path(
         }));
     }
 
-    let content = fs::read_to_string(&path_buf)
-        .map_err(|e| format!("读取失败: {}", e))?;
-    let data: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("JSON 解析失败: {}", e))?;
+    let (data, media_resolution) = read_project_file(&path_buf)?;
 
     *state.current_project_path.lock().unwrap() = Some(path_buf.clone());
 
@@ -364,6 +533,7 @@ pub fn open_project_at_path(
         "data": data,
         "path": path,
         "filename": filename,
+        "mediaResolution": media_resolution_json(&media_resolution, &path_buf),
     }))
 }
 
@@ -386,6 +556,119 @@ pub fn resolve_media(path: String) -> Result<serde_json::Value, String> {
         "ok": true,
         "url": url,
         "name": path_buf.file_name().and_then(|s| s.to_str()).unwrap_or("media"),
+    }))
+}
+
+fn media_file_url(path: &Path) -> String {
+    let posix = path.to_string_lossy().replace('\\', "/");
+    format!("file:///{}", posix.trim_start_matches('/'))
+}
+
+fn converted_media_path(source: &Path) -> Result<PathBuf, String> {
+    let metadata = fs::metadata(source).map_err(|e| format!("读取媒体信息失败: {}", e))?;
+    let modified = metadata
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|value| value.as_nanos())
+        .unwrap_or(0);
+    let mut hasher = DefaultHasher::new();
+    source.to_string_lossy().hash(&mut hasher);
+    metadata.len().hash(&mut hasher);
+    modified.hash(&mut hasher);
+    let digest = hasher.finish();
+    let root = std::env::temp_dir().join("mose-media-cache");
+    fs::create_dir_all(&root).map_err(|e| format!("创建媒体缓存目录失败: {}", e))?;
+    let stem = source.file_stem().and_then(|value| value.to_str()).unwrap_or("media");
+    Ok(root.join(format!("{}-{:016x}.mp4", stem, digest)))
+}
+
+/// 为 WebView 准备实际可播放的媒体；Desktop 使用随应用打包的 ffmpeg sidecar。
+#[tauri::command]
+pub async fn prepare_media(
+    app: tauri::AppHandle,
+    path: String,
+) -> Result<serde_json::Value, String> {
+    use tauri_plugin_shell::ShellExt;
+    use tauri_plugin_shell::process::CommandEvent;
+
+    let source = PathBuf::from(&path).canonicalize().unwrap_or_else(|_| PathBuf::from(&path));
+    if !source.is_file() {
+        return Ok(serde_json::json!({
+            "ok": false,
+            "status": "missing",
+            "error": format!("媒体文件不存在：{}", path),
+        }));
+    }
+    if !is_supported_media(&source) {
+        return Ok(serde_json::json!({
+            "ok": false,
+            "status": "unsupported",
+            "error": format!("不支持的媒体格式：{}", source.extension().and_then(|v| v.to_str()).unwrap_or("无扩展名")),
+        }));
+    }
+    let mut playback = source.clone();
+    let mut converted = false;
+    if needs_conversion(&source) {
+        playback = converted_media_path(&source)?;
+        if !(playback.is_file() && fs::metadata(&playback).map(|m| m.len()).unwrap_or(0) > 0) {
+            let output = playback.to_string_lossy().to_string();
+            let commands: [Vec<String>; 2] = [
+                vec![
+                    "-y", "-nostdin", "-hide_banner", "-loglevel", "error", "-i", &path,
+                    "-map", "0:v:0?", "-map", "0:a:0?", "-c", "copy", "-movflags", "+faststart", &output,
+                ].into_iter().map(String::from).collect(),
+                vec![
+                    "-y", "-nostdin", "-hide_banner", "-loglevel", "error", "-i", &path,
+                    "-map", "0:v:0?", "-map", "0:a:0?", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac", "-movflags", "+faststart", &output,
+                ].into_iter().map(String::from).collect(),
+            ];
+            let mut errors = Vec::new();
+            for args in commands {
+                let sidecar = app
+                    .shell()
+                    .sidecar("ffmpeg")
+                    .map_err(|e| format!("无法找到 ffmpeg sidecar: {}", e))?;
+                let (mut rx, _child) = sidecar
+                    .args(args)
+                    .spawn()
+                    .map_err(|e| format!("ffmpeg 启动失败: {}", e))?;
+                let mut stderr = String::new();
+                while let Some(event) = rx.recv().await {
+                    match event {
+                        CommandEvent::Stderr(bytes) => {
+                            stderr.push_str(&String::from_utf8_lossy(bytes.as_slice()));
+                        }
+                        CommandEvent::Terminated(_) => break,
+                        _ => {}
+                    }
+                }
+                if playback.is_file() && fs::metadata(&playback).map(|m| m.len()).unwrap_or(0) > 0 {
+                    converted = true;
+                    break;
+                }
+                if playback.exists() {
+                    let _ = fs::remove_file(&playback);
+                }
+                errors.push(stderr.trim().to_string());
+            }
+            if !converted {
+                let detail = errors.into_iter().rev().find(|value| !value.is_empty()).unwrap_or_else(|| "ffmpeg 未生成可播放文件".to_string());
+                return Err(format!("无法将 FLV 转换为浏览器可播放的 MP4：{}", detail));
+            }
+        } else {
+            converted = true;
+        }
+    }
+
+    Ok(serde_json::json!({
+        "ok": true,
+        "status": if converted { "conversion_needed" } else { "success" },
+        "url": media_file_url(&playback),
+        "name": source.file_name().and_then(|s| s.to_str()).unwrap_or("media"),
+        "sourcePath": source.to_string_lossy(),
+        "playbackPath": playback.to_string_lossy(),
+        "converted": converted,
     }))
 }
 

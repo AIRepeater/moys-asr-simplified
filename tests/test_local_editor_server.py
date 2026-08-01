@@ -9,6 +9,7 @@ import unittest
 import urllib.error
 import urllib.request
 from pathlib import Path
+from unittest import mock
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -74,6 +75,7 @@ class LocalEditorServerTests(unittest.TestCase):
         self.assertIn('function parseSrtSegments(text)', page)
         self.assertIn('function isMawProject(data)', page)
         self.assertIn('请使用 MAW 生成的 JSON 工程文件', page)
+
         self.assertIn('id="server-auto-save-settings"', page)
         self.assertIn('id="auto-save-project"', page)
         self.assertIn('id="auto-save-project" checked', page)
@@ -105,6 +107,25 @@ class LocalEditorServerTests(unittest.TestCase):
             finally:
                 server.shutdown()
                 thread.join(timeout=2)
+
+    def test_flv_project_uses_conversion_cache_without_overwriting_project_media(self) -> None:
+        source = self.root / "clip.flv"
+        source.write_bytes(b"flv")
+        project_path = self.root / "flv.json"
+        project_path.write_text(json.dumps({"media": str(source), "segments": []}), encoding="utf-8")
+        converted = self.root / "cache" / "clip.mp4"
+        converted.parent.mkdir()
+        converted.write_bytes(b"mp4")
+
+        with mock.patch.object(server_editor, "convert_media_for_browser", return_value=converted) as convert:
+            project = server_editor.load_project(
+                project_path, None, str(self.stickers), no_waveform=True, peaks_per_second=100,
+            )
+
+        convert.assert_called_once_with(source.resolve(), ffmpeg_path=mock.ANY)
+        self.assertEqual(project.media_path, converted)
+        self.assertEqual(project.source_media_path, source.resolve())
+        self.assertEqual(project.data["media"], str(source.resolve()))
 
     def test_recent_projects_are_limited_to_ten_and_persisted_as_lf_json(self) -> None:
         settings = server_editor.ServerSettings()

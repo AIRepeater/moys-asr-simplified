@@ -21,6 +21,7 @@ from maw.gui_workflow import (  # noqa: E402
     build_output_paths,
     build_transcribe_command,
     _child_environment,
+    _decode_process_output,
     render_editor_html,
     run_transcription,
 )
@@ -120,6 +121,17 @@ class GuiWorkflowTests(unittest.TestCase):
             self.srt_path.with_suffix(".edit.html"),
             "en",
         )
+
+    def test_decode_process_output_accepts_utf8_and_bom(self) -> None:
+        self.assertEqual(_decode_process_output("已开始\n"), "已开始\n")
+        self.assertEqual(
+            _decode_process_output(b"\xef\xbb\xbf\xe5\xb7\xb2\xe5\xbc\x80\xe5\xa7\x8b\n"),
+            "已开始\n",
+        )
+
+    def test_decode_process_output_falls_back_to_windows_gbk(self) -> None:
+        value = "上传失败：文件格式不支持\n".encode("cp936")
+        self.assertEqual(_decode_process_output(value), "上传失败：文件格式不支持\n")
 
     def test_render_editor_html_embeds_requested_gui_language(self) -> None:
         json_path = self.srt_path.with_suffix(".mosp")

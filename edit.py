@@ -32,14 +32,15 @@ from datetime import datetime
 from pathlib import Path
 
 from maw.project import ProjectValidationFailed, normalize_project
+from maw.media import AUDIO_EXTENSIONS, VIDEO_EXTENSIONS
 from waveform import (
     DEFAULT_PEAKS_PER_SECOND,
     WaveformError,
     load_or_extract_waveform,
 )
 
-VIDEO_EXTS = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v"}
-AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".ogg", ".flac", ".opus"}
+VIDEO_EXTS = set(VIDEO_EXTENSIONS)
+AUDIO_EXTS = set(AUDIO_EXTENSIONS)
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 
 

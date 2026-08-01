@@ -22,6 +22,7 @@ from typing import Final, final
 from maw.gui_config import DEFAULT_ENV_PATH, DEFAULT_MODEL_ID, LANGUAGES, MODELS, PROVIDERS, REGIONS, ModelConfig, ProviderConfig, api_key_for_provider, effective_config, masked_secret, model_by_label, provider_by_id, provider_for_model, save_env
 from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, startupinfo
 from maw.gui_workflow import TranscriptionRequest, TranscriptionResult, _bundled_ffmpeg_directory, _child_environment, build_serve_command, default_srt_path, run_transcription
+from maw.media import resolve_project_media
 
 
 OPEN_DIALOG = 10
@@ -32,9 +33,9 @@ MEDIA_EXTS: Final = frozenset({".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", "
 
 
 ERROR_MESSAGES: Final[dict[str, str]] = {
-    "json_not_found": "Project JSON does not exist.",
+    "json_not_found": "Project file does not exist.",
     "media_not_found": "Media file does not exist.",
-    "server_media_missing": "Project media is missing. Choose media manually.",
+    "server_media_missing": "Project media is missing, unsupported, or ambiguous. Choose media manually.",
     "api_key_missing": "API key is required.",
     "workspace_missing": "Workspace ID is required for Singapore region.",
     "output_missing": "SRT output path is required.",
@@ -188,7 +189,7 @@ class LauncherApi:
 
     def choose_file(self, payload: Mapping[str, object]) -> dict[str, object]:
         kind = str(payload.get("kind") or "media")
-        file_types = ("JSON (*.json)",) if kind == "json" else ("Media files (*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.ts;*.m4v;*.mp3;*.wav;*.m4a;*.flac;*.aac;*.ogg)", "All files (*.*)")
+        file_types = ("MAW projects (*.mosp;*.json)",) if kind == "json" else ("Media files (*.mp4;*.mkv;*.avi;*.mov;*.wmv;*.flv;*.webm;*.ts;*.m4v;*.mp3;*.wav;*.m4a;*.flac;*.aac;*.ogg)", "All files (*.*)")
         chosen = _file_dialog(open_dialog=True, file_types=file_types)
         return _dialog_result(chosen)
 
@@ -280,14 +281,20 @@ class LauncherApi:
             data = json.loads(json_path.read_text(encoding="utf-8"))
         except (FileNotFoundError, OSError, json.JSONDecodeError) as error:
             return {"ok": False, "hasMedia": False, "mediaPath": "", "mediaExists": False, "error": str(error)}
-        media_value = data.get("media") if isinstance(data, dict) else ""
-        media_text = media_value.strip() if isinstance(media_value, str) else ""
-        if not media_text:
-            return {"ok": True, "hasMedia": False, "mediaPath": "", "mediaExists": False}
-        media_path = Path(media_text).expanduser()
-        if not media_path.is_absolute():
-            media_path = json_path.parent / media_path
-        return {"ok": True, "hasMedia": True, "mediaPath": media_text, "mediaExists": media_path.exists()}
+        if not isinstance(data, dict):
+            return {"ok": False, "hasMedia": False, "mediaPath": "", "mediaExists": False, "error": "Project file must contain a JSON object."}
+        resolution = resolve_project_media(json_path, data)
+        resolved = resolution.resolved_path
+        requested = resolution.requested_path
+        return {
+            "ok": resolution.loadable,
+            "status": resolution.status.value,
+            "hasMedia": bool(requested or resolved or resolution.candidates),
+            "mediaPath": str(resolved or requested or ""),
+            "mediaExists": resolved is not None,
+            "candidates": [str(path) for path in resolution.candidates],
+            "detail": resolution.message,
+        }
 
     def _stop_owned_server(self) -> bool:
         process = self.server_process
@@ -536,7 +543,7 @@ def _error_result(field: str, code: str, detail: str = "") -> dict[str, object]:
 
 def _route_dropped_path(path: str) -> dict[str, object]:
     suffix = Path(path).suffix.lower()
-    if suffix == ".json":
+    if suffix in {".json", ".mosp"}:
         return {"type": "dropJson", "path": path}
     if suffix in MEDIA_EXTS:
         return {"type": "dropMedia", "path": path}

@@ -145,6 +145,8 @@ uv run python server-editor\serve.py "D:\Videos\example.qwen3-asr-api.json"
 uv run python server-editor\serve.py "D:\Projects\subtitle.json" -m "E:\Media\moved-video.mp4"
 ```
 
+如果关联媒体是 FLV，服务器会先调用用户配置的 `FFMPEG_PATH`，或 PATH 中的 `ffmpeg`，在系统临时目录生成 MP4 播放缓存；工程仍保存原始媒体路径。Desktop 版使用随应用提供的 FFmpeg sidecar。
+
 首次启动空白编辑器：
 
 ```powershell
