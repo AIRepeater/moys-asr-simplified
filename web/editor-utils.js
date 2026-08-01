@@ -43,9 +43,15 @@
     };
   }
 
-  function cueMetrics(text, start, end) {
+  function countTextUnits(text) {
     const normalized = String(text || '').replace(/\r\n?/g, '').replace(/\n/g, '');
-    const totalLength = Array.from(normalized).length;
+    let total = 0;
+    for (const ch of normalized) total += ch.codePointAt(0) < 256 ? 0.5 : 1;
+    return total;
+  }
+
+  function cueMetrics(text, start, end) {
+    const totalLength = countTextUnits(text);
     const durationSeconds = Math.max(0, Number(end) - Number(start)) / 1000;
     const charsPerSecond = durationSeconds > 0
       ? Number((totalLength / durationSeconds).toFixed(2)) : 0;
@@ -687,6 +693,7 @@
 
   window.AsrEditorUtils = {
     buildReplacementPreview,
+    countTextUnits,
     cueMetrics,
     joinSegmentTexts,
     formatHumanDuration,

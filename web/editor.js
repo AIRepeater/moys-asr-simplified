@@ -1516,9 +1516,7 @@ function buildSearchRegex(query, caseSensitive) {
 
 // === 字数 ===
 function calcCharWidth(text) {
-  let total = 0;
-  for (const ch of text) total += ch.codePointAt(0) < 256 ? 0.5 : 1;
-  return total;
+  return window.AsrEditorUtils.countTextUnits(text);
 }
 function getCharCountThreshold() {
   const v = parseInt(document.getElementById('charcount-threshold').value, 10);

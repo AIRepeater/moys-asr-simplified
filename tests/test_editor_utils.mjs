@@ -58,7 +58,15 @@ test('reports invalid regex without changing any rows', () => {
 test('calculates current cue length and characters per second', () => {
   assert.deepEqual(
     JSON.parse(JSON.stringify(helpers.cueMetrics('Hiya fellas.', 34690, 35550))),
-    { totalLength: 12, charsPerSecond: 13.95 },
+    { totalLength: 6, charsPerSecond: 6.98 },
+  );
+});
+
+test('uses one shared text-unit rule for lists and current-cue metrics', () => {
+  assert.equal(helpers.countTextUnits('猫A\n😀!'), 3);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(helpers.cueMetrics('猫A\n😀!', 0, 1000))),
+    { totalLength: 3, charsPerSecond: 3 },
   );
 });
 

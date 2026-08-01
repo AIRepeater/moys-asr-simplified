@@ -2251,7 +2251,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-01 23:26</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-01 23:32</span>
   <span class="json-name empty" id="json-name" title="点击复制工程文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -2843,9 +2843,15 @@
     };
   }
 
-  function cueMetrics(text, start, end) {
+  function countTextUnits(text) {
     const normalized = String(text || '').replace(/\r\n?/g, '').replace(/\n/g, '');
-    const totalLength = Array.from(normalized).length;
+    let total = 0;
+    for (const ch of normalized) total += ch.codePointAt(0) < 256 ? 0.5 : 1;
+    return total;
+  }
+
+  function cueMetrics(text, start, end) {
+    const totalLength = countTextUnits(text);
     const durationSeconds = Math.max(0, Number(end) - Number(start)) / 1000;
     const charsPerSecond = durationSeconds > 0
       ? Number((totalLength / durationSeconds).toFixed(2)) : 0;
@@ -3487,6 +3493,7 @@
 
   window.AsrEditorUtils = {
     buildReplacementPreview,
+    countTextUnits,
     cueMetrics,
     joinSegmentTexts,
     formatHumanDuration,
@@ -8426,9 +8433,7 @@ function buildSearchRegex(query, caseSensitive) {
 
 // === 字数 ===
 function calcCharWidth(text) {
-  let total = 0;
-  for (const ch of text) total += ch.codePointAt(0) < 256 ? 0.5 : 1;
-  return total;
+  return window.AsrEditorUtils.countTextUnits(text);
 }
 function getCharCountThreshold() {
   const v = parseInt(document.getElementById('charcount-threshold').value, 10);
