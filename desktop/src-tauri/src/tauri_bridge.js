@@ -91,11 +91,11 @@
     if (!current || current.tagName === (isVideo ? 'VIDEO' : 'AUDIO')) return current;
     var replacement = document.createElement(isVideo ? 'video' : 'audio');
     replacement.id = 'player';
-    replacement.controls = true;
     replacement.preload = 'metadata';
     replacement.style.cssText = 'width:100%;display:block;';
     current.parentNode.replaceChild(replacement, current);
     if (typeof player !== 'undefined') player = replacement;
+    if (typeof bindPlayerEvents === 'function') bindPlayerEvents(replacement);
     if (typeof waveformEditor !== 'undefined' && waveformEditor) waveformEditor.attachPlayer(replacement);
     return replacement;
   }

@@ -48,12 +48,12 @@ def media_tag(media_path: Path, media_url: str) -> str:
     ext = media_path.suffix.lower()
     if ext in VIDEO_EXTS:
         return (
-            f'<video id="player" controls preload="metadata" '
+            f'<video id="player" preload="metadata" '
             f'style="width:100%;max-height:40vh;background:#000;display:block;">'
             f'<source src="{html.escape(media_url)}"></video>'
         )
     return (
-        f'<audio id="player" controls preload="metadata" '
+        f'<audio id="player" preload="metadata" '
         f'style="width:100%;display:block;">'
         f'<source src="{html.escape(media_url)}"></audio>'
     )
@@ -188,7 +188,7 @@ def build_blank_html() -> str:
     blank_data = {"segments": [], "media": "", "language": "", "model": ""}
     # 空占位播放器：无 source，用户通过「加载媒体」加载
     media_html = (
-        '<audio id="player" controls preload="metadata" '
+        '<audio id="player" preload="metadata" '
         'style="width:100%;display:block;"></audio>'
     )
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M")

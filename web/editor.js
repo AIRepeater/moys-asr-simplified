@@ -331,6 +331,15 @@ const subtitleFontSizeSelect = document.getElementById('subtitle-font-size');
 const subtitleFontFamilySelect = document.getElementById('subtitle-font-family');
 const playerEmpty = document.getElementById('player-empty');
 const playerWrap = document.querySelector('.player-wrap');
+const mediaPlayToggle = document.getElementById('media-play-toggle');
+const mediaStepBack = document.getElementById('media-step-back');
+const mediaStepForward = document.getElementById('media-step-forward');
+const mediaCurrentTime = document.getElementById('media-current-time');
+const mediaDuration = document.getElementById('media-duration');
+const mediaSeek = document.getElementById('media-seek');
+const mediaVolume = document.getElementById('media-volume');
+const mediaPlaybackRate = document.getElementById('media-playback-rate');
+const mediaFullscreen = document.getElementById('media-fullscreen');
 // 预览层（字幕/表情包）的定位与几何测量都以 stage 为基准，不含顶部媒体工具栏。
 const playerStage = playerWrap?.querySelector('.player-stage') || playerWrap;
 const splitKeySel = document.getElementById('split-key');
@@ -2176,6 +2185,7 @@ function togglePlayback() {
   } else {
     player.pause();
   }
+  syncMediaControls();
 }
 
 function hasLoadedMedia() {
@@ -2185,6 +2195,93 @@ function hasLoadedMedia() {
     || player.querySelector('source')?.getAttribute('src'),
   );
 }
+
+function formatMediaTime(seconds) {
+  const total = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const remaining = total % 60;
+  const pad = (value) => String(value).padStart(2, '0');
+  return hours ? `${hours}:${pad(minutes)}:${pad(remaining)}` : `${pad(minutes)}:${pad(remaining)}`;
+}
+
+function syncMediaControls() {
+  if (!mediaPlayToggle || !player) return;
+  const hasMedia = hasLoadedMedia();
+  const duration = Number.isFinite(player.duration) && player.duration > 0 ? player.duration : 0;
+  const current = Number.isFinite(player.currentTime) ? Math.max(0, player.currentTime) : 0;
+  const active = hasMedia && !player.paused;
+  mediaPlayToggle.disabled = !hasMedia;
+  mediaStepBack.disabled = !hasMedia;
+  mediaStepForward.disabled = !hasMedia;
+  mediaSeek.disabled = !hasMedia || !duration;
+  mediaVolume.disabled = !hasMedia;
+  mediaPlaybackRate.disabled = !hasMedia;
+  mediaFullscreen.disabled = !hasMedia || typeof playerWrap?.requestFullscreen !== 'function';
+  mediaPlayToggle.textContent = active ? '⏸' : '▶';
+  const playbackLabel = active ? '暂停' : '播放';
+  mediaPlayToggle.setAttribute('aria-label', playbackLabel);
+  mediaPlayToggle.title = playbackLabel;
+  mediaCurrentTime.textContent = formatMediaTime(current);
+  mediaDuration.textContent = formatMediaTime(duration);
+  mediaSeek.max = String(duration);
+  mediaSeek.value = String(duration ? Math.min(duration, current) : 0);
+  if (Number.isFinite(player.volume)) mediaVolume.value = String(player.volume);
+  if (Number.isFinite(player.playbackRate)) {
+    const rate = String(player.playbackRate);
+    if (Array.from(mediaPlaybackRate.options).some((option) => option.value === rate)) {
+      mediaPlaybackRate.value = rate;
+    }
+  }
+  const fullscreenLabel = document.fullscreenElement ? '退出全屏' : '全屏';
+  mediaFullscreen.setAttribute('aria-label', fullscreenLabel);
+  mediaFullscreen.title = fullscreenLabel;
+}
+
+function bindPlayerEvents(mediaElement) {
+  if (!mediaElement) return;
+  mediaElement.addEventListener('timeupdate', update);
+  mediaElement.addEventListener('seeked', update);
+  ['timeupdate', 'loadedmetadata', 'durationchange', 'play', 'pause', 'volumechange', 'ratechange', 'emptied']
+    .forEach((eventName) => mediaElement.addEventListener(eventName, syncMediaControls));
+  syncMediaControls();
+}
+
+function seekMediaBy(deltaSeconds) {
+  if (!hasLoadedMedia()) return;
+  const duration = Number.isFinite(player.duration) ? player.duration : Infinity;
+  player.currentTime = Math.max(0, Math.min(duration, player.currentTime + deltaSeconds));
+  update();
+  syncMediaControls();
+}
+
+mediaPlayToggle?.addEventListener('click', togglePlayback);
+mediaStepBack?.addEventListener('click', () => seekMediaBy(-5));
+mediaStepForward?.addEventListener('click', () => seekMediaBy(5));
+mediaSeek?.addEventListener('input', () => {
+  if (!hasLoadedMedia()) return;
+  player.currentTime = Number(mediaSeek.value) || 0;
+  update();
+  syncMediaControls();
+});
+mediaVolume?.addEventListener('input', () => {
+  player.volume = Math.min(1, Math.max(0, Number(mediaVolume.value) || 0));
+  syncMediaControls();
+});
+mediaPlaybackRate?.addEventListener('change', () => {
+  player.playbackRate = Number(mediaPlaybackRate.value) || 1;
+  syncMediaControls();
+});
+mediaFullscreen?.addEventListener('click', async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await playerWrap?.requestFullscreen?.();
+  } catch (error) {
+    flashHint(`无法切换全屏：${error.message || error}`);
+  }
+  syncMediaControls();
+});
+document.addEventListener('fullscreenchange', syncMediaControls);
 
 function isSpaceKey(e) {
   return e.key === ' ' || e.code === 'Space';
@@ -2961,8 +3058,7 @@ setPreviewGeometry(getPreviewGeometry(), { markDirty: false });
 setStickerGeometry(getStickerGeometry(), { markDirty: false });
 refreshPreviewGeometryEditable();
 
-player.addEventListener('timeupdate', update);
-player.addEventListener('seeked', update);
+bindPlayerEvents(player);
 overlayToggle.addEventListener('change', () => {
   // change 触发时 checked 已是新值；压入改变前的状态（overlay 取反、几何为当前值）作为撤销点
   pushPreviewUndo('切换字幕预览', {
@@ -4315,13 +4411,11 @@ function resetLoadedMedia() {
   try { oldPlayer?.pause(); } catch (_) {}
   const emptyPlayer = document.createElement('audio');
   emptyPlayer.id = 'player';
-  emptyPlayer.controls = true;
   emptyPlayer.preload = 'metadata';
   emptyPlayer.style.cssText = 'width:100%;display:block;';
   oldPlayer?.parentNode?.replaceChild(emptyPlayer, oldPlayer);
   player = emptyPlayer;
-  player.addEventListener('timeupdate', update);
-  player.addEventListener('seeked', update);
+  bindPlayerEvents(player);
   seekWarned = false;
   waveformEditor?.attachPlayer(player);
   syncPlayerPlaceholder();
@@ -4546,7 +4640,6 @@ async function loadMediaFile(file) {
     // 不同类型：替换整个元素
     const newPlayer = document.createElement(isVideo ? 'video' : 'audio');
     newPlayer.id = 'player';
-    newPlayer.controls = true;
     newPlayer.preload = 'metadata';
     if (isVideo) {
       newPlayer.style.cssText = 'width:100%;max-height:40vh;background:#000;display:block;';
@@ -4560,8 +4653,7 @@ async function loadMediaFile(file) {
     candidatePlayer = newPlayer;
     // 重新绑定全局引用与事件
     player = newPlayer;
-    player.addEventListener('timeupdate', update);
-    player.addEventListener('seeked', update);
+    bindPlayerEvents(player);
     seekWarned = false;  // 新媒体重新探测 seek 能力
   }
 

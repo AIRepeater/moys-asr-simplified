@@ -291,7 +291,7 @@ def build_server_page(project: ServerProject, settings: ServerSettings | None = 
         json_class = "" if project.json_path else "empty"
         media_class = ""
     else:
-        media_html = '<audio id="player" controls preload="metadata" style="width:100%;display:block;"></audio>'
+        media_html = '<audio id="player" preload="metadata" style="width:100%;display:block;"></audio>'
         title = html.escape("MAWE（本地服务器）- 用「打开工程」加载 JSON")
         filename_base = "untitled"
         json_display = "未加载工程"

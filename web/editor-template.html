@@ -436,6 +436,25 @@ __WAVEFORM_CSS__
       <div class="player-empty" id="player-empty">加载媒体后显示视频</div>
       <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。"><span></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
     </div>
+    <div class="media-controls" id="media-controls" role="group" aria-label="媒体播放控制">
+      <button type="button" id="media-play-toggle" aria-label="播放" title="播放">▶</button>
+      <button type="button" id="media-step-back" aria-label="后退 5 秒" title="后退 5 秒">−5</button>
+      <button type="button" id="media-step-forward" aria-label="前进 5 秒" title="前进 5 秒">+5</button>
+      <span class="media-clock"><span id="media-current-time">00:00</span> / <span id="media-duration">00:00</span></span>
+      <input type="range" id="media-seek" min="0" max="0" step="0.01" value="0" aria-label="媒体进度">
+      <label class="media-volume-control" title="音量">🔊 <input type="range" id="media-volume" min="0" max="1" step="0.01" value="1" aria-label="音量"></label>
+      <label class="media-rate-control" title="播放速度">速度
+        <select id="media-playback-rate" aria-label="播放速度">
+          <option value="0.5">0.5×</option>
+          <option value="0.75">0.75×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.25">1.25×</option>
+          <option value="1.5">1.5×</option>
+          <option value="2">2×</option>
+        </select>
+      </label>
+      <button type="button" id="media-fullscreen" aria-label="全屏" title="全屏">⛶</button>
+    </div>
   </div>
   <section class="current-cue-panel" id="current-cue-panel" aria-label="当前字幕编辑区">
     <div class="cue-panel-layout">

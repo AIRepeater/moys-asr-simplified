@@ -39,7 +39,7 @@ fn render_editor_page(settings: &ServerSettings) -> String {
     let mut page = read_web_asset("editor-template.html");
 
     let blank_data = r#"{"segments":[],"media":"","language":"","model":""}"#;
-    let blank_media_html = r#"<audio id="player" controls preload="metadata" style="width:100%;display:block;"></audio>"#;
+    let blank_media_html = r#"<audio id="player" preload="metadata" style="width:100%;display:block;"></audio>"#;
 
     // 先读取所有 web 资源到已绑定的 String，让 trim_end 的 &str 有合法生命周期
     let editor_css = read_web_asset("editor.css");
