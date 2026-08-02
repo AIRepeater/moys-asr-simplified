@@ -10,8 +10,8 @@
   // 渲染器预设：classic / wave-right 由专属 CSS 网格渲染；custom 由 layoutTree 渲染
   // （传统字幕编辑器与用户保存的自定义工作区都以树渲染）。
   const RENDERER_PRESETS = ['classic', 'wave-right', 'custom'];
-  // 内置工作区 id：下拉框可选项；traditional 内部以 custom 渲染器 + 专用树实现。
-  const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'traditional'];
+  // 内置工作区 id：下拉框可选项；custom 预设都由各自的布局树渲染。
+  const BUILTIN_WORKSPACE_IDS = ['classic', 'wave-right', 'three-fold', 'traditional'];
   const MODULE_IDS = ['player', 'panel', 'cues', 'wave'];
   const MODULE_LABELS = { player: '视频', panel: '当前字幕', cues: '字幕列表', wave: '波形' };
   const DEFAULT_MODULE_ORDER = ['player', 'panel', 'cues', 'wave'];
@@ -62,6 +62,20 @@
         ],
       },
       { type: 'module', id: 'cues' },
+    ],
+  };
+  // 三折叠布局：左侧上下为当前字幕/视频，右侧上下为字幕列表/波形。
+  const THREE_FOLD_LAYOUT_TREE = {
+    type: 'split', direction: 'row', ratio: 28.32664152704568,
+    children: [
+      {
+        type: 'split', direction: 'column', ratio: 29.702416354679702,
+        children: [{ type: 'module', id: 'panel' }, { type: 'module', id: 'player' }],
+      },
+      {
+        type: 'split', direction: 'row', ratio: 34.57890198332854,
+        children: [{ type: 'module', id: 'cues' }, { type: 'module', id: 'wave' }],
+      },
     ],
   };
   const CLASSIC_LAYOUT_EDIT_TREE = {
@@ -128,6 +142,11 @@
     ...DEFAULT_EDITOR_DISPLAY,
     cueEditorShowTimeActions: true,
   };
+  const THREE_FOLD_EDITOR_DISPLAY = {
+    ...DEFAULT_EDITOR_DISPLAY,
+    cueListShowTime: false,
+    cueEditorShowNavigation: true, cueEditorShowTimeActions: true, cueEditorShowSticker: true,
+  };
   const BUILTIN_WORKSPACES = {
     // 字幕列表编辑（界面显示名）：聚焦右侧整列字幕列表，以 custom 渲染器渲染。
     classic: {
@@ -139,6 +158,15 @@
       preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
       rows: [42, 16, 42], tree: DEFAULT_RIGHT_LAYOUT_TREE,
       editorDisplay: DEFAULT_EDITOR_DISPLAY,
+    },
+    'three-fold': {
+      preset: 'custom', waveformMode: 'multi',
+      waveformSettings: {
+        visibleSeconds: 20, secondsPerRow: 10, rowHeight: 120, waveformScale: 4,
+        side: 'left', disabledDisplay: 'dim', showGroupBadges: true, dragPlayhead: true,
+      },
+      splitPercent: 60, columnPercent: 30, rows: [42, 16, 42], tree: THREE_FOLD_LAYOUT_TREE,
+      editorDisplay: THREE_FOLD_EDITOR_DISPLAY,
     },
     // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
     traditional: {

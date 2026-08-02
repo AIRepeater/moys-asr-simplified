@@ -73,6 +73,25 @@ test('uses display defaults for each built-in workspace preset', () => {
 });
 
 
+test('registers the three-fold built-in workspace from the example layout', () => {
+  const workspace = builtinWorkspaces['three-fold'];
+  assert.equal(workspace.preset, 'custom');
+  assert.equal(workspace.waveformMode, 'multi');
+  assert.deepEqual(JSON.parse(JSON.stringify(workspace.rows)), [42, 16, 42]);
+  assert.deepEqual(JSON.parse(JSON.stringify(helpers.collectLayoutModules(workspace.tree))), [
+    'panel', 'player', 'cues', 'wave',
+  ]);
+  assert.equal(workspace.tree.ratio, 28.32664152704568);
+  assert.equal(workspace.tree.children[0].ratio, 29.702416354679702);
+  assert.equal(workspace.tree.children[1].ratio, 34.57890198332854);
+  assert.equal(workspace.waveformSettings.waveformScale, 4);
+  assert.equal(workspace.editorDisplay.cueListShowTime, false);
+  assert.equal(workspace.editorDisplay.cueEditorShowNavigation, true);
+  assert.equal(workspace.editorDisplay.cueEditorShowTimeActions, true);
+  assert.equal(workspace.editorDisplay.cueEditorShowSticker, true);
+});
+
+
 test('keeps color and sticker group badges independent for overlapping groups', () => {
   const badges = helpers.computeGroupBadges([
     { color: { name: 'red' } },

@@ -260,7 +260,11 @@ class LocalEditorServerTests(unittest.TestCase):
 
             server.save_preset_workspace("wave-right", workspace)
             self.assertEqual(server.settings.preset_workspaces["wave-right"], workspace)
+            server.save_preset_workspace("three-fold", workspace)
+            self.assertEqual(server.settings.preset_workspaces["three-fold"], workspace)
             server.reset_preset_workspace("wave-right")
+            self.assertEqual(server.settings.preset_workspaces, {"three-fold": workspace})
+            server.reset_preset_workspace("three-fold")
             self.assertEqual(server.settings.preset_workspaces, {})
             with self.assertRaisesRegex(ValueError, "内置工作区"):
                 server.save_preset_workspace("custom", workspace)

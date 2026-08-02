@@ -165,6 +165,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertIn('id="cues-empty"', page)
         self.assertIn('加载工程后显示字幕列表', page)
         self.assertIn('id="workspace-preset"', page)
+        self.assertIn('<option value="three-fold">三折叠布局</option>', page)
         self.assertIn('id="layout-reset"', page)
         self.assertIn('class="toolbar-utility-group" role="group" aria-label="编辑器工具"', page)
         self.assertIn('data-waveform-tool="select"', page)
