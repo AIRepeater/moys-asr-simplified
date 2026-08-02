@@ -299,7 +299,7 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertTrue(result["hasMedia"])
         self.assertTrue(result["mediaExists"])
-        self.assertEqual(result["mediaPath"], str(media))
+        self.assertEqual(Path(result["mediaPath"]).resolve(), media.resolve())
 
     def test_check_server_media_reports_missing_or_absent_media(self) -> None:
         """Given JSON lacks usable media, When checked, Then manual media is required."""

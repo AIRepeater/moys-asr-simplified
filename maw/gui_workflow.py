@@ -263,7 +263,10 @@ def _decode_process_output(value: bytes | str) -> str:
     utf8 = value.decode("utf-8", errors="replace")
     if "\ufffd" not in utf8:
         return utf8
-    encodings = ["mbcs", "cp936", locale.getpreferredencoding(False)]
+    # On an English Windows runner, ``mbcs`` may decode GBK bytes as Latin-1
+    # mojibake without replacement characters. Prefer the explicit GBK codec
+    # before the locale-dependent Windows ANSI codec.
+    encodings = ["cp936", "mbcs", locale.getpreferredencoding(False)]
     candidates = []
     for encoding in encodings:
         try:
