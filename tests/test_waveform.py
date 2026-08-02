@@ -123,6 +123,15 @@ class WaveformExtractionTests(unittest.TestCase):
 
 
 class EditorAssetTests(unittest.TestCase):
+    def test_project_waveform_survives_loading_media(self) -> None:
+        editor = (ROOT / "web" / "editor.js").read_text(encoding="utf-8")
+        waveform = (ROOT / "web" / "waveform.js").read_text(encoding="utf-8")
+        self.assertIn("let waveformLoadedFromProject = false;", editor)
+        self.assertIn("waveformLoadedFromProject = waveformEditor.setPayload(DATA.waveform);", editor)
+        self.assertIn("const preserveProjectWaveform = waveformLoadedFromProject", editor)
+        self.assertIn("if (waveformEditor && !preserveProjectWaveform)", editor)
+        self.assertIn("getPayload()", waveform)
+
     def test_blank_editor_inlines_modular_assets(self) -> None:
         page = edit.build_blank_html()
         self.assertIn('class="waveform-mode-switch"', page)
@@ -146,6 +155,7 @@ class EditorAssetTests(unittest.TestCase):
         self.assertEqual(panel_parts, sorted(panel_parts))
         self.assertIn('id="player-empty"', page)
         self.assertIn('加载媒体后显示视频', page)
+        self.assertIn("mediaElement.addEventListener('click'", page)
         self.assertIn('id="cues-empty"', page)
         self.assertIn('加载工程后显示字幕列表', page)
         self.assertIn('id="workspace-preset"', page)

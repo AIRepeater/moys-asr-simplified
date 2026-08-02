@@ -101,7 +101,25 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(result, self.root / "take.mp4")
         self.assertTrue(result.is_file())
         self.assertFalse(list(self.root.glob("take.part-*.mp4")))
+        self.assertEqual(Path(process.call_args.args[0][-1]).name, "take.part-0.mp4")
         process.assert_called_once()
+
+    def test_flv_conversion_cleans_stale_part_files_when_adjacent_mp4_is_reusable(self) -> None:
+        source = self.root / "take.flv"
+        source.write_bytes(b"flv")
+        output = self.root / "take.mp4"
+        output.write_bytes(b"mp4")
+        (self.root / "take.part-0.mp4").write_bytes(b"partial")
+        (self.root / "take.part-123-456789-0.mp4").write_bytes(b"legacy")
+        ffmpeg = self.root / "ffmpeg.exe"
+        ffmpeg.write_bytes(b"exe")
+
+        with mock.patch("maw.media.subprocess.run") as process:
+            result = convert_media_for_browser(source, ffmpeg_path=ffmpeg)
+
+        self.assertEqual(result, output)
+        process.assert_not_called()
+        self.assertFalse(list(self.root.glob("take.part-*.mp4")))
 
     def test_flv_conversion_rejects_nonzero_ffmpeg_output_and_cleans_temp(self) -> None:
         source = self.root / "take.flv"

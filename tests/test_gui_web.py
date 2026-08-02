@@ -180,6 +180,30 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(result["code"], "server_no_response")
         open_browser.assert_not_called()
 
+    def test_start_server_exposes_child_startup_log_when_process_exits(self) -> None:
+        project = self.root / "project.json"
+        media = self.root / "clip.mp4"
+        project.write_text(json.dumps({"media": str(media), "segments": []}), encoding="utf-8")
+        media.write_bytes(b"media")
+
+        class FailedProcess:
+            def poll(self) -> int:
+                return 2
+
+        def spawn(*_args, **kwargs):
+            kwargs["stdout"].write(b"Traceback: FLV conversion failed\r\nffmpeg is unavailable\r\n")
+            kwargs["stdout"].flush()
+            return FailedProcess()
+
+        with mock.patch("maw.gui_web.subprocess.Popen", side_effect=spawn):
+            with mock.patch("maw.gui_web._wait_for_server", return_value=False):
+                result = self.api.start_server({"jsonPath": str(project), "mediaPath": str(media), "port": "9876"})
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["code"], "server_start_failed")
+        self.assertIn("进程退出码 2", result["detail"])
+        self.assertIn("FLV conversion failed", result["detail"])
+
     def test_start_server_reports_code_when_project_json_is_missing(self) -> None:
         """Given missing project JSON, When starting server, Then json_not_found code is returned."""
         result = self.api.start_server({"jsonPath": str(self.root / "missing.json"), "mediaPath": "", "port": "8765"})

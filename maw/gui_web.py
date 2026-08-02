@@ -9,6 +9,7 @@ import re
 import shutil
 import subprocess
 import threading
+import tempfile
 import time
 import webbrowser
 from urllib.error import URLError
@@ -17,7 +18,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Event
-from typing import Final, final
+from typing import BinaryIO, Final, final
 
 from maw.gui_config import DEFAULT_ENV_PATH, DEFAULT_MODEL_ID, LANGUAGES, MODELS, PROVIDERS, REGIONS, ModelConfig, ProviderConfig, api_key_for_provider, effective_config, masked_secret, model_by_label, provider_by_id, provider_for_model, save_env
 from maw.gui_platform import apply_dark_title_bar, asset_path, creationflags, startupinfo
@@ -40,6 +41,7 @@ ERROR_MESSAGES: Final[dict[str, str]] = {
     "workspace_missing": "Workspace ID is required for Singapore region.",
     "output_missing": "SRT output path is required.",
     "server_no_response": "Editor server did not respond.",
+    "server_start_failed": "Editor server failed to start.",
     "server_stop_not_maw": "The process using this port is not a MAW editor server.",
     "server_stop_failed": "Unable to stop the MAW editor server.",
     "sticker_dir_invalid": "Sticker directory does not exist.",
@@ -123,6 +125,7 @@ class LauncherApi:
         self.cancel_event: Event | None = None
         self.worker: threading.Thread | None = None
         self.server_process: subprocess.Popen[str] | None = None
+        self.server_log_file: BinaryIO | None = None
         self.result: TranscriptionResult | None = None
         self.pump = EventPump(window_getter=self.window_getter)
 
@@ -248,19 +251,31 @@ class LauncherApi:
             command = build_serve_command(json_path, media_path, port)
         command.append("--no-open")
         _ = self._stop_owned_server()
-        self.server_process = subprocess.Popen(
-            command,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            env=_child_environment(os.environ, "", provider=""),
-            cwd=str(self.paths.root),
-            startupinfo=startupinfo(),
-            creationflags=creationflags(),
-        )
+        self.server_log_file = tempfile.TemporaryFile(mode="w+b")
+        try:
+            self.server_process = subprocess.Popen(
+                command,
+                stdout=self.server_log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=_child_environment(os.environ, "", provider=""),
+                cwd=str(self.paths.root),
+                startupinfo=startupinfo(),
+                creationflags=creationflags(),
+            )
+        except OSError as error:
+            self._close_server_log()
+            return _error_result("port", "server_start_failed", f"{url} | {error}")
         if not _wait_for_server(url, timeout=5.0):
+            exit_code = self.server_process.poll() if self.server_process else None
+            if exit_code is not None:
+                detail = self._read_server_log()
+                detail = f"{url} | 进程退出码 {exit_code}" + (f"：{detail}" if detail else "")
+                _ = self._stop_owned_server()
+                return _error_result("port", "server_start_failed", detail)
             _ = self._stop_owned_server()
             return _error_result("port", "server_no_response", url)
+        self._close_server_log()
         return {"ok": True, "url": launch_url}
 
     def get_server_status(self, payload: Mapping[str, object]) -> dict[str, object]:
@@ -299,15 +314,39 @@ class LauncherApi:
     def _stop_owned_server(self) -> bool:
         process = self.server_process
         self.server_process = None
-        if process and process.poll() is None:
-            process.terminate()
+        stopped = False
+        try:
+            if process and process.poll() is None:
+                process.terminate()
+                try:
+                    _ = process.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    _ = process.wait(timeout=5)
+                stopped = True
+            return stopped
+        finally:
+            self._close_server_log()
+
+    def _read_server_log(self) -> str:
+        log_file = self.server_log_file
+        if log_file is None:
+            return ""
+        try:
+            log_file.flush()
+            log_file.seek(0)
+            return log_file.read().decode("utf-8", errors="replace").strip()
+        except (OSError, ValueError):
+            return ""
+
+    def _close_server_log(self) -> None:
+        log_file = self.server_log_file
+        self.server_log_file = None
+        if log_file is not None:
             try:
-                _ = process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                _ = process.wait(timeout=5)
-            return True
-        return False
+                log_file.close()
+            except OSError:
+                pass
 
     def stop_server(self, payload: Mapping[str, object] | None = None) -> dict[str, object]:
         if self._stop_owned_server():

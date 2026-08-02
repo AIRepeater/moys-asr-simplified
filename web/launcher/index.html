@@ -13,7 +13,7 @@
         <img class="hero-icon" src="../../assets/show.webp" alt="" aria-hidden="true">
         <div class="hero-copy">
           <div class="wordmark">Moy's ASR Workflow <span class="version" id="appVersion">v1.1.0</span></div>
-          <p data-i18n="hero_desc">本地媒体 -> AI 转写 -> 可编辑字幕工程</p>
+          <p data-i18n="hero_desc">📺 本地媒体 ➜  🤖 AI 转写 ➜ ✨ 可编辑字幕工程</p>
           <span id="demoBadge" class="demo-badge hidden" data-i18n="demo_mode">演示模式</span>
         </div>
       </div>
@@ -34,6 +34,7 @@
           <button id="pickMedia" class="ghost" type="button" data-i18n="choose">选择</button>
         </div>
         <p id="mediaPathError" class="field-error"></p>
+        <p id="mediaPathFlvHint" class="hint warn hidden" data-i18n="flv_media_hint" aria-live="polite">flv 无法预览，将会自动转换成 mp4 格式</p>
       </div>
       <div class="field">
         <label for="srtPath" data-i18n="srt_output">SRT 输出</label>
@@ -126,6 +127,7 @@
             <button id="pickServerMedia" class="ghost" type="button" data-i18n="choose">选择</button>
           </div>
           <p class="hint warn" data-i18n="server_media_missing">工程未记录媒体，或文件已移动，请手动选择。</p>
+          <p id="serverMediaFlvHint" class="hint warn hidden" data-i18n="flv_media_hint" aria-live="polite">flv 无法预览，将会自动转换成 mp4 格式</p>
           <p id="serverMediaPathError" class="field-error"></p>
         </div>
         <div class="field compact"><label for="port" data-i18n="port">端口</label><div class="port-row"><input id="port" type="number" min="1" max="65535" value="8250"><button id="refreshServerStatus" class="ghost small" type="button" data-i18n="server_refresh" title="刷新当前端口的服务器状态">刷新</button></div><p id="portError" class="field-error"></p></div>

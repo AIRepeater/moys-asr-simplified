@@ -435,7 +435,7 @@
   .player-stage {
     position: relative; flex: 1 1 auto; min-height: 0; width: 100%;
   }
-  .player-stage video { display: block; }
+  .player-stage video { display: block; cursor: pointer; }
   .media-controls {
     display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
     min-height: 34px; margin-top: 4px; padding: 5px 7px;

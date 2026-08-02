@@ -3,7 +3,6 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use std::sync::Mutex;
 
 use serde::{Deserialize, Serialize};
@@ -638,21 +637,38 @@ fn converted_media_temp_path(playback: &Path, attempt: usize) -> PathBuf {
         .file_stem()
         .and_then(|value| value.to_str())
         .unwrap_or("media");
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|value| value.as_nanos())
-        .unwrap_or(0);
-    let filename = format!(
-        "{}.part-{}-{}-{}.mp4",
-        stem,
-        std::process::id(),
-        timestamp,
-        attempt
-    );
+    let filename = format!("{}.part-{}.mp4", stem, attempt);
     playback
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(filename)
+}
+
+fn is_legacy_conversion_temp(path: &Path, playback: &Path) -> bool {
+    let Some(name) = path.file_name().and_then(|value| value.to_str()) else { return false; };
+    let Some(stem) = playback.file_stem().and_then(|value| value.to_str()) else { return false; };
+    let Some(extension) = playback.extension().and_then(|value| value.to_str()) else { return false; };
+    let prefix = format!("{}.part-", stem);
+    let suffix = format!(".{}", extension);
+    if !name.starts_with(&prefix) || !name.ends_with(&suffix) {
+        return false;
+    }
+    let middle = &name[prefix.len()..name.len() - suffix.len()];
+    let parts: Vec<&str> = middle.split('-').collect();
+    parts.len() == 3 && parts.iter().all(|part| !part.is_empty() && part.chars().all(|ch| ch.is_ascii_digit()))
+}
+
+fn cleanup_conversion_temp_files(playback: &Path) {
+    let Some(parent) = playback.parent() else { return; };
+    let Ok(entries) = fs::read_dir(parent) else { return; };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let is_fixed_temp = path == converted_media_temp_path(playback, 0)
+            || path == converted_media_temp_path(playback, 1);
+        if (is_fixed_temp || is_legacy_conversion_temp(&path, playback)) && path.is_file() {
+            let _ = fs::remove_file(path);
+        }
+    }
 }
 
 /// 为 WebView 准备实际可播放的媒体；Desktop 使用随应用打包的 ffmpeg sidecar。
@@ -683,6 +699,7 @@ pub async fn prepare_media(
     let mut converted = false;
     if needs_conversion(&source) {
         playback = converted_media_path(&source);
+        cleanup_conversion_temp_files(&playback);
         if !is_valid_media_cache(&playback) {
             let source_arg = source.to_string_lossy().to_string();
             let commands: [Vec<String>; 2] = [
@@ -771,6 +788,7 @@ pub async fn prepare_media(
                 }
             }
             if !converted {
+                cleanup_conversion_temp_files(&playback);
                 let detail = errors.into_iter().rev().find(|value| !value.is_empty()).unwrap_or_else(|| "ffmpeg 未生成可播放文件".to_string());
                 return Err(format!("无法将 FLV 转换为浏览器可播放的 MP4：{}", detail));
             }

@@ -162,6 +162,9 @@ function getRemovedGapRanges() {
 const container = document.getElementById('cues-container');
 let player = document.getElementById('player');  // 可被「加载媒体」替换为新 <video>/<audio>
 let waveformEditor = null;
+// 工程内波形是可直接使用的缓存；加载关联媒体时不要因为媒体签名不同而覆盖它。
+// 媒体生成的波形则不属于工程缓存，切换媒体时仍应重新分析。
+let waveformLoadedFromProject = false;
 const MEDIA_FILE_RE = /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v|wav|mp3|m4a|aac|ogg|flac|opus)$/i;
 function isMediaFile(file) {
   return Boolean(file) && (file.type.startsWith('video/') || file.type.startsWith('audio/') || MEDIA_FILE_RE.test(file.name));
@@ -2254,6 +2257,12 @@ function bindPlayerEvents(mediaElement) {
   if (!mediaElement) return;
   mediaElement.addEventListener('timeupdate', update);
   mediaElement.addEventListener('seeked', update);
+  if (mediaElement.tagName === 'VIDEO') {
+    mediaElement.addEventListener('click', (event) => {
+      if (event.defaultPrevented) return;
+      togglePlayback();
+    });
+  }
   ['timeupdate', 'loadedmetadata', 'durationchange', 'play', 'pause', 'volumechange', 'ratechange', 'emptied']
     .forEach((eventName) => mediaElement.addEventListener(eventName, syncMediaControls));
   syncMediaControls();
@@ -4563,7 +4572,7 @@ async function openProjectFile(file, options = {}) {
       applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
       restoreWorkspaceSelection();
       syncWorkspaceControls();
-      waveformEditor.setPayload(DATA.waveform);
+      waveformLoadedFromProject = waveformEditor.setPayload(DATA.waveform);
     }
     updateGapRemoveUi();
     renderAll();
@@ -4642,6 +4651,8 @@ loadSrtFileInput.addEventListener('change', async (event) => {
 
 async function loadMediaFile(file) {
   if (!file) return;
+  const preserveProjectWaveform = waveformLoadedFromProject
+    && Boolean(waveformEditor?.getPayload?.());
   const url = URL.createObjectURL(file);
   const isVideo = file.type.startsWith('video/') ||
     /\.(mp4|mkv|avi|mov|wmv|flv|webm|ts|m4v)$/i.test(file.name);
@@ -4721,7 +4732,7 @@ async function loadMediaFile(file) {
 
   lastActive = -1;
   flashHint(`已加载媒体：${file.name}`);
-  if (waveformEditor) {
+  if (waveformEditor && !preserveProjectWaveform) {
     try {
       await waveformEditor.processFile(file);
     } catch (error) {
@@ -5699,12 +5710,15 @@ function initWaveformEditor() {
             ? `已独立调整第 ${idxs[0] + 1} 条字幕边界`
             : `已调整第 ${idxs[0] + 1} 条字幕时间`);
     },
-    onPayload: (payload) => { DATA.waveform = payload; },
+    onPayload: (payload) => {
+      DATA.waveform = payload;
+      waveformLoadedFromProject = false;
+    },
   });
   waveformEditor.attachPlayer(player);
   waveformEditor.setLayoutData(DATA.workspace || null);
   applyEditorDisplaySettings(DATA.workspace?.editorDisplay);
-  waveformEditor.setPayload(DATA.waveform || null);
+  waveformLoadedFromProject = waveformEditor.setPayload(DATA.waveform || null);
 }
 
 // === Drag & Drop：拖入视频/音频/JSON/SRT 自动加载 ===

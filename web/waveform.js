@@ -1523,6 +1523,10 @@
       return true;
     }
 
+    getPayload() {
+      return this.payload;
+    }
+
     getGapRemoveDetectionData() {
       if (!this.payload || !this.peaks) return null;
       return {

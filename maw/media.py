@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
-import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -97,9 +97,29 @@ def _conversion_output_path(source: Path, cache_dir: Path | None = None) -> Path
 
 
 def _conversion_temp_path(output: Path, attempt: int) -> Path:
-    return output.with_name(
-        f"{output.stem}.part-{os.getpid()}-{time.time_ns()}-{attempt}{output.suffix}"
-    )
+    return output.with_name(f"{output.stem}.part-{attempt}{output.suffix}")
+
+
+def _is_conversion_temp_file(path: Path, output: Path) -> bool:
+    if path.suffix.lower() != output.suffix.lower():
+        return False
+    if path.name in {_conversion_temp_path(output, 0).name, _conversion_temp_path(output, 1).name}:
+        return True
+    legacy = re.fullmatch(rf"{re.escape(output.stem)}\.part-\d+-\d+-\d+{re.escape(output.suffix)}", path.name, re.IGNORECASE)
+    return legacy is not None
+
+
+def _cleanup_conversion_temp_files(output: Path) -> None:
+    try:
+        entries = tuple(output.parent.iterdir())
+    except OSError:
+        return
+    for path in entries:
+        if path.is_file() and _is_conversion_temp_file(path, output):
+            try:
+                path.unlink()
+            except OSError:
+                pass
 
 
 def _valid_media_file(path: Path) -> bool:
@@ -128,6 +148,7 @@ def convert_media_for_browser(
     if source.suffix.lower() not in CONVERSION_EXTENSIONS:
         return source
     output = _conversion_output_path(source, cache_dir)
+    _cleanup_conversion_temp_files(output)
     if _valid_media_file(output):
         return output
 
