@@ -1498,7 +1498,9 @@
           : rowIndex * stride);
       const nextScrollTop = Math.max(0, scrollTop);
       this.autoScrolling = Math.abs(nextScrollTop - currentScrollTop) > 0.5;
-      this.scroll.scrollTop = nextScrollTop;
+      if (this.autoScrolling) {
+        this.scroll.scrollTo({ top: nextScrollTop, behavior: 'smooth' });
+      }
       this.manualFollowUntil = Date.now() + 3000;
       requestAnimationFrame(() => {
         this.autoScrolling = false;
@@ -2921,7 +2923,10 @@
         const rowIndex = Math.floor(now / (this.settings.secondsPerRow * 1000));
         if (rowIndex < this.multiRange[0] || rowIndex > this.multiRange[1]) {
           this.autoScrolling = true;
-          this.scroll.scrollTop = Math.max(0, rowIndex * (this.settings.rowHeight + ROW_GAP) - this.scroll.clientHeight * 0.35);
+          this.scroll.scrollTo({
+            top: Math.max(0, rowIndex * (this.settings.rowHeight + ROW_GAP) - this.scroll.clientHeight * 0.35),
+            behavior: 'smooth',
+          });
           requestAnimationFrame(() => { this.autoScrolling = false; });
           this.renderMultiVisible(true);
         }

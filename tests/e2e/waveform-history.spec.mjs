@@ -174,6 +174,15 @@ test('waveform navigation keeps a cue row in the comfort zone', async ({ page })
     };
   });
   expect(before.rowInComfortZone).toBe(true);
+  await page.evaluate(() => {
+    const scroll = document.getElementById('waveform-scroll');
+    const nativeScrollTo = scroll.scrollTo.bind(scroll);
+    window.__waveformScrollBehaviors = [];
+    scroll.scrollTo = (options) => {
+      window.__waveformScrollBehaviors.push(options?.behavior || 'auto');
+      nativeScrollTo(options);
+    };
+  });
 
   await page.keyboard.press('d');
   await expect(page.locator('.cue[data-idx="2"]')).toHaveClass(/selected/);
@@ -188,6 +197,7 @@ test('waveform navigation keeps a cue row in the comfort zone', async ({ page })
   await expect.poll(() => page.evaluate(
     () => document.getElementById('waveform-scroll').scrollTop,
   )).toBeGreaterThan(0);
+  await expect.poll(() => page.evaluate(() => window.__waveformScrollBehaviors)).toContain('smooth');
 });
 
 test('B does not split in a gap or while editing text', async ({ page }) => {
