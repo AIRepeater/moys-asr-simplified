@@ -94,6 +94,25 @@ GUI 还可以直接选择 `.mosp` / `.json` 工程并启动 `http://127.0.0.1` �
 
 普通版仍要求系统能找到 `ffmpeg` 和 `ffprobe`。如果 Launcher 提示未检测到 FFmpeg，可以换用 `MAWxFF` 版；也可以自行安装 FFmpeg，把它的 `bin` 目录加入 PATH 后重新打开 MAW。
 
+### 本地构建 Windows 图形包
+
+需要在 Windows 上构建；PyInstaller 不能在其他系统上交叉编译 Windows 包。先安装 Python 3.11+ 和 [uv](https://docs.astral.sh/uv/getting-started/installation/)，然后在仓库根目录的 PowerShell 中执行：
+
+```powershell
+uv sync --group build --frozen
+.\scripts\build-windows.ps1
+```
+
+构建脚本会安装锁定的构建依赖、运行打包契约测试，并使用 `MAW.spec` 生成 PyInstaller `onedir` 包。输出目录为 `dist\MAW\`，启动程序是 `dist\MAW\MAW.exe`；分发时要保留整个目录，不能只复制 exe 文件。
+
+需要跳过打包契约测试时可以使用：
+
+```powershell
+.\scripts\build-windows.ps1 -SkipTests
+```
+
+本地脚本生成的是不捆绑 FFmpeg 的普通版。要生成带 `ffmpeg.exe` 和 `ffprobe.exe` 的 `MAWxFF` 版，还需要按 `.github/workflows/release-windows.yml` 中的 Release 流程准备并校验 FFmpeg；日常本地构建通常直接使用 `dist\MAW\` 即可。
+
 ### 传统命令行方案
 
 也可以从源码启动同一界面：
