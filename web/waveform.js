@@ -96,7 +96,8 @@
   const ROUND_MS = 10;
   const BROWSER_DECODE_LIMIT = 512 * 1024 * 1024;
   const BROWSER_PCM_ESTIMATE_LIMIT = 768 * 1024 * 1024;
-  const DEFAULT_LAYOUT_ROWS = [42, 18, 40];
+  // 右侧整列波形布局：当前字幕编辑区略收紧，把空间让给字幕列表。
+  const DEFAULT_LAYOUT_ROWS = [42, 16, 42];
   const DEFAULT_SETTINGS = {
     mode: 'multi',
     layout: 'wave-right',
@@ -136,7 +137,7 @@
     },
     'wave-right': {
       preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
-      rows: [42, 18, 40], tree: DEFAULT_RIGHT_LAYOUT_TREE,
+      rows: [42, 16, 42], tree: DEFAULT_RIGHT_LAYOUT_TREE,
       editorDisplay: DEFAULT_EDITOR_DISPLAY,
     },
     // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
@@ -1442,9 +1443,12 @@
       if (this.settings.mode === 'basic') {
         const windowMs = this.settings.visibleSeconds * 1000;
         const maxStart = Math.max(0, this.durationMs - windowMs);
-        this.basicWindowStartMs = center
+        const currentStart = clamp(this.basicWindowStartMs, 0, maxStart);
+        const relative = (timeMs - currentStart) / Math.max(1, windowMs);
+        const needsScroll = relative < 0.2 || relative > 0.8;
+        this.basicWindowStartMs = center && needsScroll
           ? clamp(timeMs - windowMs / 2, 0, maxStart)
-          : clamp(this.basicWindowStartMs, 0, maxStart);
+          : currentStart;
         this.manualFollowUntil = Date.now() + 3000;
         this.renderBasic();
         return;
@@ -1452,11 +1456,21 @@
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowIndex = clamp(Math.floor(timeMs / rowDurationMs), 0, Math.max(0, Math.ceil(this.durationMs / rowDurationMs) - 1));
       const stride = this.settings.rowHeight + ROW_GAP;
-      const scrollTop = center
-        ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.settings.rowHeight) * 0.45)
-        : rowIndex * stride;
-      this.autoScrolling = true;
-      this.scroll.scrollTop = Math.max(0, scrollTop);
+      const currentScrollTop = this.scroll.scrollTop;
+      const rowTop = rowIndex * stride - currentScrollTop;
+      const comfortInset = Math.min(120, Math.max(48, this.scroll.clientHeight * 0.2));
+      const rowInComfortZone = (
+        rowTop >= comfortInset
+        && rowTop + this.settings.rowHeight <= this.scroll.clientHeight - comfortInset
+      );
+      const scrollTop = center && rowInComfortZone
+        ? currentScrollTop
+        : (center
+          ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.settings.rowHeight) * 0.45)
+          : rowIndex * stride);
+      const nextScrollTop = Math.max(0, scrollTop);
+      this.autoScrolling = Math.abs(nextScrollTop - currentScrollTop) > 0.5;
+      this.scroll.scrollTop = nextScrollTop;
       this.manualFollowUntil = Date.now() + 3000;
       requestAnimationFrame(() => {
         this.autoScrolling = false;
@@ -2008,11 +2022,14 @@
         }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
         event.preventDefault();
+        // 清除选中会提交当前字幕面板编辑，而提交可能同步重建虚拟行。
+        // 在调用外部回调前保存坐标，后续 seek 不依赖可能已脱离 DOM 的 row。
+        const geometry = this.captureRowGeometry(row);
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
-        if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row);
-        this.seekFromPointer(event, row);
+        if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row, geometry);
+        this.seekFromPointer(event, row, false, geometry);
       });
       row.addEventListener('auxclick', (event) => {
         if (event.button === 1 && gapOperationMode === 'middle_drag') event.preventDefault();
@@ -2166,6 +2183,27 @@
       if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
     }
 
+    seekFromCue(event, row, index, playAfterSeek = false, geometry = null) {
+      const segment = this.options.getSegments()[index];
+      const timeMs = this.options.getClickTarget?.() === 'pointer'
+        ? this.timeFromPointer(event, row, geometry)
+        : Number(segment?.start);
+      if (!Number.isFinite(timeMs)) return;
+      this.options.seek(timeMs / 1000);
+      this.updatePlayback();
+      if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
+    }
+
+    captureRowGeometry(row) {
+      const rect = row.getBoundingClientRect();
+      return {
+        left: rect.left,
+        width: Math.max(1, rect.width),
+        startMs: Number(row.dataset.startMs),
+        endMs: Number(row.dataset.endMs),
+      };
+    }
+
     timeFromPointer(event, row, geometry = null) {
       const rect = geometry || row.getBoundingClientRect();
       const ratio = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
@@ -2177,14 +2215,8 @@
     // 「允许拖动指针」：在波形空白区域按住左键拖动时，播放指针实时跟随鼠标
     // 所在位置。高回报率指针事件用 rAF 合并，每帧最多 seek 一次；松开时以
     // 最终位置再 seek 一次保证落点精确。指针捕获让拖出行范围时按行边界钳制。
-    beginPlayheadDrag(event, row) {
-      const rect = row.getBoundingClientRect();
-      const geometry = {
-        left: rect.left,
-        width: Math.max(1, rect.width),
-        startMs: Number(row.dataset.startMs),
-        endMs: Number(row.dataset.endMs),
-      };
+    beginPlayheadDrag(event, row, geometry = null) {
+      geometry = geometry || this.captureRowGeometry(row);
       try { row.setPointerCapture?.(event.pointerId); } catch (_) {}
       let frame = 0;
       let lastEvent = null;
@@ -2407,6 +2439,10 @@
           ? (index + 1 < this.options.getSegments().length && this.isSharedBoundary(event, index, index + 1, row)
             ? 'resize-boundary' : 'resize-right')
           : 'move';
+      // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
+      // 虚拟行重建。先保存按下瞬间的几何数据，避免 pointerup 使用已脱离
+      // DOM 的旧行并把比例钳到该行末尾（也就是下一行开头）。
+      const geometry = this.captureRowGeometry(row);
       const selected = this.options.getSelection();
       if (!selected.has(index)) this.options.selectCue(index);
       const liveSelection = this.options.getSelection();
@@ -2420,12 +2456,12 @@
         items: Array.isArray(segments[idx].items)
           ? segments[idx].items.map((item) => ({ ...item })) : segments[idx].items,
       }]));
-      const rect = row.getBoundingClientRect();
       this.drag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
-        rangeMs: Number(row.dataset.endMs) - Number(row.dataset.startMs),
-        rowWidth: Math.max(1, rect.width),
+        rangeMs: geometry.endMs - geometry.startMs,
+        rowWidth: geometry.width,
+        geometry,
         kind,
         index: kind === 'resize-boundary' ? boundaryIndex : index,
         indices: dragIndices,
@@ -2433,11 +2469,20 @@
         originals,
         started: false,
         changed: false,
+        seekedOnPointerDown: false,
       };
       event.currentTarget.classList.add('dragging');
       window.addEventListener('pointermove', this._dragMove = (moveEvent) => this.moveCueDrag(moveEvent));
       window.addEventListener('pointerup', this._dragEnd = (upEvent) => this.endCueDrag(upEvent), { once: true });
       window.addEventListener('pointercancel', this._dragEnd, { once: true });
+
+      // 普通字幕块点击的跳转与波形空白区保持一致：在按下时立即移动播放头。
+      // 只有普通 move 点击进入此路径；修饰键和边界手柄仍只执行选择/拖动操作。
+      const clickBehavior = this.options.getClickBehavior?.();
+      if (kind === 'move' && clickBehavior !== 'select-only') {
+        this.seekFromCue(event, row, index, clickBehavior === 'select-and-play', geometry);
+        this.drag.seekedOnPointerDown = true;
+      }
     }
 
     isSharedBoundary(event, leftIndex, rightIndex, row) {
@@ -2465,12 +2510,13 @@
         items: Array.isArray(segments[movedIndex].items)
           ? segments[movedIndex].items.map((item) => ({ ...item })) : segments[movedIndex].items,
       }]]);
-      const rect = row.getBoundingClientRect();
+      const geometry = this.captureRowGeometry(row);
       this.drag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
-        rangeMs: Number(row.dataset.endMs) - Number(row.dataset.startMs),
-        rowWidth: Math.max(1, rect.width),
+        rangeMs: geometry.endMs - geometry.startMs,
+        rowWidth: geometry.width,
+        geometry,
         kind: 'resize-boundary-independent',
         index: movedIndex,
         edge,
@@ -2808,10 +2854,10 @@
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.drag = null;
       if (!drag.changed) {
-        // select-only 只选中；select-and-seek 跳到点击位置；select-and-play 还会开始播放。
+        // select-only 只选中；两个跳转模式按设置跳到字幕开头或鼠标位置。
         const clickBehavior = this.options.getClickBehavior?.();
-        if (clickBehavior !== 'select-only') {
-          this.seekFromPointer(event, drag.row, clickBehavior === 'select-and-play');
+        if (clickBehavior !== 'select-only' && !drag.seekedOnPointerDown) {
+          this.seekFromCue(event, drag.row, drag.index, clickBehavior === 'select-and-play', drag.geometry);
         }
         return;
       }

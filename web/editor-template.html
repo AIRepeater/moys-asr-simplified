@@ -227,6 +227,9 @@ __WAVEFORM_CSS__
         <label class="toggle"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
       </span>
     </div>
+    <label class="toggle editor-settings-item" title="关闭后，通过字幕列表点击字幕时不会自动滚动列表">
+      <input type="checkbox" id="cue-list-auto-scroll-on-click" checked> 点击字幕列表时自动滚动
+    </label>
     <div class="editor-settings-item editor-settings-list-fields editor-settings-display-row">
       <span>字幕编辑显示</span>
       <span class="editor-settings-toggle-group">
@@ -244,49 +247,23 @@ __WAVEFORM_CSS__
   </label>
   </div>
   <div class="editor-settings-group">
-    <span class="editor-settings-title">字幕预览</span>
-    <label class="editor-settings-item" title="只影响播放器画面内的字幕预览，不改变字幕文本或时间">
-      字体大小
-      <select id="subtitle-font-size">
-        <option value="auto" selected>自动（响应式）</option>
-        <option value="12">12 px</option>
-        <option value="14">14 px</option>
-        <option value="18">18 px</option>
-        <option value="22">22 px</option>
-        <option value="26">26 px</option>
-        <option value="32">32 px</option>
-        <option value="40">40 px</option>
-        <option value="48">48 px</option>
-        <option value="56">56 px</option>
-        <option value="64">64 px</option>
-        <option value="72">72 px</option>
-        <option value="84">84 px</option>
-        <option value="96">96 px</option>
-      </select>
-    </label>
-    <label class="editor-settings-item" title="选择播放器画面内字幕预览使用的字体族">
-      字体
-      <select id="subtitle-font-family">
-        <option value="default" selected>默认无衬线</option>
-        <option value="yahei">微软雅黑 / 苹方</option>
-        <option value="hei">黑体</option>
-        <option value="song">宋体</option>
-        <option value="sans">Arial / Segoe UI</option>
-      </select>
-    </label>
-    <small class="editor-settings-hint">样式会保存到工程的 preview.subtitle；旧工程默认使用原来的响应式字号。</small>
-  </div>
-  <div class="editor-settings-group">
     <span class="editor-settings-title">通用操作</span>
     <label class="editor-settings-item" title="字幕列表与波形字幕块的普通单击行为；双击编辑不受影响">
       点击字幕块时
       <select id="click-behavior">
         <option value="select-and-seek" selected>选中并跳转</option>
         <option value="select-only">仅选中（不跳转）</option>
-        <option value="select-and-play">选中跳转并开始播放</option>
+        <option value="select-and-play">选中并跳转（自动播放）</option>
       </select>
     </label>
     <small class="editor-settings-hint" id="click-behavior-hint">暂停时只跳转，不自动播放；播放中跳转后继续播放。</small>
+    <label class="editor-settings-item" id="click-target-field" title="字幕列表点击始终跳转到字幕开头；此设置只影响波形区点击字幕块">
+      跳转目标
+      <select id="click-target">
+        <option value="cue-start" selected>字幕开头</option>
+        <option value="pointer">鼠标所在位置</option>
+      </select>
+    </label>
     <label class="toggle editor-settings-item" title="开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
       <input type="checkbox" id="select-group-members"> 同时选中分组内项目
     </label>
@@ -411,7 +388,7 @@ __WAVEFORM_CSS__
   </div>
   <div class="help-group">
     <span class="help-title">播放与编辑</span>
-    <span><kbd>空格</kbd> 播放/暂停 <kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倍速 ×0.5/重置/×2</span>
+    <span><kbd>空格</kbd> 播放/暂停 <kbd>←</kbd>/<kbd>→</kbd> 前后跳转 5 秒 <kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倍速 ×0.5/重置/×2</span>
     <span><kbd>A</kbd>或<kbd>W</kbd> 上一条字幕 <kbd>D</kbd>或<kbd>S</kbd> 下一条字幕</span>
     <span><kbd>Shift+A/W</kbd> 向前多选 <kbd>Shift+D/S</kbd> 向后多选</span>
     <span><kbd>F</kbd> 跳转并播放选中字幕</span>
@@ -431,6 +408,40 @@ __WAVEFORM_CSS__
       <span class="info layout-toolbar-label">媒体</span>
       <label class="toggle"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
       <label class="toggle" title="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
+      <div class="subtitle-preview-settings" id="subtitle-preview-settings">
+        <button type="button" id="subtitle-preview-settings-toggle" class="subtitle-preview-settings-toggle" title="字幕预览设置" aria-label="字幕预览设置" aria-expanded="false" aria-controls="subtitle-preview-settings-panel" aria-haspopup="dialog">⚙️</button>
+        <div class="subtitle-preview-settings-panel" id="subtitle-preview-settings-panel" role="dialog" aria-label="字幕预览设置" hidden>
+          <label class="subtitle-preview-setting-row" title="只影响播放器画面内的字幕预览，不改变字幕文本或时间">
+            <span>字幕大小</span>
+            <select id="subtitle-font-size">
+              <option value="auto" selected>自动（响应式）</option>
+              <option value="12">12 px</option>
+              <option value="14">14 px</option>
+              <option value="18">18 px</option>
+              <option value="22">22 px</option>
+              <option value="26">26 px</option>
+              <option value="32">32 px</option>
+              <option value="40">40 px</option>
+              <option value="48">48 px</option>
+              <option value="56">56 px</option>
+              <option value="64">64 px</option>
+              <option value="72">72 px</option>
+              <option value="84">84 px</option>
+              <option value="96">96 px</option>
+            </select>
+          </label>
+          <label class="subtitle-preview-setting-row" title="选择播放器画面内字幕预览使用的字体族">
+            <span>字体</span>
+            <select id="subtitle-font-family">
+              <option value="default" selected>默认无衬线</option>
+              <option value="yahei">微软雅黑 / 苹方</option>
+              <option value="hei">黑体</option>
+              <option value="song">宋体</option>
+              <option value="sans">Arial / Segoe UI</option>
+            </select>
+          </label>
+        </div>
+      </div>
     </div>
     <div class="player-stage">
       __MEDIA_HTML__

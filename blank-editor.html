@@ -679,6 +679,26 @@
   .toolbar.cue-list-toolbar > *,
   .toolbar.waveform-toolbar > * { flex: 0 0 auto; }
   .toolbar.cue-list-toolbar .input-clear input[type=text] { min-width: 140px; width: 20ch; }
+  .subtitle-preview-settings {
+    display: inline-flex; align-items: center;
+  }
+  .toolbar .subtitle-preview-settings-toggle {
+    min-width: 30px; padding: 3px 7px; font-size: 14px; line-height: 1;
+  }
+  .subtitle-preview-settings-panel {
+    position: fixed; z-index: 260;
+    display: grid; gap: 8px; width: min(250px, calc(100vw - 16px));
+    padding: 9px 10px;
+    background: var(--bg-overlay); border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md); box-shadow: var(--shadow-3);
+  }
+  .subtitle-preview-settings-panel[hidden] { display: none; }
+  .subtitle-preview-setting-row {
+    display: grid; grid-template-columns: 5em minmax(0, 1fr); align-items: center; gap: 8px;
+    color: var(--text-secondary); font-size: 12px; white-space: nowrap;
+  }
+  .subtitle-preview-setting-row > span { color: var(--text-muted); }
+  .subtitle-preview-setting-row select { width: 100%; min-width: 0; }
 
   .editor-settings-panel {
     flex: 0 0 auto; display: grid; grid-template-columns: repeat(4, minmax(190px, 1fr));
@@ -733,7 +753,7 @@
   .editor-settings-panel button {
     min-width: 26px; padding: 3px 7px; color: var(--btn-text); background: var(--btn-bg);
     border: 1px solid var(--btn-border); border-radius: var(--radius-sm); font-size: 13px; cursor: pointer;
-    transition: background var(--t-fast), border-color var(--t-fast);
+    transition: background var(--t-fast), border-color var(--t-fast), filter var(--t-fast);
   }
   .editor-settings-panel button:hover:not(:disabled) { background: var(--btn-bg-hover); border-color: var(--btn-border-hover); }
   .editor-settings-panel button:focus-visible { outline: 2px solid var(--accent-line); outline-offset: 1px; }
@@ -995,7 +1015,11 @@
   .cue.has-color { background: color-mix(in srgb, var(--color-bar, #777) 30%, transparent); }
   .cue.has-color:hover { background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--bg-raised)); }
   /* 悬停反馈与下拉/右键菜单一致：accent 淡蓝 + 中性内描边；选中（琥珀）与激活（蓝）行仍各自优先。 */
-  .cue:hover { background: var(--cue-hover-bg); box-shadow: inset 0 0 0 1px var(--border-strong); }
+  .cue:hover {
+    background: var(--cue-hover-bg);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    filter: brightness(1.08);
+  }
   .cue.hidden { display: none; }
   .cue .color-bar {
     flex-shrink: 0; width: 4px; align-self: stretch;
@@ -1103,7 +1127,7 @@
     box-shadow: inset 0 0 0 1px var(--accent-hover);
   }
   .cue.selected.has-color:hover {
-    background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--amber-soft));
+    background: color-mix(in srgb, var(--color-bar, #777) 30%, var(--accent) 30%);
     box-shadow: inset 0 0 0 1px var(--amber-hover);
   }
   /* 禁用项：灰色底不透明，文字变淡；active 高亮照常覆盖以便播放时定位 */
@@ -2282,7 +2306,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-02 12:51</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-02 17:52</span>
   <span class="json-name empty" id="json-name" title="点击复制工程文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -2485,6 +2509,9 @@
         <label class="toggle"><input type="checkbox" id="cue-list-show-charcount" checked> 字数</label>
       </span>
     </div>
+    <label class="toggle editor-settings-item" title="关闭后，通过字幕列表点击字幕时不会自动滚动列表">
+      <input type="checkbox" id="cue-list-auto-scroll-on-click" checked> 点击字幕列表时自动滚动
+    </label>
     <div class="editor-settings-item editor-settings-list-fields editor-settings-display-row">
       <span>字幕编辑显示</span>
       <span class="editor-settings-toggle-group">
@@ -2502,49 +2529,23 @@
   </label>
   </div>
   <div class="editor-settings-group">
-    <span class="editor-settings-title">字幕预览</span>
-    <label class="editor-settings-item" title="只影响播放器画面内的字幕预览，不改变字幕文本或时间">
-      字体大小
-      <select id="subtitle-font-size">
-        <option value="auto" selected>自动（响应式）</option>
-        <option value="12">12 px</option>
-        <option value="14">14 px</option>
-        <option value="18">18 px</option>
-        <option value="22">22 px</option>
-        <option value="26">26 px</option>
-        <option value="32">32 px</option>
-        <option value="40">40 px</option>
-        <option value="48">48 px</option>
-        <option value="56">56 px</option>
-        <option value="64">64 px</option>
-        <option value="72">72 px</option>
-        <option value="84">84 px</option>
-        <option value="96">96 px</option>
-      </select>
-    </label>
-    <label class="editor-settings-item" title="选择播放器画面内字幕预览使用的字体族">
-      字体
-      <select id="subtitle-font-family">
-        <option value="default" selected>默认无衬线</option>
-        <option value="yahei">微软雅黑 / 苹方</option>
-        <option value="hei">黑体</option>
-        <option value="song">宋体</option>
-        <option value="sans">Arial / Segoe UI</option>
-      </select>
-    </label>
-    <small class="editor-settings-hint">样式会保存到工程的 preview.subtitle；旧工程默认使用原来的响应式字号。</small>
-  </div>
-  <div class="editor-settings-group">
     <span class="editor-settings-title">通用操作</span>
     <label class="editor-settings-item" title="字幕列表与波形字幕块的普通单击行为；双击编辑不受影响">
       点击字幕块时
       <select id="click-behavior">
         <option value="select-and-seek" selected>选中并跳转</option>
         <option value="select-only">仅选中（不跳转）</option>
-        <option value="select-and-play">选中跳转并开始播放</option>
+        <option value="select-and-play">选中并跳转（自动播放）</option>
       </select>
     </label>
     <small class="editor-settings-hint" id="click-behavior-hint">暂停时只跳转，不自动播放；播放中跳转后继续播放。</small>
+    <label class="editor-settings-item" id="click-target-field" title="字幕列表点击始终跳转到字幕开头；此设置只影响波形区点击字幕块">
+      跳转目标
+      <select id="click-target">
+        <option value="cue-start" selected>字幕开头</option>
+        <option value="pointer">鼠标所在位置</option>
+      </select>
+    </label>
     <label class="toggle editor-settings-item" title="开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
       <input type="checkbox" id="select-group-members"> 同时选中分组内项目
     </label>
@@ -2669,7 +2670,7 @@
   </div>
   <div class="help-group">
     <span class="help-title">播放与编辑</span>
-    <span><kbd>空格</kbd> 播放/暂停 <kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倍速 ×0.5/重置/×2</span>
+    <span><kbd>空格</kbd> 播放/暂停 <kbd>←</kbd>/<kbd>→</kbd> 前后跳转 5 秒 <kbd>J</kbd>/<kbd>K</kbd>/<kbd>L</kbd> 倍速 ×0.5/重置/×2</span>
     <span><kbd>A</kbd>或<kbd>W</kbd> 上一条字幕 <kbd>D</kbd>或<kbd>S</kbd> 下一条字幕</span>
     <span><kbd>Shift+A/W</kbd> 向前多选 <kbd>Shift+D/S</kbd> 向后多选</span>
     <span><kbd>F</kbd> 跳转并播放选中字幕</span>
@@ -2689,11 +2690,45 @@
       <span class="info layout-toolbar-label">媒体</span>
       <label class="toggle"><input type="checkbox" id="overlay-toggle" checked> 预览字幕</label>
       <label class="toggle" title="在视频画面右上角预览当前时间的表情包"><input type="checkbox" id="sticker-overlay-toggle"> 预览表情包</label>
+      <div class="subtitle-preview-settings" id="subtitle-preview-settings">
+        <button type="button" id="subtitle-preview-settings-toggle" class="subtitle-preview-settings-toggle" title="字幕预览设置" aria-label="字幕预览设置" aria-expanded="false" aria-controls="subtitle-preview-settings-panel" aria-haspopup="dialog">⚙️</button>
+        <div class="subtitle-preview-settings-panel" id="subtitle-preview-settings-panel" role="dialog" aria-label="字幕预览设置" hidden>
+          <label class="subtitle-preview-setting-row" title="只影响播放器画面内的字幕预览，不改变字幕文本或时间">
+            <span>字幕大小</span>
+            <select id="subtitle-font-size">
+              <option value="auto" selected>自动（响应式）</option>
+              <option value="12">12 px</option>
+              <option value="14">14 px</option>
+              <option value="18">18 px</option>
+              <option value="22">22 px</option>
+              <option value="26">26 px</option>
+              <option value="32">32 px</option>
+              <option value="40">40 px</option>
+              <option value="48">48 px</option>
+              <option value="56">56 px</option>
+              <option value="64">64 px</option>
+              <option value="72">72 px</option>
+              <option value="84">84 px</option>
+              <option value="96">96 px</option>
+            </select>
+          </label>
+          <label class="subtitle-preview-setting-row" title="选择播放器画面内字幕预览使用的字体族">
+            <span>字体</span>
+            <select id="subtitle-font-family">
+              <option value="default" selected>默认无衬线</option>
+              <option value="yahei">微软雅黑 / 苹方</option>
+              <option value="hei">黑体</option>
+              <option value="song">宋体</option>
+              <option value="sans">Arial / Segoe UI</option>
+            </select>
+          </label>
+        </div>
+      </div>
     </div>
     <div class="player-stage">
       <audio id="player" preload="metadata" style="width:100%;display:block;"></audio>
       <div class="player-empty" id="player-empty">加载媒体后显示视频</div>
-      <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。"><span></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
+      <div id="overlay" class="subtitle-overlay geo-box hidden" tabindex="0" role="group" aria-label="字幕预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 显示控制点，Esc 退出。"><span></span><span class="overlay-handle" data-handle="nw" aria-hidden="true"></span><span class="overlay-handle" data-handle="n" aria-hidden="true"></span><span class="overlay-handle" data-handle="ne" aria-hidden="true"></span><span class="overlay-handle" data-handle="e" aria-hidden="true"></span><span class="overlay-handle" data-handle="se" aria-hidden="true"></span><span class="overlay-handle" data-handle="s" aria-hidden="true"></span><span class="overlay-handle" data-handle="sw" aria-hidden="true"></span><span class="overlay-handle" data-handle="w" aria-hidden="true"></span></div>
     </div>
     <div class="media-controls" id="media-controls" role="group" aria-label="媒体播放控制">
       <button type="button" id="media-play-toggle" aria-label="播放" title="播放">▶</button>
@@ -3640,7 +3675,7 @@
     '下载 Resolve JSON': 'Download Resolve JSON',
     '下载表情包 OTIO 工程': 'Download sticker OTIO project',
     '字幕': 'Subtitles', '字幕预览': 'Subtitle preview', '表情包预览': 'Sticker preview', '字幕列表和编辑区': 'Subtitle list & editor',
-    '字体大小': 'Font size', '自动（响应式）': 'Auto (responsive)', '字体': 'Font', '默认无衬线': 'Default sans-serif',
+    '字体大小': 'Font size', '字幕大小': 'Font size', '自动（响应式）': 'Auto (responsive)', '字体': 'Font', '默认无衬线': 'Default sans-serif',
     '微软雅黑 / 苹方': 'Microsoft YaHei / PingFang', '黑体': 'SimHei', '宋体': 'SimSun', 'Arial / Segoe UI': 'Arial / Segoe UI',
     '样式会保存到工程的 preview.subtitle；旧工程默认使用原来的响应式字号。': 'Styles are saved in preview.subtitle; legacy projects keep the original responsive font size.',
     '媒体': 'Media', '预览字幕': 'Subtitle preview', '预览表情包': 'Sticker preview', '媒体播放控制': 'Media playback controls',
@@ -3677,12 +3712,17 @@
     '滚轮可调数值 · Esc 关闭': 'Use the wheel to adjust values · Esc to close',
     '未加载媒体': 'No media loaded', '需重新扫描': 'Rescan needed', '人工修正': 'manually adjusted',
     '上次打开': 'Last opened', '已失效': 'Missing',
-    '全部清理': 'Clear all', '字幕列表显示': 'Subtitle list fields',
+    '全部清理': 'Clear all', '字幕列表显示': 'Subtitle list',
     '序号': 'Index', '时间码': 'Timecode', '表情包': 'Stickers', '字数': 'Characters',
-    '字幕编辑显示': 'Subtitle editor fields', '跳转按钮': 'Navigation buttons', '前后跳转': 'Navigation buttons', '时间操作': 'Time actions',
-    '操作': 'Behavior', '通用操作': 'General', '单击行为': 'Click behavior', '点击字幕块时': 'Click subtitle behavior', '仅选中（不跳转）': 'Select only (do not seek)', '选中跳转并开始播放': 'Select, seek, and play',
-    '选中并跳转': 'Select and seek',
+    '点击字幕列表时自动滚动': 'Auto-scroll when clicking the subtitle list',
+    '关闭后，通过字幕列表点击字幕时不会自动滚动列表': 'When disabled, clicking a subtitle in the list will not scroll the list',
+    '字幕编辑显示': 'Subtitle editor', '跳转按钮': 'Navigation buttons', '前后跳转': 'Navigation buttons', '时间操作': 'Time actions',
+    '操作': 'Behavior', '通用操作': 'General', '单击行为': 'Click behavior', '点击字幕块时': 'Click subtitle behavior', '仅选中（不跳转）': 'Select only (do not seek)', '选中并跳转（自动播放）': 'Select and seek (autoplay)',
+    '选中并跳转': 'Select and seek', '跳转目标': 'Seek target', '字幕开头': 'Subtitle start', '鼠标所在位置': 'Pointer position',
     '暂停时只跳转，不自动播放；播放中跳转后继续播放。': 'When paused, seek without starting playback; while playing, keep playing after seeking.',
+    '跳转到字幕起点，并在暂停时自动开始播放。': 'Seek to the subtitle start and start playback when paused.',
+    '只选中，不改变播放位置；可用 F 或右键菜单跳转并播放。': 'Select only without changing the playhead; use F or the context menu to seek and play.',
+    '字幕列表点击始终跳转到字幕开头；此设置只影响波形区点击字幕块': 'Subtitle-list clicks always seek to the subtitle start; this setting only affects waveform subtitle clicks',
     '合并字幕时插入字符': 'Merge separator', '留空则直接拼接': 'Leave blank to join directly',
     '合并两条字幕时，中间插入的字符（如果不需要可以留空）': 'Characters inserted between merged subtitles (leave blank to join directly)',
     '字幕编辑拆分按键': 'Subtitle split key', '字幕（编辑状态下）拆分按键': 'Subtitle split key (while editing)',
@@ -3712,7 +3752,7 @@
     '切换字幕禁用': 'Toggle subtitle disabled', '删除所选字幕': 'Delete selected subtitles',
     '合并所选字幕': 'Merge selected subtitles',
     '播放与编辑': 'Playback and editing', '空格': 'Space',
-    '播放/暂停': 'Play/pause',
+    '播放/暂停': 'Play/pause', '前后跳转 5 秒': 'Seek back/forward 5 sec',
     '上一条字幕': 'Previous subtitle', '下一条字幕': 'Next subtitle',
     '向前多选': 'Extend selection backward', '向后多选': 'Extend selection forward',
     '在红色播放指针处拆分字幕': 'Split subtitle at the red playhead',
@@ -3779,6 +3819,7 @@
     '导出或导入工作区配置': 'Export or import workspace configuration',
     '只影响播放器画面内的字幕预览，不改变字幕文本或时间': 'Only affects subtitle preview in the player; subtitle text and timing are unchanged',
     '选择播放器画面内字幕预览使用的字体族': 'Choose the font family used by the subtitle preview in the player',
+    '字幕预览设置': 'Subtitle preview settings',
     '点击复制工程文件名': 'Click to copy the project file name',
     '点击替换；右键删除': 'Click to replace; right-click to remove',
     '点击选择表情包；右键删除引用': 'Click to pick a sticker; right-click to remove the reference',
@@ -4232,7 +4273,8 @@
   const ROUND_MS = 10;
   const BROWSER_DECODE_LIMIT = 512 * 1024 * 1024;
   const BROWSER_PCM_ESTIMATE_LIMIT = 768 * 1024 * 1024;
-  const DEFAULT_LAYOUT_ROWS = [42, 18, 40];
+  // 右侧整列波形布局：当前字幕编辑区略收紧，把空间让给字幕列表。
+  const DEFAULT_LAYOUT_ROWS = [42, 16, 42];
   const DEFAULT_SETTINGS = {
     mode: 'multi',
     layout: 'wave-right',
@@ -4272,7 +4314,7 @@
     },
     'wave-right': {
       preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
-      rows: [42, 18, 40], tree: DEFAULT_RIGHT_LAYOUT_TREE,
+      rows: [42, 16, 42], tree: DEFAULT_RIGHT_LAYOUT_TREE,
       editorDisplay: DEFAULT_EDITOR_DISPLAY,
     },
     // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
@@ -5578,9 +5620,12 @@
       if (this.settings.mode === 'basic') {
         const windowMs = this.settings.visibleSeconds * 1000;
         const maxStart = Math.max(0, this.durationMs - windowMs);
-        this.basicWindowStartMs = center
+        const currentStart = clamp(this.basicWindowStartMs, 0, maxStart);
+        const relative = (timeMs - currentStart) / Math.max(1, windowMs);
+        const needsScroll = relative < 0.2 || relative > 0.8;
+        this.basicWindowStartMs = center && needsScroll
           ? clamp(timeMs - windowMs / 2, 0, maxStart)
-          : clamp(this.basicWindowStartMs, 0, maxStart);
+          : currentStart;
         this.manualFollowUntil = Date.now() + 3000;
         this.renderBasic();
         return;
@@ -5588,11 +5633,21 @@
       const rowDurationMs = this.settings.secondsPerRow * 1000;
       const rowIndex = clamp(Math.floor(timeMs / rowDurationMs), 0, Math.max(0, Math.ceil(this.durationMs / rowDurationMs) - 1));
       const stride = this.settings.rowHeight + ROW_GAP;
-      const scrollTop = center
-        ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.settings.rowHeight) * 0.45)
-        : rowIndex * stride;
-      this.autoScrolling = true;
-      this.scroll.scrollTop = Math.max(0, scrollTop);
+      const currentScrollTop = this.scroll.scrollTop;
+      const rowTop = rowIndex * stride - currentScrollTop;
+      const comfortInset = Math.min(120, Math.max(48, this.scroll.clientHeight * 0.2));
+      const rowInComfortZone = (
+        rowTop >= comfortInset
+        && rowTop + this.settings.rowHeight <= this.scroll.clientHeight - comfortInset
+      );
+      const scrollTop = center && rowInComfortZone
+        ? currentScrollTop
+        : (center
+          ? rowIndex * stride - Math.max(0, (this.scroll.clientHeight - this.settings.rowHeight) * 0.45)
+          : rowIndex * stride);
+      const nextScrollTop = Math.max(0, scrollTop);
+      this.autoScrolling = Math.abs(nextScrollTop - currentScrollTop) > 0.5;
+      this.scroll.scrollTop = nextScrollTop;
       this.manualFollowUntil = Date.now() + 3000;
       requestAnimationFrame(() => {
         this.autoScrolling = false;
@@ -6144,11 +6199,14 @@
         }
         if (event.button !== 0 || event.target.closest('.waveform-cue-block, .waveform-gap-block')) return;
         event.preventDefault();
+        // 清除选中会提交当前字幕面板编辑，而提交可能同步重建虚拟行。
+        // 在调用外部回调前保存坐标，后续 seek 不依赖可能已脱离 DOM 的 row。
+        const geometry = this.captureRowGeometry(row);
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
-        this.seekFromPointer(event, row);
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
-        if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row);
+        if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row, geometry);
+        this.seekFromPointer(event, row, false, geometry);
       });
       row.addEventListener('auxclick', (event) => {
         if (event.button === 1 && gapOperationMode === 'middle_drag') event.preventDefault();
@@ -6296,48 +6354,78 @@
       ctx.stroke();
     }
 
-    seekFromPointer(event, row, playAfterSeek = false) {
-      this.options.seek(this.timeFromPointer(event, row) / 1000);
+    seekFromPointer(event, row, playAfterSeek = false, geometry = null) {
+      this.options.seek(this.timeFromPointer(event, row, geometry) / 1000);
       this.updatePlayback();
       if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
     }
 
-    timeFromPointer(event, row) {
+    seekFromCue(event, row, index, playAfterSeek = false, geometry = null) {
+      const segment = this.options.getSegments()[index];
+      const timeMs = this.options.getClickTarget?.() === 'pointer'
+        ? this.timeFromPointer(event, row, geometry)
+        : Number(segment?.start);
+      if (!Number.isFinite(timeMs)) return;
+      this.options.seek(timeMs / 1000);
+      this.updatePlayback();
+      if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
+    }
+
+    captureRowGeometry(row) {
       const rect = row.getBoundingClientRect();
+      return {
+        left: rect.left,
+        width: Math.max(1, rect.width),
+        startMs: Number(row.dataset.startMs),
+        endMs: Number(row.dataset.endMs),
+      };
+    }
+
+    timeFromPointer(event, row, geometry = null) {
+      const rect = geometry || row.getBoundingClientRect();
       const ratio = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
-      const startMs = Number(row.dataset.startMs);
-      const endMs = Number(row.dataset.endMs);
+      const startMs = geometry?.startMs ?? Number(row.dataset.startMs);
+      const endMs = geometry?.endMs ?? Number(row.dataset.endMs);
       return startMs + ratio * (endMs - startMs);
     }
 
     // 「允许拖动指针」：在波形空白区域按住左键拖动时，播放指针实时跟随鼠标
     // 所在位置。高回报率指针事件用 rAF 合并，每帧最多 seek 一次；松开时以
     // 最终位置再 seek 一次保证落点精确。指针捕获让拖出行范围时按行边界钳制。
-    beginPlayheadDrag(event, row) {
-      row.setPointerCapture?.(event.pointerId);
+    beginPlayheadDrag(event, row, geometry = null) {
+      geometry = geometry || this.captureRowGeometry(row);
+      try { row.setPointerCapture?.(event.pointerId); } catch (_) {}
       let frame = 0;
       let lastEvent = null;
+      let moved = false;
+      const startX = event.clientX;
+      const startY = event.clientY;
       const flush = () => {
         frame = 0;
-        if (lastEvent) this.seekFromPointer(lastEvent, row);
+        if (lastEvent) this.seekFromPointer(lastEvent, row, false, geometry);
         lastEvent = null;
       };
       const cleanup = () => {
         window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
         if (frame) { cancelAnimationFrame(frame); frame = 0; }
         lastEvent = null;
       };
       const onMove = (moveEvent) => {
         if (!(moveEvent.buttons & 1)) { cleanup(); return; }
+        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) >= 3) moved = true;
         lastEvent = moveEvent;
         if (!frame) frame = requestAnimationFrame(flush);
       };
       const onUp = (upEvent) => {
         cleanup();
-        this.seekFromPointer(upEvent, row);
+        if (moved) this.seekFromPointer(upEvent, row, false, geometry);
       };
+      const onCancel = () => cleanup();
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
+      window.addEventListener('pointercancel', onCancel, { once: true });
     }
 
     // Shift+左键框选：在波形空白处按下并拖动，画出选框，松开后把与选框相交的
@@ -6528,6 +6616,10 @@
           ? (index + 1 < this.options.getSegments().length && this.isSharedBoundary(event, index, index + 1, row)
             ? 'resize-boundary' : 'resize-right')
           : 'move';
+      // 选中字幕会更新列表、面板以及波形块状态；其中任一步都可能触发
+      // 虚拟行重建。先保存按下瞬间的几何数据，避免 pointerup 使用已脱离
+      // DOM 的旧行并把比例钳到该行末尾（也就是下一行开头）。
+      const geometry = this.captureRowGeometry(row);
       const selected = this.options.getSelection();
       if (!selected.has(index)) this.options.selectCue(index);
       const liveSelection = this.options.getSelection();
@@ -6541,12 +6633,12 @@
         items: Array.isArray(segments[idx].items)
           ? segments[idx].items.map((item) => ({ ...item })) : segments[idx].items,
       }]));
-      const rect = row.getBoundingClientRect();
       this.drag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
-        rangeMs: Number(row.dataset.endMs) - Number(row.dataset.startMs),
-        rowWidth: Math.max(1, rect.width),
+        rangeMs: geometry.endMs - geometry.startMs,
+        rowWidth: geometry.width,
+        geometry,
         kind,
         index: kind === 'resize-boundary' ? boundaryIndex : index,
         indices: dragIndices,
@@ -6554,11 +6646,20 @@
         originals,
         started: false,
         changed: false,
+        seekedOnPointerDown: false,
       };
       event.currentTarget.classList.add('dragging');
       window.addEventListener('pointermove', this._dragMove = (moveEvent) => this.moveCueDrag(moveEvent));
       window.addEventListener('pointerup', this._dragEnd = (upEvent) => this.endCueDrag(upEvent), { once: true });
       window.addEventListener('pointercancel', this._dragEnd, { once: true });
+
+      // 普通字幕块点击的跳转与波形空白区保持一致：在按下时立即移动播放头。
+      // 只有普通 move 点击进入此路径；修饰键和边界手柄仍只执行选择/拖动操作。
+      const clickBehavior = this.options.getClickBehavior?.();
+      if (kind === 'move' && clickBehavior !== 'select-only') {
+        this.seekFromCue(event, row, index, clickBehavior === 'select-and-play', geometry);
+        this.drag.seekedOnPointerDown = true;
+      }
     }
 
     isSharedBoundary(event, leftIndex, rightIndex, row) {
@@ -6586,12 +6687,13 @@
         items: Array.isArray(segments[movedIndex].items)
           ? segments[movedIndex].items.map((item) => ({ ...item })) : segments[movedIndex].items,
       }]]);
-      const rect = row.getBoundingClientRect();
+      const geometry = this.captureRowGeometry(row);
       this.drag = {
         pointerId: event.pointerId,
         startClientX: event.clientX,
-        rangeMs: Number(row.dataset.endMs) - Number(row.dataset.startMs),
-        rowWidth: Math.max(1, rect.width),
+        rangeMs: geometry.endMs - geometry.startMs,
+        rowWidth: geometry.width,
+        geometry,
         kind: 'resize-boundary-independent',
         index: movedIndex,
         edge,
@@ -6929,10 +7031,10 @@
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.drag = null;
       if (!drag.changed) {
-        // select-only 只选中；select-and-seek 跳到点击位置；select-and-play 还会开始播放。
+        // select-only 只选中；两个跳转模式按设置跳到字幕开头或鼠标位置。
         const clickBehavior = this.options.getClickBehavior?.();
-        if (clickBehavior !== 'select-only') {
-          this.seekFromPointer(event, drag.row, clickBehavior === 'select-and-play');
+        if (clickBehavior !== 'select-only' && !drag.seekedOnPointerDown) {
+          this.seekFromCue(event, drag.row, drag.index, clickBehavior === 'select-and-play', drag.geometry);
         }
         return;
       }
@@ -7031,8 +7133,12 @@ const STICKER_URL_PREFIX = "";
 const SERVER_CONFIG = null;
 const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';
 const CLICK_BEHAVIOR_VALUES = new Set(['select-only', 'select-and-seek', 'select-and-play']);
+const CLICK_TARGET_VALUES = new Set(['cue-start', 'pointer']);
 function normalizeClickBehavior(value) {
   return CLICK_BEHAVIOR_VALUES.has(value) ? value : 'select-and-seek';
+}
+function normalizeClickTarget(value) {
+  return CLICK_TARGET_VALUES.has(value) ? value : 'cue-start';
 }
 const DEFAULT_EDITOR_SETTINGS = {
   splitKey: 'ctrl-enter',
@@ -7042,6 +7148,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowTime: true,
   cueListShowSticker: true,
   cueListShowCharcount: true,
+  // 字幕列表普通点击是否把目标字幕滚动到列表中央。
+  cueListAutoScrollOnClick: true,
   cueEditorShowNavigation: false,
   cueEditorShowTimeActions: false,
   cueEditorShowSticker: false,
@@ -7055,8 +7163,10 @@ const DEFAULT_EDITOR_SETTINGS = {
   autoSaveIntervalSeconds: 30,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
-  // 字幕列表单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
+  // 字幕单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
   clickBehavior: 'select-and-seek',
+  // 波形字幕块的跳转目标；字幕列表点击始终跳转到字幕开头。
+  clickTarget: 'cue-start',
   // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
   theme: 'dark',
 };
@@ -7081,6 +7191,7 @@ function readEditorSettings() {
       cueListShowTime: saved.cueListShowTime !== false,
       cueListShowSticker: saved.cueListShowSticker !== false,
       cueListShowCharcount: saved.cueListShowCharcount !== false,
+      cueListAutoScrollOnClick: saved.cueListAutoScrollOnClick !== false,
       cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
       cueEditorShowTimeActions: saved.cueEditorShowTimeActions === true,
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
@@ -7091,6 +7202,7 @@ function readEditorSettings() {
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: normalizeClickBehavior(saved.clickBehavior),
+      clickTarget: normalizeClickTarget(saved.clickTarget),
       theme: saved.theme === 'light' ? 'light' : 'dark',
     };
   } catch (_) {
@@ -7380,6 +7492,7 @@ const cueListShowIndexToggle = document.getElementById('cue-list-show-index');
 const cueListShowTimeToggle = document.getElementById('cue-list-show-time');
 const cueListShowStickerToggle = document.getElementById('cue-list-show-sticker');
 const cueListShowCharcountToggle = document.getElementById('cue-list-show-charcount');
+const cueListAutoScrollOnClickToggle = document.getElementById('cue-list-auto-scroll-on-click');
 const cueEditorShowNavigationToggle = document.getElementById('cue-editor-show-navigation');
 const cueEditorShowTimeActionsToggle = document.getElementById('cue-editor-show-time-actions');
 const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-sticker');
@@ -7390,6 +7503,8 @@ const themeToggle = document.getElementById('theme-toggle');
 const helpPanel = document.getElementById('help-panel');
 const helpSplitKey = document.getElementById('help-split-key');
 const clickBehaviorSelect = document.getElementById('click-behavior');
+const clickTargetField = document.getElementById('click-target-field');
+const clickTargetSelect = document.getElementById('click-target');
 const replaceModal = document.getElementById('replace-modal');
 const stickerModal = document.getElementById('sticker-modal');
 const stickerPreviewModal = document.getElementById('sticker-preview-modal');
@@ -7418,6 +7533,9 @@ const downloadSrtButton = document.getElementById('download-srt');
 const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown');
 const editorSettingsToggle = document.getElementById('editor-settings-toggle');
 const editorSettingsPanel = document.getElementById('editor-settings-panel');
+const subtitlePreviewSettings = document.getElementById('subtitle-preview-settings');
+const subtitlePreviewSettingsToggle = document.getElementById('subtitle-preview-settings-toggle');
+const subtitlePreviewSettingsPanel = document.getElementById('subtitle-preview-settings-panel');
 const exportStartAtZeroToggle = document.getElementById('export-start-at-zero');
 const serverAutoSaveSettings = document.getElementById('server-auto-save-settings');
 const autoSaveProjectToggle = document.getElementById('auto-save-project');
@@ -7466,11 +7584,38 @@ function setEditorSettingsPanelOpen(open) {
   editorSettingsToggle.setAttribute('aria-expanded', String(open));
 }
 
+function positionSubtitlePreviewSettingsPanel() {
+  if (!subtitlePreviewSettingsPanel || subtitlePreviewSettingsPanel.hidden || !subtitlePreviewSettingsToggle) return;
+  const buttonRect = subtitlePreviewSettingsToggle.getBoundingClientRect();
+  const panelWidth = subtitlePreviewSettingsPanel.offsetWidth;
+  const panelHeight = subtitlePreviewSettingsPanel.offsetHeight;
+  const margin = 8;
+  const left = Math.min(
+    Math.max(margin, buttonRect.right - panelWidth),
+    Math.max(margin, window.innerWidth - panelWidth - margin),
+  );
+  const top = Math.min(
+    buttonRect.bottom + 6,
+    Math.max(margin, window.innerHeight - panelHeight - margin),
+  );
+  subtitlePreviewSettingsPanel.style.left = `${left}px`;
+  subtitlePreviewSettingsPanel.style.top = `${top}px`;
+}
+
+function setSubtitlePreviewSettingsPanelOpen(open) {
+  if (!subtitlePreviewSettingsPanel || !subtitlePreviewSettingsToggle) return;
+  subtitlePreviewSettingsPanel.hidden = !open;
+  subtitlePreviewSettingsToggle.classList.toggle('active', open);
+  subtitlePreviewSettingsToggle.setAttribute('aria-expanded', String(open));
+  if (open) positionSubtitlePreviewSettingsPanel();
+}
+
 function applyCueListDisplaySettings() {
   cueListShowIndexToggle.checked = EDITOR_SETTINGS.cueListShowIndex;
   cueListShowTimeToggle.checked = EDITOR_SETTINGS.cueListShowTime;
   cueListShowStickerToggle.checked = EDITOR_SETTINGS.cueListShowSticker;
   cueListShowCharcountToggle.checked = EDITOR_SETTINGS.cueListShowCharcount;
+  cueListAutoScrollOnClickToggle.checked = EDITOR_SETTINGS.cueListAutoScrollOnClick;
   container.classList.toggle('hide-cue-index', !EDITOR_SETTINGS.cueListShowIndex);
   container.classList.toggle('hide-cue-time', !EDITOR_SETTINGS.cueListShowTime);
   // 设置保留用户的显示偏好；当前工程完全没有表情包时，整列仍自动收起，
@@ -7550,10 +7695,30 @@ if (autoSaveProjectToggle) autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoS
 if (autoSaveIntervalInput) autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
 if (stickerOverlayToggle) stickerOverlayToggle.checked = EDITOR_SETTINGS.stickerOverlayEnabled;
 if (clickBehaviorSelect) clickBehaviorSelect.value = EDITOR_SETTINGS.clickBehavior;
+if (clickTargetSelect) clickTargetSelect.value = EDITOR_SETTINGS.clickTarget;
 applyCueListDisplaySettings();
 applyCueEditorDisplaySettings();
 applySubtitleAppearance();
 editorSettingsToggle?.addEventListener('click', () => setEditorSettingsPanelOpen(editorSettingsPanel?.hidden));
+subtitlePreviewSettingsToggle?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setSubtitlePreviewSettingsPanelOpen(subtitlePreviewSettingsPanel?.hidden);
+});
+document.addEventListener('pointerdown', (event) => {
+  if (subtitlePreviewSettingsPanel?.hidden) return;
+  if (subtitlePreviewSettings?.contains(event.target)) return;
+  setSubtitlePreviewSettingsPanelOpen(false);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || subtitlePreviewSettingsPanel?.hidden) return;
+  setSubtitlePreviewSettingsPanelOpen(false);
+  subtitlePreviewSettingsToggle?.focus();
+});
+window.addEventListener('resize', positionSubtitlePreviewSettingsPanel);
+window.addEventListener('scroll', positionSubtitlePreviewSettingsPanel, true);
+subtitlePreviewSettings?.closest('.player-toolbar')?.addEventListener(
+  'scroll', positionSubtitlePreviewSettingsPanel,
+);
 helpToggle?.addEventListener('click', () => {
   const open = helpPanel?.hidden === true;
   if (helpPanel) helpPanel.hidden = !open;
@@ -7597,6 +7762,7 @@ bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
 bindCueListDisplayToggle(cueListShowCharcountToggle, 'cueListShowCharcount');
+bindCueListDisplayToggle(cueListAutoScrollOnClickToggle, 'cueListAutoScrollOnClick');
 bindCueEditorDisplayToggle(cueEditorShowNavigationToggle, 'cueEditorShowNavigation');
 bindCueEditorDisplayToggle(cueEditorShowTimeActionsToggle, 'cueEditorShowTimeActions');
 bindCueEditorDisplayToggle(cueEditorShowStickerToggle, 'cueEditorShowSticker');
@@ -7612,6 +7778,9 @@ exportColorUnifiedToggle?.addEventListener('change', () => {
 clickBehaviorSelect?.addEventListener('change', () => {
   updateEditorSettings({ clickBehavior: normalizeClickBehavior(clickBehaviorSelect.value) });
   refreshClickBehaviorHint();
+});
+clickTargetSelect?.addEventListener('change', () => {
+  updateEditorSettings({ clickTarget: normalizeClickTarget(clickTargetSelect.value) });
 });
 subtitleFontSizeSelect?.addEventListener('change', () => {
   const value = subtitleFontSizeSelect.value;
@@ -7636,10 +7805,14 @@ const CLICK_BEHAVIOR_HINTS = {
 };
 function refreshClickBehaviorHint() {
   const hint = document.getElementById('click-behavior-hint');
-  if (!hint) return;
   const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
-  hint.textContent = CLICK_BEHAVIOR_HINTS[language][EDITOR_SETTINGS.clickBehavior];
-  hint.hidden = false;
+  if (hint) {
+    hint.textContent = CLICK_BEHAVIOR_HINTS[language][EDITOR_SETTINGS.clickBehavior];
+    hint.hidden = false;
+  }
+  if (clickTargetField) {
+    clickTargetField.hidden = EDITOR_SETTINGS.clickBehavior === 'select-only';
+  }
 }
 refreshClickBehaviorHint();
 document.addEventListener('mawe:languagechange', refreshClickBehaviorHint);
@@ -8839,6 +9012,8 @@ function splitAtCursor() {
   const rightEl = container.querySelector(`.cue[data-idx="${idx + 1}"]`);
   if (rightEl) scrollCueToCenter(rightEl);
   selectOnly(idx + 1);
+  // 拆分后后半段是新的视觉选中项，也必须成为 Shift+点击的范围锚点。
+  lastClickedIdx = idx + 1;
 }
 
 function splitItemsAtChar(items, cursorChar) {
@@ -9110,6 +9285,13 @@ function scrollCueToCenter(cueEl) {
   if (!cueEl || cueEl.classList.contains('hidden')) return;
   const cRect = container.getBoundingClientRect();
   const eRect = cueEl.getBoundingClientRect();
+  // 目标已经处于列表中间的舒适区域时，不再制造一次多余的滚动动画。
+  // 留出上下约 20% 的缓冲；只有接近顶部/底部时才把字幕移到中央。
+  const comfortInset = Math.min(120, Math.max(48, cRect.height * 0.2));
+  if (
+    eRect.top >= cRect.top + comfortInset
+    && eRect.bottom <= cRect.bottom - comfortInset
+  ) return;
   const offsetTop = (eRect.top - cRect.top) + container.scrollTop;
   const target = offsetTop + eRect.height / 2 - container.clientHeight / 2;
   container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
@@ -9125,55 +9307,101 @@ function scrollCueIntoViewIfNeeded(cueEl) {
 let seekWarned = false;
 // === 单击/双击/Shift/Ctrl ===
 function bindCueEvents(el, idx) {
-  let clickTimer = null;
-  el.addEventListener('click', (e) => {
-    if (editingState && editingState.el === el) return;
-    if (clickTimer) return;
+  let pointerDownState = null;
+  let lastPrimaryPointerDownAt = 0;
 
-    // Alt+点击 = 快速切换禁用状态（不延迟，立即处理；编辑模式下已被上方 return 拦截）
-    if (e.altKey) {
-      e.preventDefault();
+  function selectFromCuePointer(event) {
+    // Alt+点击 = 快速切换禁用状态
+    if (event.altKey) {
+      event.preventDefault();
       toggleDisabled([idx]);
-      return;
+      return 'alt';
     }
 
-    // Shift / Ctrl 多选 — 不延迟，立即处理
-    if (e.shiftKey) {
-      e.preventDefault();
+    // Shift / Ctrl 多选
+    if (event.shiftKey) {
+      event.preventDefault();
       if (lastClickedIdx >= 0) selectRange(lastClickedIdx, idx);
       else selectOnly(idx);
       lastClickedIdx = idx;
-      return;
+      return 'shift';
     }
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
       toggleSel(idx);
       lastClickedIdx = idx;
+      return 'toggle';
+    }
+
+    // 普通单击的选中阶段放在 pointerdown，点击时只做跳转。
+    selectCueByClick(idx);
+    lastClickedIdx = idx;
+    return 'select';
+  }
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || (editingState && editingState.el === el)) return;
+
+    // 这些子控件有自己的 click 行为；不要在父 cue 的 pointerdown 阶段抢先选中。
+    const target = e.target instanceof Element ? e.target : null;
+    if (target?.closest('.color-bar.is-ref, .sticker-slot img, .sticker-slot .sref')) {
+      // 避免这次不会冒泡到父 cue 的 click 参与下一次普通双击判定。
+      lastPrimaryPointerDownAt = 0;
+      pointerDownState = { handled: false, time: performance.now() };
       return;
     }
 
-    // 普通单击：等 dblclick 判定
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      if (editingState) return;
-      // 选中本行（或整组，取决于设置）；两种跳转模式都会移动播放头。
-      selectCueByClick(idx);
-      lastClickedIdx = idx;
-      scrollCueToCenter(el);
-      waveformEditor?.revealTime(DATA.segments[idx].start, true);
-      if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
-        // 默认只跳转不改动播放状态；“选中跳转并开始播放”仅在暂停时启动播放。
+    const now = performance.now();
+    const isSecondDoubleClick = e.detail > 1
+      || (lastPrimaryPointerDownAt > 0 && now - lastPrimaryPointerDownAt < 500);
+    lastPrimaryPointerDownAt = now;
+    if (isSecondDoubleClick) {
+      // 第一次 pointerdown 已经完成选中；双击的第二次按下不要再次刷新面板/波形布局。
+      pointerDownState = { handled: true, suppressClick: true, time: now };
+      return;
+    }
+
+    const action = selectFromCuePointer(e);
+    pointerDownState = {
+      handled: true,
+      suppressClick: action !== 'select',
+      time: now,
+    };
+  });
+
+  el.addEventListener('click', (e) => {
+    if (editingState && editingState.el === el) return;
+    const state = pointerDownState;
+    pointerDownState = null;
+    // 第一次 pointerdown 已经立即完成选择；双击产生的第二次 click
+    // 不重复执行同一套操作，随后仍由 dblclick 进入编辑。
+    if (e.detail > 1 || state?.suppressClick) return;
+
+    // 键盘触发 click，或特殊子控件的 click 冒泡到父 cue 时，保留 click 作为后备选择路径。
+    if (!state?.handled) selectFromCuePointer(e);
+
+    // 选择已经在 pointerdown 完成；这里仅处理列表滚动、波形定位和媒体 Seek。
+    if (EDITOR_SETTINGS.cueListAutoScrollOnClick) scrollCueToCenter(el);
+    waveformEditor?.revealTime(DATA.segments[idx].start, true);
+    if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
+      // 默认只跳转不改动播放状态；“选中并跳转（自动播放）”会在暂停时启动播放。
+      const previousSuppress = suppressCueListAutoScroll;
+      suppressCueListAutoScroll = !EDITOR_SETTINGS.cueListAutoScrollOnClick;
+      try {
         seekFromWaveform(DATA.segments[idx].start / 1000);
-        if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused) togglePlayback();
+      } finally {
+        suppressCueListAutoScroll = previousSuppress;
       }
-    }, 220);
+      if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused) togglePlayback();
+    }
   });
   el.addEventListener('dblclick', (e) => {
     e.preventDefault();
-    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
     const sel = window.getSelection();
     if (sel) sel.removeAllRanges();
-    selectOnly(idx);
+    // 普通双击的第一次 pointerdown 已选中该 cue；只有从特殊子控件触发、且尚未选中时
+    // 才补一次选择，避免双击再次提交当前面板并重绘波形布局。
+    if (!selectedIdxs.has(idx)) selectOnly(idx);
     startEdit(el, idx, e.clientX, e.clientY);
   });
   el.addEventListener('contextmenu', (e) => {
@@ -9348,6 +9576,20 @@ mediaFullscreen?.addEventListener('click', async () => {
   syncMediaControls();
 });
 document.addEventListener('fullscreenchange', syncMediaControls);
+
+// ←/→：复用媒体控制条的 ±5 秒跳转；文本输入、表单控件和预览框保留原生方向键行为。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (editingState || isTextEditingTarget(e)) return;
+  const target = e.target instanceof Element ? e.target : document.activeElement;
+  if (target?.closest?.('.geo-box, input, select, textarea')) return;
+  if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (!hasLoadedMedia()) return;
+  if (!isPlaybackKeyboardTarget(e) && isNativeKeyboardControl(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  seekMediaBy(e.key === 'ArrowLeft' ? -5 : 5);
+}, true);
 
 function isSpaceKey(e) {
   return e.key === ' ' || e.code === 'Space';
@@ -10006,6 +10248,8 @@ if (typeof ResizeObserver === 'function') {
 
 // === 当前行高亮 + overlay ===
 let lastActive = -1;
+// 列表点击关闭自动滚动时，避免这次 seek 的同步 active 更新再次滚动列表。
+let suppressCueListAutoScroll = false;
 function findActive(tMs) {
   let lo = 0, hi = DATA.segments.length - 1, ans = -1;
   while (lo <= hi) {
@@ -10070,7 +10314,7 @@ function update() {
       const cur = container.querySelector(`.cue[data-idx="${idx}"]`);
       if (cur) {
         cur.classList.add('active');
-        if (!editingState) scrollCueIntoViewIfNeeded(cur);
+        if (!editingState && !suppressCueListAutoScroll) scrollCueIntoViewIfNeeded(cur);
       }
     }
     lastActive = idx;
@@ -12491,7 +12735,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
   }
 
   if (!isMulti) {
-    // 组 1：跳转与拆分。仅「仅选中」模式提供「跳转并播放」——「选中并跳转」时左键单击本身就会跳转。
+    // 组 1：跳转与拆分。仅「仅选中」模式提供「跳转并播放」——其它两种单击行为本身就会跳转。
     if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
       addItem('跳转并播放', 'F', () => {
         seekFromWaveform(DATA.segments[idx].start / 1000);
@@ -12591,8 +12835,15 @@ function showGapContextMenu(x, y, index) {
   ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
 }
 
+function closeContextMenuOnOutsidePointerDown(event) {
+  if (!ctxmenu.contains(event.target)) ctxmenu.classList.remove('show');
+}
+// 使用捕获阶段的 pointerdown：波形空白区自己的 pointerdown 可能阻止后续
+// click 事件，不能再依赖 mouseup 后才触发的 document.click 来关闭菜单。
+document.addEventListener('pointerdown', closeContextMenuOnOutsidePointerDown, true);
+// 保留键盘触发 click 的关闭路径；真实鼠标/触控操作已经在 pointerdown 阶段关闭。
 document.addEventListener('click', (e) => {
-  if (!ctxmenu.contains(e.target)) ctxmenu.classList.remove('show');
+  if (e.detail === 0) closeContextMenuOnOutsidePointerDown(e);
 });
 document.addEventListener('contextmenu', (e) => {
   // 非 cue 上的右键关闭菜单
@@ -12708,6 +12959,9 @@ function seekFromWaveform(timeSec) {
   try {
     player.currentTime = Math.max(0, timeSec);
     update();
+    // currentTime 的 seeked/timeupdate 事件是异步触发的；先同步刷新波形，
+    // 避免字幕已选中但红色播放头要等下一拍才移动。
+    waveformEditor?.updatePlayback();
   } catch (error) {
     flashHint(`跳转失败：${error.message}`);
   }
@@ -12760,6 +13014,7 @@ function initWaveformEditor() {
     // 走 splitAtCursor；这样剃刀与右键拆分行为一致，且保留 items 时间码精度。
     splitCueAtTime: (idx, timeMs) => splitFromContextMenu(idx, 0, 0, timeMs),
     getClickBehavior: () => EDITOR_SETTINGS.clickBehavior,
+    getClickTarget: () => EDITOR_SETTINGS.clickTarget,
     onBeginEdit: (label) => pushUndo(label),
     onLayoutUndo: (label, snapshot) => pushLayoutUndo(label, snapshot),
     onCommitEdit: (idxs, kind) => {

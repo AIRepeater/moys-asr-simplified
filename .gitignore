@@ -11,6 +11,7 @@ __pycache__/
 !blank-editor.html
 
 # Local media and subtitle outputs
+/examples/
 *.mp4
 *.mov
 *.mkv

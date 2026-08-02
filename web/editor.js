@@ -6,8 +6,12 @@ const STICKER_URL_PREFIX = __STICKER_URL_PREFIX_JSON__;
 const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
 const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';
 const CLICK_BEHAVIOR_VALUES = new Set(['select-only', 'select-and-seek', 'select-and-play']);
+const CLICK_TARGET_VALUES = new Set(['cue-start', 'pointer']);
 function normalizeClickBehavior(value) {
   return CLICK_BEHAVIOR_VALUES.has(value) ? value : 'select-and-seek';
+}
+function normalizeClickTarget(value) {
+  return CLICK_TARGET_VALUES.has(value) ? value : 'cue-start';
 }
 const DEFAULT_EDITOR_SETTINGS = {
   splitKey: 'ctrl-enter',
@@ -17,6 +21,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   cueListShowTime: true,
   cueListShowSticker: true,
   cueListShowCharcount: true,
+  // 字幕列表普通点击是否把目标字幕滚动到列表中央。
+  cueListAutoScrollOnClick: true,
   cueEditorShowNavigation: false,
   cueEditorShowTimeActions: false,
   cueEditorShowSticker: false,
@@ -30,8 +36,10 @@ const DEFAULT_EDITOR_SETTINGS = {
   autoSaveIntervalSeconds: 30,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
-  // 字幕列表单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
+  // 字幕单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
   clickBehavior: 'select-and-seek',
+  // 波形字幕块的跳转目标；字幕列表点击始终跳转到字幕开头。
+  clickTarget: 'cue-start',
   // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
   theme: 'dark',
 };
@@ -56,6 +64,7 @@ function readEditorSettings() {
       cueListShowTime: saved.cueListShowTime !== false,
       cueListShowSticker: saved.cueListShowSticker !== false,
       cueListShowCharcount: saved.cueListShowCharcount !== false,
+      cueListAutoScrollOnClick: saved.cueListAutoScrollOnClick !== false,
       cueEditorShowNavigation: saved.cueEditorShowNavigation === true,
       cueEditorShowTimeActions: saved.cueEditorShowTimeActions === true,
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
@@ -66,6 +75,7 @@ function readEditorSettings() {
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
       clickBehavior: normalizeClickBehavior(saved.clickBehavior),
+      clickTarget: normalizeClickTarget(saved.clickTarget),
       theme: saved.theme === 'light' ? 'light' : 'dark',
     };
   } catch (_) {
@@ -355,6 +365,7 @@ const cueListShowIndexToggle = document.getElementById('cue-list-show-index');
 const cueListShowTimeToggle = document.getElementById('cue-list-show-time');
 const cueListShowStickerToggle = document.getElementById('cue-list-show-sticker');
 const cueListShowCharcountToggle = document.getElementById('cue-list-show-charcount');
+const cueListAutoScrollOnClickToggle = document.getElementById('cue-list-auto-scroll-on-click');
 const cueEditorShowNavigationToggle = document.getElementById('cue-editor-show-navigation');
 const cueEditorShowTimeActionsToggle = document.getElementById('cue-editor-show-time-actions');
 const cueEditorShowStickerToggle = document.getElementById('cue-editor-show-sticker');
@@ -365,6 +376,8 @@ const themeToggle = document.getElementById('theme-toggle');
 const helpPanel = document.getElementById('help-panel');
 const helpSplitKey = document.getElementById('help-split-key');
 const clickBehaviorSelect = document.getElementById('click-behavior');
+const clickTargetField = document.getElementById('click-target-field');
+const clickTargetSelect = document.getElementById('click-target');
 const replaceModal = document.getElementById('replace-modal');
 const stickerModal = document.getElementById('sticker-modal');
 const stickerPreviewModal = document.getElementById('sticker-preview-modal');
@@ -393,6 +406,9 @@ const downloadSrtButton = document.getElementById('download-srt');
 const subtitleExportDropdown = document.getElementById('subtitle-export-dropdown');
 const editorSettingsToggle = document.getElementById('editor-settings-toggle');
 const editorSettingsPanel = document.getElementById('editor-settings-panel');
+const subtitlePreviewSettings = document.getElementById('subtitle-preview-settings');
+const subtitlePreviewSettingsToggle = document.getElementById('subtitle-preview-settings-toggle');
+const subtitlePreviewSettingsPanel = document.getElementById('subtitle-preview-settings-panel');
 const exportStartAtZeroToggle = document.getElementById('export-start-at-zero');
 const serverAutoSaveSettings = document.getElementById('server-auto-save-settings');
 const autoSaveProjectToggle = document.getElementById('auto-save-project');
@@ -441,11 +457,38 @@ function setEditorSettingsPanelOpen(open) {
   editorSettingsToggle.setAttribute('aria-expanded', String(open));
 }
 
+function positionSubtitlePreviewSettingsPanel() {
+  if (!subtitlePreviewSettingsPanel || subtitlePreviewSettingsPanel.hidden || !subtitlePreviewSettingsToggle) return;
+  const buttonRect = subtitlePreviewSettingsToggle.getBoundingClientRect();
+  const panelWidth = subtitlePreviewSettingsPanel.offsetWidth;
+  const panelHeight = subtitlePreviewSettingsPanel.offsetHeight;
+  const margin = 8;
+  const left = Math.min(
+    Math.max(margin, buttonRect.right - panelWidth),
+    Math.max(margin, window.innerWidth - panelWidth - margin),
+  );
+  const top = Math.min(
+    buttonRect.bottom + 6,
+    Math.max(margin, window.innerHeight - panelHeight - margin),
+  );
+  subtitlePreviewSettingsPanel.style.left = `${left}px`;
+  subtitlePreviewSettingsPanel.style.top = `${top}px`;
+}
+
+function setSubtitlePreviewSettingsPanelOpen(open) {
+  if (!subtitlePreviewSettingsPanel || !subtitlePreviewSettingsToggle) return;
+  subtitlePreviewSettingsPanel.hidden = !open;
+  subtitlePreviewSettingsToggle.classList.toggle('active', open);
+  subtitlePreviewSettingsToggle.setAttribute('aria-expanded', String(open));
+  if (open) positionSubtitlePreviewSettingsPanel();
+}
+
 function applyCueListDisplaySettings() {
   cueListShowIndexToggle.checked = EDITOR_SETTINGS.cueListShowIndex;
   cueListShowTimeToggle.checked = EDITOR_SETTINGS.cueListShowTime;
   cueListShowStickerToggle.checked = EDITOR_SETTINGS.cueListShowSticker;
   cueListShowCharcountToggle.checked = EDITOR_SETTINGS.cueListShowCharcount;
+  cueListAutoScrollOnClickToggle.checked = EDITOR_SETTINGS.cueListAutoScrollOnClick;
   container.classList.toggle('hide-cue-index', !EDITOR_SETTINGS.cueListShowIndex);
   container.classList.toggle('hide-cue-time', !EDITOR_SETTINGS.cueListShowTime);
   // 设置保留用户的显示偏好；当前工程完全没有表情包时，整列仍自动收起，
@@ -525,10 +568,30 @@ if (autoSaveProjectToggle) autoSaveProjectToggle.checked = EDITOR_SETTINGS.autoS
 if (autoSaveIntervalInput) autoSaveIntervalInput.value = String(EDITOR_SETTINGS.autoSaveIntervalSeconds);
 if (stickerOverlayToggle) stickerOverlayToggle.checked = EDITOR_SETTINGS.stickerOverlayEnabled;
 if (clickBehaviorSelect) clickBehaviorSelect.value = EDITOR_SETTINGS.clickBehavior;
+if (clickTargetSelect) clickTargetSelect.value = EDITOR_SETTINGS.clickTarget;
 applyCueListDisplaySettings();
 applyCueEditorDisplaySettings();
 applySubtitleAppearance();
 editorSettingsToggle?.addEventListener('click', () => setEditorSettingsPanelOpen(editorSettingsPanel?.hidden));
+subtitlePreviewSettingsToggle?.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setSubtitlePreviewSettingsPanelOpen(subtitlePreviewSettingsPanel?.hidden);
+});
+document.addEventListener('pointerdown', (event) => {
+  if (subtitlePreviewSettingsPanel?.hidden) return;
+  if (subtitlePreviewSettings?.contains(event.target)) return;
+  setSubtitlePreviewSettingsPanelOpen(false);
+});
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || subtitlePreviewSettingsPanel?.hidden) return;
+  setSubtitlePreviewSettingsPanelOpen(false);
+  subtitlePreviewSettingsToggle?.focus();
+});
+window.addEventListener('resize', positionSubtitlePreviewSettingsPanel);
+window.addEventListener('scroll', positionSubtitlePreviewSettingsPanel, true);
+subtitlePreviewSettings?.closest('.player-toolbar')?.addEventListener(
+  'scroll', positionSubtitlePreviewSettingsPanel,
+);
 helpToggle?.addEventListener('click', () => {
   const open = helpPanel?.hidden === true;
   if (helpPanel) helpPanel.hidden = !open;
@@ -572,6 +635,7 @@ bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
 bindCueListDisplayToggle(cueListShowStickerToggle, 'cueListShowSticker');
 bindCueListDisplayToggle(cueListShowCharcountToggle, 'cueListShowCharcount');
+bindCueListDisplayToggle(cueListAutoScrollOnClickToggle, 'cueListAutoScrollOnClick');
 bindCueEditorDisplayToggle(cueEditorShowNavigationToggle, 'cueEditorShowNavigation');
 bindCueEditorDisplayToggle(cueEditorShowTimeActionsToggle, 'cueEditorShowTimeActions');
 bindCueEditorDisplayToggle(cueEditorShowStickerToggle, 'cueEditorShowSticker');
@@ -587,6 +651,9 @@ exportColorUnifiedToggle?.addEventListener('change', () => {
 clickBehaviorSelect?.addEventListener('change', () => {
   updateEditorSettings({ clickBehavior: normalizeClickBehavior(clickBehaviorSelect.value) });
   refreshClickBehaviorHint();
+});
+clickTargetSelect?.addEventListener('change', () => {
+  updateEditorSettings({ clickTarget: normalizeClickTarget(clickTargetSelect.value) });
 });
 subtitleFontSizeSelect?.addEventListener('change', () => {
   const value = subtitleFontSizeSelect.value;
@@ -611,10 +678,14 @@ const CLICK_BEHAVIOR_HINTS = {
 };
 function refreshClickBehaviorHint() {
   const hint = document.getElementById('click-behavior-hint');
-  if (!hint) return;
   const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
-  hint.textContent = CLICK_BEHAVIOR_HINTS[language][EDITOR_SETTINGS.clickBehavior];
-  hint.hidden = false;
+  if (hint) {
+    hint.textContent = CLICK_BEHAVIOR_HINTS[language][EDITOR_SETTINGS.clickBehavior];
+    hint.hidden = false;
+  }
+  if (clickTargetField) {
+    clickTargetField.hidden = EDITOR_SETTINGS.clickBehavior === 'select-only';
+  }
 }
 refreshClickBehaviorHint();
 document.addEventListener('mawe:languagechange', refreshClickBehaviorHint);
@@ -1814,6 +1885,8 @@ function splitAtCursor() {
   const rightEl = container.querySelector(`.cue[data-idx="${idx + 1}"]`);
   if (rightEl) scrollCueToCenter(rightEl);
   selectOnly(idx + 1);
+  // 拆分后后半段是新的视觉选中项，也必须成为 Shift+点击的范围锚点。
+  lastClickedIdx = idx + 1;
 }
 
 function splitItemsAtChar(items, cursorChar) {
@@ -2085,6 +2158,13 @@ function scrollCueToCenter(cueEl) {
   if (!cueEl || cueEl.classList.contains('hidden')) return;
   const cRect = container.getBoundingClientRect();
   const eRect = cueEl.getBoundingClientRect();
+  // 目标已经处于列表中间的舒适区域时，不再制造一次多余的滚动动画。
+  // 留出上下约 20% 的缓冲；只有接近顶部/底部时才把字幕移到中央。
+  const comfortInset = Math.min(120, Math.max(48, cRect.height * 0.2));
+  if (
+    eRect.top >= cRect.top + comfortInset
+    && eRect.bottom <= cRect.bottom - comfortInset
+  ) return;
   const offsetTop = (eRect.top - cRect.top) + container.scrollTop;
   const target = offsetTop + eRect.height / 2 - container.clientHeight / 2;
   container.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
@@ -2100,55 +2180,101 @@ function scrollCueIntoViewIfNeeded(cueEl) {
 let seekWarned = false;
 // === 单击/双击/Shift/Ctrl ===
 function bindCueEvents(el, idx) {
-  let clickTimer = null;
-  el.addEventListener('click', (e) => {
-    if (editingState && editingState.el === el) return;
-    if (clickTimer) return;
+  let pointerDownState = null;
+  let lastPrimaryPointerDownAt = 0;
 
-    // Alt+点击 = 快速切换禁用状态（不延迟，立即处理；编辑模式下已被上方 return 拦截）
-    if (e.altKey) {
-      e.preventDefault();
+  function selectFromCuePointer(event) {
+    // Alt+点击 = 快速切换禁用状态
+    if (event.altKey) {
+      event.preventDefault();
       toggleDisabled([idx]);
-      return;
+      return 'alt';
     }
 
-    // Shift / Ctrl 多选 — 不延迟，立即处理
-    if (e.shiftKey) {
-      e.preventDefault();
+    // Shift / Ctrl 多选
+    if (event.shiftKey) {
+      event.preventDefault();
       if (lastClickedIdx >= 0) selectRange(lastClickedIdx, idx);
       else selectOnly(idx);
       lastClickedIdx = idx;
-      return;
+      return 'shift';
     }
-    if (e.ctrlKey || e.metaKey) {
-      e.preventDefault();
+    if (event.ctrlKey || event.metaKey) {
+      event.preventDefault();
       toggleSel(idx);
       lastClickedIdx = idx;
+      return 'toggle';
+    }
+
+    // 普通单击的选中阶段放在 pointerdown，点击时只做跳转。
+    selectCueByClick(idx);
+    lastClickedIdx = idx;
+    return 'select';
+  }
+
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 || (editingState && editingState.el === el)) return;
+
+    // 这些子控件有自己的 click 行为；不要在父 cue 的 pointerdown 阶段抢先选中。
+    const target = e.target instanceof Element ? e.target : null;
+    if (target?.closest('.color-bar.is-ref, .sticker-slot img, .sticker-slot .sref')) {
+      // 避免这次不会冒泡到父 cue 的 click 参与下一次普通双击判定。
+      lastPrimaryPointerDownAt = 0;
+      pointerDownState = { handled: false, time: performance.now() };
       return;
     }
 
-    // 普通单击：等 dblclick 判定
-    clickTimer = setTimeout(() => {
-      clickTimer = null;
-      if (editingState) return;
-      // 选中本行（或整组，取决于设置）；两种跳转模式都会移动播放头。
-      selectCueByClick(idx);
-      lastClickedIdx = idx;
-      scrollCueToCenter(el);
-      waveformEditor?.revealTime(DATA.segments[idx].start, true);
-      if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
-        // 默认只跳转不改动播放状态；“选中跳转并开始播放”仅在暂停时启动播放。
+    const now = performance.now();
+    const isSecondDoubleClick = e.detail > 1
+      || (lastPrimaryPointerDownAt > 0 && now - lastPrimaryPointerDownAt < 500);
+    lastPrimaryPointerDownAt = now;
+    if (isSecondDoubleClick) {
+      // 第一次 pointerdown 已经完成选中；双击的第二次按下不要再次刷新面板/波形布局。
+      pointerDownState = { handled: true, suppressClick: true, time: now };
+      return;
+    }
+
+    const action = selectFromCuePointer(e);
+    pointerDownState = {
+      handled: true,
+      suppressClick: action !== 'select',
+      time: now,
+    };
+  });
+
+  el.addEventListener('click', (e) => {
+    if (editingState && editingState.el === el) return;
+    const state = pointerDownState;
+    pointerDownState = null;
+    // 第一次 pointerdown 已经立即完成选择；双击产生的第二次 click
+    // 不重复执行同一套操作，随后仍由 dblclick 进入编辑。
+    if (e.detail > 1 || state?.suppressClick) return;
+
+    // 键盘触发 click，或特殊子控件的 click 冒泡到父 cue 时，保留 click 作为后备选择路径。
+    if (!state?.handled) selectFromCuePointer(e);
+
+    // 选择已经在 pointerdown 完成；这里仅处理列表滚动、波形定位和媒体 Seek。
+    if (EDITOR_SETTINGS.cueListAutoScrollOnClick) scrollCueToCenter(el);
+    waveformEditor?.revealTime(DATA.segments[idx].start, true);
+    if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
+      // 默认只跳转不改动播放状态；“选中并跳转（自动播放）”会在暂停时启动播放。
+      const previousSuppress = suppressCueListAutoScroll;
+      suppressCueListAutoScroll = !EDITOR_SETTINGS.cueListAutoScrollOnClick;
+      try {
         seekFromWaveform(DATA.segments[idx].start / 1000);
-        if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused) togglePlayback();
+      } finally {
+        suppressCueListAutoScroll = previousSuppress;
       }
-    }, 220);
+      if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused) togglePlayback();
+    }
   });
   el.addEventListener('dblclick', (e) => {
     e.preventDefault();
-    if (clickTimer) { clearTimeout(clickTimer); clickTimer = null; }
     const sel = window.getSelection();
     if (sel) sel.removeAllRanges();
-    selectOnly(idx);
+    // 普通双击的第一次 pointerdown 已选中该 cue；只有从特殊子控件触发、且尚未选中时
+    // 才补一次选择，避免双击再次提交当前面板并重绘波形布局。
+    if (!selectedIdxs.has(idx)) selectOnly(idx);
     startEdit(el, idx, e.clientX, e.clientY);
   });
   el.addEventListener('contextmenu', (e) => {
@@ -2323,6 +2449,20 @@ mediaFullscreen?.addEventListener('click', async () => {
   syncMediaControls();
 });
 document.addEventListener('fullscreenchange', syncMediaControls);
+
+// ←/→：复用媒体控制条的 ±5 秒跳转；文本输入、表单控件和预览框保留原生方向键行为。
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+  if (editingState || isTextEditingTarget(e)) return;
+  const target = e.target instanceof Element ? e.target : document.activeElement;
+  if (target?.closest?.('.geo-box, input, select, textarea')) return;
+  if (e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+  if (!hasLoadedMedia()) return;
+  if (!isPlaybackKeyboardTarget(e) && isNativeKeyboardControl(e)) return;
+  e.preventDefault();
+  e.stopPropagation();
+  seekMediaBy(e.key === 'ArrowLeft' ? -5 : 5);
+}, true);
 
 function isSpaceKey(e) {
   return e.key === ' ' || e.code === 'Space';
@@ -2981,6 +3121,8 @@ if (typeof ResizeObserver === 'function') {
 
 // === 当前行高亮 + overlay ===
 let lastActive = -1;
+// 列表点击关闭自动滚动时，避免这次 seek 的同步 active 更新再次滚动列表。
+let suppressCueListAutoScroll = false;
 function findActive(tMs) {
   let lo = 0, hi = DATA.segments.length - 1, ans = -1;
   while (lo <= hi) {
@@ -3045,7 +3187,7 @@ function update() {
       const cur = container.querySelector(`.cue[data-idx="${idx}"]`);
       if (cur) {
         cur.classList.add('active');
-        if (!editingState) scrollCueIntoViewIfNeeded(cur);
+        if (!editingState && !suppressCueListAutoScroll) scrollCueIntoViewIfNeeded(cur);
       }
     }
     lastActive = idx;
@@ -5466,7 +5608,7 @@ function showContextMenu(x, y, idx, waveformTimeMs = null) {
   }
 
   if (!isMulti) {
-    // 组 1：跳转与拆分。仅「仅选中」模式提供「跳转并播放」——「选中并跳转」时左键单击本身就会跳转。
+    // 组 1：跳转与拆分。仅「仅选中」模式提供「跳转并播放」——其它两种单击行为本身就会跳转。
     if (EDITOR_SETTINGS.clickBehavior === 'select-only') {
       addItem('跳转并播放', 'F', () => {
         seekFromWaveform(DATA.segments[idx].start / 1000);
@@ -5566,8 +5708,15 @@ function showGapContextMenu(x, y, index) {
   ctxmenu.style.top = `${Math.max(4, Math.min(y, window.innerHeight - rect.height - 4))}px`;
 }
 
+function closeContextMenuOnOutsidePointerDown(event) {
+  if (!ctxmenu.contains(event.target)) ctxmenu.classList.remove('show');
+}
+// 使用捕获阶段的 pointerdown：波形空白区自己的 pointerdown 可能阻止后续
+// click 事件，不能再依赖 mouseup 后才触发的 document.click 来关闭菜单。
+document.addEventListener('pointerdown', closeContextMenuOnOutsidePointerDown, true);
+// 保留键盘触发 click 的关闭路径；真实鼠标/触控操作已经在 pointerdown 阶段关闭。
 document.addEventListener('click', (e) => {
-  if (!ctxmenu.contains(e.target)) ctxmenu.classList.remove('show');
+  if (e.detail === 0) closeContextMenuOnOutsidePointerDown(e);
 });
 document.addEventListener('contextmenu', (e) => {
   // 非 cue 上的右键关闭菜单
@@ -5683,6 +5832,9 @@ function seekFromWaveform(timeSec) {
   try {
     player.currentTime = Math.max(0, timeSec);
     update();
+    // currentTime 的 seeked/timeupdate 事件是异步触发的；先同步刷新波形，
+    // 避免字幕已选中但红色播放头要等下一拍才移动。
+    waveformEditor?.updatePlayback();
   } catch (error) {
     flashHint(`跳转失败：${error.message}`);
   }
@@ -5735,6 +5887,7 @@ function initWaveformEditor() {
     // 走 splitAtCursor；这样剃刀与右键拆分行为一致，且保留 items 时间码精度。
     splitCueAtTime: (idx, timeMs) => splitFromContextMenu(idx, 0, 0, timeMs),
     getClickBehavior: () => EDITOR_SETTINGS.clickBehavior,
+    getClickTarget: () => EDITOR_SETTINGS.clickTarget,
     onBeginEdit: (label) => pushUndo(label),
     onLayoutUndo: (label, snapshot) => pushLayoutUndo(label, snapshot),
     onCommitEdit: (idxs, kind) => {

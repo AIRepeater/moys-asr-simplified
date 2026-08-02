@@ -130,6 +130,66 @@ test('B splits the subtitle under the waveform playhead and supports undo and re
   await expect(page.locator('.cue .text').nth(1)).toHaveText('pha');
 });
 
+test('B split makes the selected latter half the Shift+click anchor', async ({ page }) => {
+  await page.goto(server.url);
+  const cues = page.locator('.cue');
+
+  // 保留拆分前的旧锚点，覆盖“已有字幕选中后再拆分”的回归场景。
+  await cues.nth(0).click();
+  await page.evaluate(() => {
+    const player = document.getElementById('player');
+    player.currentTime = 5;
+    player.dispatchEvent(new Event('timeupdate'));
+  });
+  await page.keyboard.press('b');
+
+  await expect.poll(() => page.locator('.cue').count()).toBe(7);
+  await expect(page.locator('.cue[data-idx="1"]')).toHaveClass(/selected/);
+
+  await page.locator('.cue[data-idx="3"]').click({ modifiers: ['Shift'] });
+  await expect.poll(() => page.locator('.cue.selected').evaluateAll(
+    (elements) => elements.map((element) => Number(element.dataset.idx)),
+  )).toEqual([1, 2, 3]);
+});
+
+test('waveform navigation keeps a cue row in the comfort zone', async ({ page }) => {
+  await page.goto(server.url);
+  await page.locator('#editor-settings-toggle').click();
+  await page.locator('#waveform-seconds-per-row').selectOption('30');
+  await page.locator('#waveform-row-height').selectOption('64');
+
+  // 让下一条字幕所在行处于舒适区但不要正好居中，验证 A/D 不会强制重定位。
+  await page.locator('.cue[data-idx="1"]').click();
+  const before = await page.evaluate(() => {
+    const scroll = document.getElementById('waveform-scroll');
+    const rowIndex = Math.floor(DATA.segments[2].start / (30 * 1000));
+    const stride = 64 + 10;
+    const comfortInset = Math.min(120, Math.max(48, scroll.clientHeight * 0.2));
+    scroll.scrollTop = Math.max(0, rowIndex * stride - comfortInset - 8);
+    const rowTop = rowIndex * stride - scroll.scrollTop;
+    return {
+      scrollTop: scroll.scrollTop,
+      rowInComfortZone: rowTop >= comfortInset
+        && rowTop + 64 <= scroll.clientHeight - comfortInset,
+    };
+  });
+  expect(before.rowInComfortZone).toBe(true);
+
+  await page.keyboard.press('d');
+  await expect(page.locator('.cue[data-idx="2"]')).toHaveClass(/selected/);
+  await expect.poll(() => page.evaluate(
+    () => document.getElementById('waveform-scroll').scrollTop,
+  )).toBe(before.scrollTop);
+
+  // 离开舒适区后仍应自动定位，避免把“减少无意义滚动”变成“不再跟随”。
+  await page.evaluate(() => { document.getElementById('waveform-scroll').scrollTop = 0; });
+  await page.keyboard.press('d');
+  await expect(page.locator('.cue[data-idx="3"]')).toHaveClass(/selected/);
+  await expect.poll(() => page.evaluate(
+    () => document.getElementById('waveform-scroll').scrollTop,
+  )).toBeGreaterThan(0);
+});
+
 test('B does not split in a gap or while editing text', async ({ page }) => {
   await page.goto(server.url);
   await page.evaluate(() => {

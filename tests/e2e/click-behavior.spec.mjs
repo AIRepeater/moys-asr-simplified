@@ -29,6 +29,100 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
+test('jump target is shown for both jump behaviors and hidden for select-only', async ({ page }) => {
+  await page.goto(server.url);
+  await page.locator('#editor-settings-toggle').click();
+  const behavior = page.locator('#click-behavior');
+  const targetField = page.locator('#click-target-field');
+  await expect(targetField).toBeVisible();
+  await expect(page.locator('#click-target')).toHaveValue('cue-start');
+
+  await behavior.selectOption('select-only');
+  await expect(targetField).toBeHidden();
+
+  await behavior.selectOption('select-and-play');
+  await expect(targetField).toBeVisible();
+  await expect(behavior).toHaveValue('select-and-play');
+});
+
+test('context menu closes on pointerdown over blank waveform', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    document.getElementById('waveform-scroll').scrollTop = 1 * (120 + 10);
+  });
+
+  const cue = page.locator('.waveform-cue-block[data-idx="0"]').first();
+  await expect(cue).toBeVisible();
+  await cue.click({ button: 'right' });
+  const contextMenu = page.locator('#ctxmenu');
+  await expect(contextMenu).toHaveClass(/show/);
+
+  const row = page.locator('.waveform-row[data-row-index="1"]');
+  const box = await row.boundingBox();
+  expect(box).not.toBeNull();
+  const blankX = box.x + box.width * 0.95;
+  const blankY = box.y + box.height / 2;
+  await page.mouse.move(blankX, blankY);
+  await page.mouse.down();
+  await expect(contextMenu).not.toHaveClass(/show/);
+  await page.mouse.up();
+});
+
+test('list click auto-scroll can be disabled without disabling seek', async ({ page }) => {
+  await page.goto(server.url);
+  await page.locator('#editor-settings-toggle').click();
+  const autoScroll = page.locator('#cue-list-auto-scroll-on-click');
+  await expect(autoScroll).toBeChecked();
+  await autoScroll.uncheck();
+
+  await page.evaluate(() => {
+    DATA.segments.push(...Array.from({ length: 34 }, (_, offset) => {
+      const index = DATA.segments.length + offset;
+      const start = index * 5000;
+      return { start, end: start + 1000, text: `Extra ${index}`, items: [] };
+    }));
+    renderAll();
+    document.getElementById('cues-container').scrollTop = 0;
+  });
+  const target = page.locator('.cue[data-idx="30"]');
+  await expect(target).toHaveCount(1);
+  await page.evaluate(() => {
+    const cue = document.querySelector('.cue[data-idx="30"]');
+    cue.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, button: 0, buttons: 1, pointerId: 1,
+    }));
+    cue.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+  });
+  await expect(target).toHaveClass(/selected/);
+  await expect.poll(() => page.evaluate(() => document.getElementById('cues-container').scrollTop)).toBe(0);
+  await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeGreaterThan(140);
+});
+
+test('default list click keeps a cue already in the middle in place', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    DATA.segments.push(...Array.from({ length: 34 }, (_, offset) => {
+      const index = DATA.segments.length + offset;
+      const start = index * 5000;
+      return { start, end: start + 1000, text: `Extra ${index}`, items: [] };
+    }));
+    renderAll();
+    const list = document.getElementById('cues-container');
+    const cue = document.querySelector('.cue[data-idx="30"]');
+    list.scrollTop = Math.max(0, cue.offsetTop - list.clientHeight / 2 + cue.offsetHeight / 2);
+  });
+  const before = await page.evaluate(() => document.getElementById('cues-container').scrollTop);
+  await page.evaluate(() => {
+    const cue = document.querySelector('.cue[data-idx="30"]');
+    cue.dispatchEvent(new PointerEvent('pointerdown', {
+      bubbles: true, button: 0, buttons: 1, pointerId: 1,
+    }));
+    cue.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+  });
+  await expect(page.locator('.cue[data-idx="30"]')).toHaveClass(/selected/);
+  await expect.poll(() => page.evaluate(() => document.getElementById('cues-container').scrollTop)).toBe(before);
+});
+
 test('default list click selects and seeks to cue start while keeping playback', async ({ page }) => {
   await page.goto(server.url);
   await expect(page.locator('#click-behavior')).toHaveValue('select-and-seek');
@@ -43,7 +137,8 @@ test('default list click selects and seeks to cue start while keeping playback',
 
   await page.locator('.cue[data-idx="4"]').click();
 
-  // 普通单击有 220ms 双击判定延迟；寻址后播放继续，currentTime 会前进，给 1s 容差
+  // 列表单击应立即选中；寻址后播放继续，currentTime 会前进，给 1s 容差
+  await expect(page.locator('.cue[data-idx="4"]')).toHaveClass(/selected/, { timeout: 150 });
   await page.waitForFunction(() => {
     const player = document.getElementById('player');
     const seg = DATA.segments[4];
@@ -51,6 +146,22 @@ test('default list click selects and seeks to cue start while keeping playback',
     return delta > -0.1 && delta < 1;
   }, undefined, { timeout: 5000 });
   await page.waitForFunction(() => !document.getElementById('player').paused);
+});
+
+test('list cue selects on pointerdown and double-click still enters edit', async ({ page }) => {
+  await page.goto(server.url);
+  const cue = page.locator('.cue[data-idx="4"]');
+  await cue.scrollIntoViewIfNeeded();
+  const box = await cue.boundingBox();
+  expect(box).not.toBeNull();
+
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(cue).toHaveClass(/selected/, { timeout: 150 });
+  await page.mouse.up();
+
+  await cue.dblclick();
+  await expect(cue).toHaveClass(/editing/);
 });
 
 test('space owns playback in media controls but remains text input in the cue editor', async ({ page }) => {
@@ -76,6 +187,25 @@ test('space owns playback in media controls but remains text input in the cue ed
   await cuePanelText.fill('hello');
   await cuePanelText.press(' ');
   await expect(cuePanelText).toHaveValue('hello ');
+  await expect.poll(() => page.evaluate(() => document.getElementById('player').paused)).toBe(true);
+});
+
+test('left and right arrows seek like the media step buttons', async ({ page }) => {
+  await page.goto(server.url);
+  await page.waitForFunction(() => {
+    const player = document.getElementById('player');
+    return player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0;
+  });
+  await page.evaluate(() => {
+    const player = document.getElementById('player');
+    player.pause();
+    player.currentTime = 10;
+  });
+
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeCloseTo(5, 1);
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(() => page.evaluate(() => document.getElementById('player').currentTime)).toBeCloseTo(10, 1);
   await expect.poll(() => page.evaluate(() => document.getElementById('player').paused)).toBe(true);
 });
 
