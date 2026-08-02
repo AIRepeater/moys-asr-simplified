@@ -2002,9 +2002,9 @@
         event.preventDefault();
         // 普通左键点击空白波形：清除字幕选中并跳转播放头
         this.options.clearSelection?.();
-        this.seekFromPointer(event, row);
         // 「允许拖动指针」开启时，继续按住左键拖动则指针跟随鼠标位置
         if (this.settings.dragPlayhead) this.beginPlayheadDrag(event, row);
+        this.seekFromPointer(event, row);
       });
       row.addEventListener('auxclick', (event) => {
         if (event.button === 1 && gapOperationMode === 'middle_drag') event.preventDefault();
@@ -2152,17 +2152,17 @@
       ctx.stroke();
     }
 
-    seekFromPointer(event, row, playAfterSeek = false) {
-      this.options.seek(this.timeFromPointer(event, row) / 1000);
+    seekFromPointer(event, row, playAfterSeek = false, geometry = null) {
+      this.options.seek(this.timeFromPointer(event, row, geometry) / 1000);
       this.updatePlayback();
       if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
     }
 
-    timeFromPointer(event, row) {
-      const rect = row.getBoundingClientRect();
+    timeFromPointer(event, row, geometry = null) {
+      const rect = geometry || row.getBoundingClientRect();
       const ratio = clamp((event.clientX - rect.left) / Math.max(1, rect.width), 0, 1);
-      const startMs = Number(row.dataset.startMs);
-      const endMs = Number(row.dataset.endMs);
+      const startMs = geometry?.startMs ?? Number(row.dataset.startMs);
+      const endMs = geometry?.endMs ?? Number(row.dataset.endMs);
       return startMs + ratio * (endMs - startMs);
     }
 
@@ -2170,30 +2170,45 @@
     // 所在位置。高回报率指针事件用 rAF 合并，每帧最多 seek 一次；松开时以
     // 最终位置再 seek 一次保证落点精确。指针捕获让拖出行范围时按行边界钳制。
     beginPlayheadDrag(event, row) {
-      row.setPointerCapture?.(event.pointerId);
+      const rect = row.getBoundingClientRect();
+      const geometry = {
+        left: rect.left,
+        width: Math.max(1, rect.width),
+        startMs: Number(row.dataset.startMs),
+        endMs: Number(row.dataset.endMs),
+      };
+      try { row.setPointerCapture?.(event.pointerId); } catch (_) {}
       let frame = 0;
       let lastEvent = null;
+      let moved = false;
+      const startX = event.clientX;
+      const startY = event.clientY;
       const flush = () => {
         frame = 0;
-        if (lastEvent) this.seekFromPointer(lastEvent, row);
+        if (lastEvent) this.seekFromPointer(lastEvent, row, false, geometry);
         lastEvent = null;
       };
       const cleanup = () => {
         window.removeEventListener('pointermove', onMove);
+        window.removeEventListener('pointerup', onUp);
+        window.removeEventListener('pointercancel', onCancel);
         if (frame) { cancelAnimationFrame(frame); frame = 0; }
         lastEvent = null;
       };
       const onMove = (moveEvent) => {
         if (!(moveEvent.buttons & 1)) { cleanup(); return; }
+        if (Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY) >= 3) moved = true;
         lastEvent = moveEvent;
         if (!frame) frame = requestAnimationFrame(flush);
       };
       const onUp = (upEvent) => {
         cleanup();
-        this.seekFromPointer(upEvent, row);
+        if (moved) this.seekFromPointer(upEvent, row, false, geometry);
       };
+      const onCancel = () => cleanup();
       window.addEventListener('pointermove', onMove);
       window.addEventListener('pointerup', onUp, { once: true });
+      window.addEventListener('pointercancel', onCancel, { once: true });
     }
 
     // Shift+左键框选：在波形空白处按下并拖动，画出选框，松开后把与选框相交的
