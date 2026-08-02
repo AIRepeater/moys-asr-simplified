@@ -53,6 +53,32 @@ test('default list click selects and seeks to cue start while keeping playback',
   await page.waitForFunction(() => !document.getElementById('player').paused);
 });
 
+test('space owns playback in media controls but remains text input in the cue editor', async ({ page }) => {
+  await page.goto(server.url);
+  await page.waitForFunction(() => {
+    const player = document.getElementById('player');
+    return player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0;
+  });
+
+  await page.locator('#media-play-toggle').focus();
+  await page.keyboard.press(' ');
+  await page.waitForFunction(() => !document.getElementById('player').paused);
+
+  await page.evaluate(() => document.getElementById('player').pause());
+  await page.locator('#media-seek').focus();
+  await page.keyboard.press(' ');
+  await page.waitForFunction(() => !document.getElementById('player').paused);
+
+  await page.evaluate(() => document.getElementById('player').pause());
+  const cuePanelText = page.locator('#cue-panel-text');
+  await page.locator('.cue[data-idx="0"]').click();
+  await expect(cuePanelText).toBeEnabled();
+  await cuePanelText.fill('hello');
+  await cuePanelText.press(' ');
+  await expect(cuePanelText).toHaveValue('hello ');
+  await expect.poll(() => page.evaluate(() => document.getElementById('player').paused)).toBe(true);
+});
+
 test('list click with select-only selects without seeking', async ({ page }) => {
   await page.goto(server.url);
   await page.evaluate(() => {

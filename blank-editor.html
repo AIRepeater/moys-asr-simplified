@@ -9345,47 +9345,66 @@ function isSpaceKey(e) {
   return e.key === ' ' || e.code === 'Space';
 }
 
+const TEXT_INPUT_TYPES = new Set([
+  'text', 'search', 'email', 'url', 'tel', 'password', 'number',
+]);
+
 function isPlayerKeyboardTarget(event) {
   return event.target === player
     || document.activeElement === player
     || event.composedPath?.().includes(player);
 }
 
-// 空格播放/暂停。捕获阶段先于原生媒体控件处理，避免播放器焦点内发生双重切换。
-let interceptedPlayerSpace = false;
+function isTextEditingTarget(event) {
+  const target = event.target;
+  const active = document.activeElement;
+  if (target?.isContentEditable || active?.isContentEditable) return true;
+  if (target instanceof HTMLTextAreaElement || active instanceof HTMLTextAreaElement) return true;
+
+  const input = target instanceof HTMLInputElement
+    ? target
+    : active instanceof HTMLInputElement ? active : null;
+  if (!input) return false;
+  return TEXT_INPUT_TYPES.has(input.type);
+}
+
+function isPlaybackKeyboardTarget(event) {
+  const target = event.target;
+  return isPlayerKeyboardTarget(event)
+    || (target instanceof Element && Boolean(target.closest('#media-controls, .player-stage')));
+}
+
+function isNativeKeyboardControl(event) {
+  const target = event.target instanceof Element ? event.target : document.activeElement;
+  return Boolean(target?.closest?.('button, input, select, textarea, a'));
+}
+
+// 空格播放/暂停。捕获阶段先于原生媒体控件处理，避免控件获得焦点后执行默认行为。
+let interceptedSpace = false;
 document.addEventListener('keydown', (e) => {
   if (!isSpaceKey(e)) return;
-  if (editingState) return;
+  if (editingState || isTextEditingTarget(e)) return;
   if (replaceModal.classList.contains('show')) return;
   if (stickerModal.classList.contains('show')) return;
   if (stickerPreviewModal.classList.contains('show')) return;
   if (projectMediaModal.classList.contains('show')) return;
-  const a = document.activeElement;
-  const playerFocused = isPlayerKeyboardTarget(e);
-  if (!playerFocused && a && (
-    a.tagName === 'INPUT'
-    || a.tagName === 'TEXTAREA'
-    || a.tagName === 'SELECT'
-    || a.tagName === 'BUTTON'
-    || a.tagName === 'A'
-    || a.isContentEditable
-  )) return;
+  if (ctxmenu.classList.contains('show')) return;
+  if (!isPlaybackKeyboardTarget(e) && isNativeKeyboardControl(e)) return;
   if (e.ctrlKey || e.altKey || e.metaKey) return;
   e.preventDefault();
-  if (playerFocused) {
-    interceptedPlayerSpace = true;
-    e.stopImmediatePropagation();
-  }
+  e.stopImmediatePropagation();
+  interceptedSpace = true;
   if (e.repeat) return;
   togglePlayback();
 }, true);
 
 document.addEventListener('keyup', (e) => {
-  if (!isSpaceKey(e) || (!interceptedPlayerSpace && !isPlayerKeyboardTarget(e))) return;
+  if (!isSpaceKey(e) || !interceptedSpace) return;
   e.preventDefault();
-  interceptedPlayerSpace = false;
   e.stopImmediatePropagation();
+  interceptedSpace = false;
 }, true);
+window.addEventListener('blur', () => { interceptedSpace = false; });
 
 // J/K/L 倍速控制：K=重置 1×；J=×0.5（叠加）；L=×2（叠加）
 // HTML5 playbackRate 多数浏览器钳在 [0.0625, 16]
@@ -9930,12 +9949,12 @@ function bindPreviewBoxPointerEvents(el, target) {
 bindPreviewBoxPointerEvents(overlayEl, 'subtitle');
 
 // --- 键盘操作（聚焦时），字幕预览与表情包预览共用 ---
-// 方向键移动 1%；Shift 加速到 10%；Alt+方向缩放；Enter/Space 切换 editable；Esc 失焦。
+// 方向键移动 1%；Shift 加速到 10%；Alt+方向缩放；Enter 切换 editable；Esc 失焦。
 function handlePreviewBoxKeydown(event, target) {
   if (!previewTargetEnabled(target)) return;
   const el = previewTargetEl(target);
   if (event.key === 'Escape') { el.blur(); return; }
-  if (event.key === 'Enter' || event.key === ' ') {
+  if (event.key === 'Enter') {
     event.preventDefault();
     el.classList.toggle('editable');
     return;
@@ -10067,7 +10086,7 @@ stickerOverlayLayer.id = 'sticker-overlay-layer';
 stickerOverlayLayer.className = 'geo-box';
 stickerOverlayLayer.tabIndex = 0;
 stickerOverlayLayer.setAttribute('role', 'group');
-stickerOverlayLayer.setAttribute('aria-label', '表情包预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 或空格显示控制点，Esc 退出。');
+stickerOverlayLayer.setAttribute('aria-label', '表情包预览位置。可拖动调整；方向键移动，按住 Shift 加速，按住 Alt 配合方向键调整大小，Enter 显示控制点，Esc 退出。');
 const stickerOverlayContent = document.createElement('div');
 stickerOverlayContent.className = 'sticker-overlay-content';
 stickerOverlayLayer.appendChild(stickerOverlayContent);
