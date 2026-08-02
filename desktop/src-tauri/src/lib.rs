@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 use server::{
-    extract_waveform, open_project, open_project_at_path, pick_and_scan_stickers,
+    extract_waveform, open_project, open_project_at_path, pick_and_scan_stickers, pick_media,
     prepare_media, remember_project, resolve_media, save_project, settings_path, update_settings,
     AppState, ServerSettings,
 };
@@ -134,6 +134,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_project,
             open_project_at_path,
+            pick_media,
             save_project,
             remember_project,
             update_settings,

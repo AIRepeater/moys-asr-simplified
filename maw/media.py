@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import hashlib
 import os
 import shutil
 import subprocess
-import tempfile
+import time
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
@@ -82,13 +81,39 @@ def find_ffmpeg(configured_path: str | os.PathLike[str] | None = None) -> Path |
     return Path(found).resolve() if found else None
 
 
-def _conversion_cache_path(source: Path, cache_dir: Path | None = None) -> Path:
-    stat = source.stat()
-    signature = f"{source.resolve()}\0{stat.st_size}\0{stat.st_mtime_ns}".encode("utf-8")
-    digest = hashlib.sha256(signature).hexdigest()[:20]
-    root = cache_dir or (Path(tempfile.gettempdir()) / "moys-asr-workflow-media")
-    root.mkdir(parents=True, exist_ok=True)
-    return root / f"{source.stem}.{digest}.mp4"
+def _conversion_output_path(source: Path, cache_dir: Path | None = None) -> Path:
+    """Return the persistent playback file for a source.
+
+    Production conversions live beside the source (``clip.flv`` ->
+    ``clip.mp4``), so reopening a project can reuse the result.  ``cache_dir``
+    remains available for isolated tests and callers that explicitly want a
+    separate cache root.
+    """
+
+    if cache_dir is None:
+        return source.with_suffix(".mp4")
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    return cache_dir / f"{source.stem}.mp4"
+
+
+def _conversion_temp_path(output: Path, attempt: int) -> Path:
+    return output.with_name(
+        f"{output.stem}.part-{os.getpid()}-{time.time_ns()}-{attempt}{output.suffix}"
+    )
+
+
+def _valid_media_file(path: Path) -> bool:
+    try:
+        return path.is_file() and path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _paired_mp4(path: Path) -> Path | None:
+    if path.suffix.lower() != ".flv":
+        return None
+    candidate = path.with_suffix(".mp4")
+    return candidate.resolve() if _valid_media_file(candidate) else None
 
 
 def convert_media_for_browser(
@@ -102,15 +127,15 @@ def convert_media_for_browser(
     source = source.expanduser().resolve()
     if source.suffix.lower() not in CONVERSION_EXTENSIONS:
         return source
+    output = _conversion_output_path(source, cache_dir)
+    if _valid_media_file(output):
+        return output
+
     executable = find_ffmpeg(ffmpeg_path)
     if executable is None:
         raise MediaConversionError(
             "检测到 FLV 媒体，但找不到 FFmpeg；请配置 FFMPEG_PATH 或将 ffmpeg 加入 PATH"
         )
-
-    output = _conversion_cache_path(source, cache_dir)
-    if output.is_file() and output.stat().st_size > 0:
-        return output
 
     commands = (
         [
@@ -125,19 +150,38 @@ def convert_media_for_browser(
         ],
     )
     errors: list[str] = []
-    for command in commands:
+    for attempt, command in enumerate(commands):
+        temporary = _conversion_temp_path(output, attempt)
+        command = [*command[:-1], str(temporary)]
         try:
             result = subprocess.run(
                 command, capture_output=True, text=True, encoding="utf-8", errors="replace",
             )
         except OSError as error:
+            temporary.unlink(missing_ok=True)
             raise MediaConversionError(f"启动 FFmpeg 失败：{error}") from error
-        if result.returncode == 0 and output.is_file() and output.stat().st_size > 0:
+
+        if _valid_media_file(output):
+            temporary.unlink(missing_ok=True)
             return output
-        if output.exists():
-            output.unlink()
+
+        if result.returncode == 0 and _valid_media_file(temporary):
+            # os.replace is atomic on the same volume and also tolerates a
+            # same-name result created by a concurrent conversion.
+            try:
+                os.replace(temporary, output)
+                return output
+            except OSError as error:
+                if _valid_media_file(output):
+                    temporary.unlink(missing_ok=True)
+                    return output
+                temporary.unlink(missing_ok=True)
+                errors.append(f"替换转换缓存失败：{error}")
+                continue
+
+        temporary.unlink(missing_ok=True)
         detail = (result.stderr or result.stdout or "FFmpeg 未生成可播放文件").strip()
-        errors.append(detail[-1000:])
+        errors.append(f"FFmpeg 退出码 {result.returncode}：{detail[-1000:]}")
     raise MediaConversionError(
         f"FFmpeg 无法将 {source.name} 转换为浏览器可播放的 MP4：{errors[-1]}"
     )
@@ -178,7 +222,7 @@ def _classify_existing(
             message=f"不支持的媒体格式：{path.suffix or '无扩展名'}",
         )
     status = MediaStatus.CONVERSION_NEEDED if suffix in CONVERSION_EXTENSIONS else MediaStatus.SUCCESS
-    message = "该媒体格式可能需要转换后才能在浏览器中播放" if status is MediaStatus.CONVERSION_NEEDED else ""
+    message = "flv 无法预览，将会自动转换成 mp4 格式" if status is MediaStatus.CONVERSION_NEEDED else ""
     return MediaResolution(
         status,
         project_path,
@@ -227,16 +271,26 @@ def resolve_project_media(
                 requested_path=requested,
                 message=f"找不到指定媒体文件：{requested}",
             )
-        return _classify_existing(project_path, requested, requested_path=requested)
+        paired = _paired_mp4(requested)
+        return _classify_existing(project_path, paired or requested, requested_path=requested)
 
     raw_media = data.get("media")
     requested: Path | None = None
     if isinstance(raw_media, str) and raw_media.strip():
         requested = _path_from_value(raw_media.strip(), base_dir)
         if requested.is_file():
-            return _classify_existing(project_path, requested, requested_path=requested)
+            paired = _paired_mp4(requested)
+            return _classify_existing(project_path, paired or requested, requested_path=requested)
 
     candidates = _same_name_candidates(project_path, data)
+    if requested and requested.suffix.lower() == ".flv":
+        mp4_candidates = tuple(path for path in candidates if path.suffix.lower() == ".mp4")
+        if len(mp4_candidates) == 1:
+            return _classify_existing(project_path, mp4_candidates[0], requested_path=requested)
+    if any(path.suffix.lower() == ".flv" for path in candidates):
+        mp4_candidates = tuple(path for path in candidates if path.suffix.lower() == ".mp4")
+        if len(mp4_candidates) == 1:
+            return _classify_existing(project_path, mp4_candidates[0], requested_path=requested)
     if len(candidates) == 1:
         return _classify_existing(project_path, candidates[0], requested_path=requested)
     if len(candidates) > 1:

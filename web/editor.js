@@ -2205,6 +2205,21 @@ function formatMediaTime(seconds) {
   return hours ? `${hours}:${pad(minutes)}:${pad(remaining)}` : `${pad(minutes)}:${pad(remaining)}`;
 }
 
+function syncPlaybackRateOption(rate) {
+  if (!mediaPlaybackRate || !Number.isFinite(rate)) return;
+  mediaPlaybackRate.querySelectorAll('option[data-generated="true"]').forEach((option) => option.remove());
+  const value = String(rate);
+  let option = Array.from(mediaPlaybackRate.options).find((item) => item.value === value);
+  if (!option) {
+    option = document.createElement('option');
+    option.value = value;
+    option.textContent = fmtRate(rate);
+    option.dataset.generated = 'true';
+    mediaPlaybackRate.append(option);
+  }
+  mediaPlaybackRate.value = value;
+}
+
 function syncMediaControls() {
   if (!mediaPlayToggle || !player) return;
   const hasMedia = hasLoadedMedia();
@@ -2228,10 +2243,7 @@ function syncMediaControls() {
   mediaSeek.value = String(duration ? Math.min(duration, current) : 0);
   if (Number.isFinite(player.volume)) mediaVolume.value = String(player.volume);
   if (Number.isFinite(player.playbackRate)) {
-    const rate = String(player.playbackRate);
-    if (Array.from(mediaPlaybackRate.options).some((option) => option.value === rate)) {
-      mediaPlaybackRate.value = rate;
-    }
+    syncPlaybackRateOption(player.playbackRate);
   }
   const fullscreenLabel = document.fullscreenElement ? '退出全屏' : '全屏';
   mediaFullscreen.setAttribute('aria-label', fullscreenLabel);
@@ -2357,6 +2369,7 @@ document.addEventListener('keydown', (e) => {
   else if (k === 'j') r = Math.max(PLAYBACK_RATE_MIN, r * 0.5);
   else if (k === 'l') r = Math.min(PLAYBACK_RATE_MAX, r * 2);
   player.playbackRate = r;
+  syncMediaControls();
   flashHint(`倍速: ${fmtRate(r)}`);
 });
 
@@ -2717,8 +2730,15 @@ function getSubtitleAppearance(value = DATA.preview?.subtitle) {
 function syncSubtitleAppearanceControls(appearance = getSubtitleAppearance()) {
   if (subtitleFontSizeSelect) {
     const size = appearance.font_size ? String(appearance.font_size) : 'auto';
-    subtitleFontSizeSelect.value = Array.from(subtitleFontSizeSelect.options).some((option) => option.value === size)
-      ? size : 'auto';
+    subtitleFontSizeSelect.querySelectorAll('option[data-generated="true"]').forEach((option) => option.remove());
+    if (size !== 'auto' && !Array.from(subtitleFontSizeSelect.options).some((option) => option.value === size)) {
+      const option = document.createElement('option');
+      option.value = size;
+      option.textContent = `${size} px`;
+      option.dataset.generated = 'true';
+      subtitleFontSizeSelect.append(option);
+    }
+    subtitleFontSizeSelect.value = size;
   }
   if (subtitleFontFamilySelect) {
     subtitleFontFamilySelect.value = appearance.font_family

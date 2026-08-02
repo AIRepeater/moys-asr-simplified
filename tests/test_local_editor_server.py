@@ -108,7 +108,7 @@ class LocalEditorServerTests(unittest.TestCase):
                 server.shutdown()
                 thread.join(timeout=2)
 
-    def test_flv_project_uses_conversion_cache_without_overwriting_project_media(self) -> None:
+    def test_flv_project_uses_persistent_conversion_without_overwriting_project_media(self) -> None:
         source = self.root / "clip.flv"
         source.write_bytes(b"flv")
         project_path = self.root / "flv.json"

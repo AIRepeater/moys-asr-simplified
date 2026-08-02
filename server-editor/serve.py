@@ -230,6 +230,7 @@ def load_project(
     source_media_path = resolution.resolved_path
     media_path = source_media_path
     if resolution.status is MediaStatus.CONVERSION_NEEDED:
+        print("[media] flv 无法预览，将会自动转换成 mp4 格式")
         configured_ffmpeg = os.environ.get("FFMPEG_PATH") or load_env(DEFAULT_ENV_PATH).get("FFMPEG_PATH", "")
         try:
             media_path = convert_media_for_browser(source_media_path, ffmpeg_path=configured_ffmpeg)

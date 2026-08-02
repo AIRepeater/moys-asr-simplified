@@ -34,6 +34,9 @@
     );
   }
 
+  var mediaLoadGeneration = 0;
+  var projectOpenQueue = Promise.resolve();
+
   // 把工程数据注入 editor.js：直接调 openProjectFile（全局函数），不模拟 file input。
   // openProjectFile 处理完后（.then），启用保存 + 更新最近工程 + 自动加载媒体。
   function loadProjectData(result) {
@@ -48,10 +51,16 @@
     var file = new File([jsonContent], result.filename || 'untitled.mosp', {
       type: 'application/json',
     });
+    var generation = ++mediaLoadGeneration;
 
     if (typeof openProjectFile === 'function') {
-      openProjectFile(file, { suppressMediaPrompt: true }).then(function (success) {
+      // 串行化工程切换；旧工程的媒体任务通过 generation 检查自动失效。
+      projectOpenQueue = projectOpenQueue.catch(function () {}).then(function () {
+        if (generation !== mediaLoadGeneration) return false;
+        return openProjectFile(file, { suppressMediaPrompt: true });
+      }).then(function (success) {
         if (!success) return;
+        if (generation !== mediaLoadGeneration) return;
 
         // 启用保存按钮 + 实时更新最近工程
         if (typeof SERVER_CONFIG !== 'undefined') {
@@ -74,11 +83,15 @@
         }
 
         // 自动加载关联媒体；Rust 已完成 media 字段和同目录候选解析。
-        var resolvedMedia = result.mediaResolution && result.mediaResolution.resolvedPath;
+        var mediaResolution = result.mediaResolution;
+        var resolvedMedia = mediaResolution && mediaResolution.resolvedPath;
+        if (mediaResolution && mediaResolution.status === 'conversion_needed') {
+          flashHint(mediaResolution.message || 'flv 无法预览，将会自动转换成 mp4 格式');
+        }
         if (resolvedMedia) {
-          autoLoadMedia(resolvedMedia);
-        } else if (result.mediaResolution && result.mediaResolution.message) {
-          flashHint(result.mediaResolution.message);
+          autoLoadMedia(resolvedMedia, generation);
+        } else if (mediaResolution && mediaResolution.message) {
+          flashHint(mediaResolution.message);
         }
       });
     } else {
@@ -126,10 +139,12 @@
 
   // 自动加载媒体：先让 Rust 用 sidecar 准备浏览器可播放的 URL，再等待 metadata。
   // 直接调 openProjectFile 不经过 change handler，不会弹"选择媒体" modal。
-  async function autoLoadMedia(mediaPath) {
+  async function autoLoadMedia(mediaPath, generation, updateProjectMedia) {
     if (!mediaPath) return;
+    if (generation !== mediaLoadGeneration) return;
     try {
       var result = await invoke('prepare_media', { path: mediaPath });
+      if (generation !== mediaLoadGeneration) return;
       if (!result || !result.ok) {
         var missingMessage = result && result.error ? result.error : '关联媒体无法加载';
         console.warn('[MOSE] 媒体加载失败:', missingMessage);
@@ -149,11 +164,14 @@
       try {
         await metadataPromise;
       } catch (error) {
+        if (generation !== mediaLoadGeneration) return;
         if (previousSource) mediaPlayer.src = previousSource;
         else mediaPlayer.removeAttribute('src');
         mediaPlayer.load();
+        if (typeof syncPlayerPlaceholder === 'function') syncPlayerPlaceholder();
         throw error;
       }
+      if (generation !== mediaLoadGeneration) return;
 
       var mediaNameEl = document.getElementById('media-name');
       if (mediaNameEl) {
@@ -161,12 +179,20 @@
         mediaNameEl.classList.remove('empty');
         mediaNameEl.title = '点击复制媒体名：' + result.name;
       }
+      if (updateProjectMedia && typeof DATA !== 'undefined') {
+        DATA.media = result.sourcePath || mediaPath;
+        if (typeof FILENAME_BASE !== 'undefined') {
+          FILENAME_BASE = result.name.replace(/\.[^.]+$/, '');
+        }
+        if (typeof updateGapRemoveUi === 'function') updateGapRemoveUi();
+      }
 
       console.log('[MOSE] 媒体已自动加载:', result.name);
 
       // 自动提取波形（调 ffmpeg sidecar，非致命——失败不影响编辑器使用）
       try {
         var wave = await invoke('extract_waveform', { mediaPath: result.sourcePath || mediaPath });
+        if (generation !== mediaLoadGeneration) return;
         if (wave && wave.data) {
           if (typeof DATA !== 'undefined') {
             DATA.waveform = wave;
@@ -177,10 +203,16 @@
           console.log('[MOSE] 波形已生成:', wave.peak_count, 'peaks');
         }
       } catch (waveErr) {
+        if (generation !== mediaLoadGeneration) return;
         console.warn('[MOSE] 波形提取失败（非致命）:', waveErr);
       }
+      if (typeof syncPlayerPlaceholder === 'function') syncPlayerPlaceholder();
     } catch (e) {
+      if (generation !== mediaLoadGeneration) return;
       console.warn('[MOSE] 媒体加载异常:', e);
+      if (typeof flashHint === 'function') {
+        flashHint('媒体加载失败：' + (e && e.message ? e.message : e));
+      }
     }
   }
 
@@ -254,6 +286,39 @@
   }
 
   setupOpenProjectInterceptor();
+
+  // Desktop 用系统选择器拿到真实媒体路径，FLV 才能交给 bundled FFmpeg 转换。
+  function setupMediaInterceptor() {
+    var mediaButtons = [
+      document.getElementById('load-media'),
+      document.getElementById('project-media-select'),
+    ].filter(Boolean);
+    if (!mediaButtons.length) {
+      setTimeout(setupMediaInterceptor, 50);
+      return;
+    }
+    mediaButtons.forEach(function (button) {
+      button.addEventListener('click', async function (e) {
+        e.stopImmediatePropagation();
+        try {
+          if (typeof closeProjectMediaModal === 'function') closeProjectMediaModal(true);
+          var picked = await invoke('pick_media');
+          if (!picked || !picked.ok || picked.cancelled) return;
+          var generation = ++mediaLoadGeneration;
+          if (/\.flv$/i.test(picked.name || picked.path || '')) {
+            flashHint('flv 无法预览，将会自动转换成 mp4 格式');
+          }
+          await autoLoadMedia(picked.path, generation, true);
+        } catch (error) {
+          console.error('[MOSE] 选择媒体失败:', error);
+          if (typeof flashHint === 'function') flashHint('选择媒体失败：' + error);
+        }
+      }, true);
+    });
+    console.log('[MOSE] 媒体选择拦截器已就绪');
+  }
+
+  setupMediaInterceptor();
 
   // === 4. 拦截"📁 浏览…"表情包按钮 ===
   // editor.js 的 sticker-root-pick 用浏览器 showDirectoryPicker/webkitdirectory（拿不到路径，用 blob URL）。

@@ -31,6 +31,18 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(result.status, MediaStatus.CONVERSION_NEEDED)
         self.assertEqual(result.resolved_path, media)
 
+    def test_flv_prefers_adjacent_mp4(self) -> None:
+        flv = self.root / "take.flv"
+        mp4 = self.root / "take.mp4"
+        flv.write_bytes(b"flv")
+        mp4.write_bytes(b"mp4")
+
+        result = resolve_project_media(self.project, {"media": str(flv)})
+
+        self.assertEqual(result.status, MediaStatus.SUCCESS)
+        self.assertEqual(result.requested_path, flv)
+        self.assertEqual(result.resolved_path, mp4)
+
     def test_multiple_same_name_candidates_report_conflict(self) -> None:
         (self.root / "take.mp4").write_bytes(b"mp4")
         (self.root / "take.wav").write_bytes(b"wav")
@@ -71,6 +83,43 @@ class MediaResolutionTests(unittest.TestCase):
         self.assertEqual(result, again)
         self.assertEqual(result.read_bytes(), b"mp4")
         process.assert_called_once()
+
+    def test_flv_conversion_defaults_to_adjacent_mp4(self) -> None:
+        source = self.root / "take.flv"
+        source.write_bytes(b"flv")
+        ffmpeg = self.root / "ffmpeg.exe"
+        ffmpeg.write_bytes(b"exe")
+
+        def run(command, **kwargs):
+            output = Path(command[-1])
+            output.write_bytes(b"mp4")
+            return type("Completed", (), {"returncode": 0, "stderr": "", "stdout": ""})()
+
+        with mock.patch("maw.media.subprocess.run", side_effect=run) as process:
+            result = convert_media_for_browser(source, ffmpeg_path=ffmpeg)
+
+        self.assertEqual(result, self.root / "take.mp4")
+        self.assertTrue(result.is_file())
+        self.assertFalse(list(self.root.glob("take.part-*.mp4")))
+        process.assert_called_once()
+
+    def test_flv_conversion_rejects_nonzero_ffmpeg_output_and_cleans_temp(self) -> None:
+        source = self.root / "take.flv"
+        source.write_bytes(b"flv")
+        ffmpeg = self.root / "ffmpeg.exe"
+        ffmpeg.write_bytes(b"exe")
+
+        def run(command, **kwargs):
+            Path(command[-1]).write_bytes(b"partial")
+            return type("Completed", (), {"returncode": 1, "stderr": "bad input", "stdout": ""})()
+
+        with mock.patch("maw.media.subprocess.run", side_effect=run) as process:
+            with self.assertRaisesRegex(MediaConversionError, "退出码 1"):
+                convert_media_for_browser(source, ffmpeg_path=ffmpeg)
+
+        self.assertFalse((self.root / "take.mp4").exists())
+        self.assertFalse(list(self.root.glob("take.part-*.mp4")))
+        self.assertEqual(process.call_count, 2)
 
     def test_flv_conversion_reports_missing_ffmpeg(self) -> None:
         source = self.root / "take.flv"
