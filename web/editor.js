@@ -5,6 +5,10 @@ let STICKER_ROOT = __STICKER_ROOT_JSON__;  // 表情包根目录的绝对路径�
 const STICKER_URL_PREFIX = __STICKER_URL_PREFIX_JSON__;
 const SERVER_CONFIG = __SERVER_CONFIG_JSON__;
 const EDITOR_SETTINGS_KEY = 'moy.asr.editor.settings.v1';
+const CLICK_BEHAVIOR_VALUES = new Set(['select-only', 'select-and-seek', 'select-and-play']);
+function normalizeClickBehavior(value) {
+  return CLICK_BEHAVIOR_VALUES.has(value) ? value : 'select-and-seek';
+}
 const DEFAULT_EDITOR_SETTINGS = {
   splitKey: 'ctrl-enter',
   overlayEnabled: true,
@@ -26,8 +30,8 @@ const DEFAULT_EDITOR_SETTINGS = {
   autoSaveIntervalSeconds: 30,
   // 表情包预览：在视频画面内渲染当前时间的表情包（默认关闭）。
   stickerOverlayEnabled: false,
-  // 字幕列表单击行为：select-only 仅选中（默认），select-and-seek 选中并跳转播放头。
-  clickBehavior: 'select-only',
+  // 字幕列表单击行为：默认选中并跳转；select-and-play 额外在暂停时开始播放。
+  clickBehavior: 'select-and-seek',
   // 界面主题：dark（默认）/ light。写入 <html data-theme>，模板 <head> 内联脚本负责首帧预应用。
   theme: 'dark',
 };
@@ -61,7 +65,7 @@ function readEditorSettings() {
       autoSaveProject: saved.autoSaveProject !== false,
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
       stickerOverlayEnabled: saved.stickerOverlayEnabled === true,
-      clickBehavior: saved.clickBehavior === 'select-and-seek' ? 'select-and-seek' : 'select-only',
+      clickBehavior: normalizeClickBehavior(saved.clickBehavior),
       theme: saved.theme === 'light' ? 'light' : 'dark',
     };
   } catch (_) {
@@ -581,7 +585,7 @@ exportColorUnifiedToggle?.addEventListener('change', () => {
   updateEditorSettings({ exportColorUnified: exportColorUnifiedToggle.checked });
 });
 clickBehaviorSelect?.addEventListener('change', () => {
-  updateEditorSettings({ clickBehavior: clickBehaviorSelect.value === 'select-and-seek' ? 'select-and-seek' : 'select-only' });
+  updateEditorSettings({ clickBehavior: normalizeClickBehavior(clickBehaviorSelect.value) });
   refreshClickBehaviorHint();
 });
 subtitleFontSizeSelect?.addEventListener('change', () => {
@@ -593,12 +597,27 @@ subtitleFontFamilySelect?.addEventListener('change', () => {
   pushPreviewUndo('调整字幕字体', snapshotPreviewState());
   setSubtitleAppearance({ font_family: subtitleFontFamilySelect.value });
 });
-// 「仅选中」模式下提示可用右键菜单「跳转并播放」（或 F 快捷键）
+const CLICK_BEHAVIOR_HINTS = {
+  zh: {
+    'select-and-seek': '暂停时只跳转，不自动播放；播放中跳转后继续播放。',
+    'select-only': '只选中，不改变播放位置；可用 F 或右键菜单跳转并播放。',
+    'select-and-play': '跳转到字幕起点，并在暂停时自动开始播放。',
+  },
+  en: {
+    'select-and-seek': 'When paused, seek without starting playback; while playing, keep playing after seeking.',
+    'select-only': 'Select only without changing the playhead; use F or the context menu to seek and play.',
+    'select-and-play': 'Seek to the subtitle start and start playback when paused.',
+  },
+};
 function refreshClickBehaviorHint() {
   const hint = document.getElementById('click-behavior-hint');
-  if (hint) hint.hidden = EDITOR_SETTINGS.clickBehavior !== 'select-only';
+  if (!hint) return;
+  const language = window.MAWE_I18N?.language === 'en' ? 'en' : 'zh';
+  hint.textContent = CLICK_BEHAVIOR_HINTS[language][EDITOR_SETTINGS.clickBehavior];
+  hint.hidden = false;
 }
 refreshClickBehaviorHint();
+document.addEventListener('mawe:languagechange', refreshClickBehaviorHint);
 
 function setGapRemoveData(next, { dirty = true } = {}) {
   DATA.gap_remove = normalizedGapRemoveData(next);
@@ -2112,14 +2131,15 @@ function bindCueEvents(el, idx) {
     clickTimer = setTimeout(() => {
       clickTimer = null;
       if (editingState) return;
-      // 选中本行（或整组，取决于设置）；select-and-seek 时同时跳转播放头
+      // 选中本行（或整组，取决于设置）；两种跳转模式都会移动播放头。
       selectCueByClick(idx);
       lastClickedIdx = idx;
       scrollCueToCenter(el);
       waveformEditor?.revealTime(DATA.segments[idx].start, true);
-      if (EDITOR_SETTINGS.clickBehavior === 'select-and-seek') {
-        // 只跳转到句首，不改动播放状态：暂停时保持暂停，播放时跳后续播
+      if (EDITOR_SETTINGS.clickBehavior !== 'select-only') {
+        // 默认只跳转不改动播放状态；“选中跳转并开始播放”仅在暂停时启动播放。
         seekFromWaveform(DATA.segments[idx].start / 1000);
+        if (EDITOR_SETTINGS.clickBehavior === 'select-and-play' && player.paused) togglePlayback();
       }
     }, 220);
   });

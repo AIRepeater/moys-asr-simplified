@@ -29,14 +29,9 @@ test.afterAll(async () => {
   cleanupTempDir(tempDir);
 });
 
-test('list click with select-and-seek seeks to cue start and keeps playing', async ({ page }) => {
+test('default list click selects and seeks to cue start while keeping playback', async ({ page }) => {
   await page.goto(server.url);
-  // 通过设置 UI 的真实 change 事件切换到「选中并跳转」
-  await page.evaluate(() => {
-    const sel = document.getElementById('click-behavior');
-    sel.value = 'select-and-seek';
-    sel.dispatchEvent(new Event('change'));
-  });
+  await expect(page.locator('#click-behavior')).toHaveValue('select-and-seek');
   await page.waitForFunction(() => {
     const player = document.getElementById('player');
     return player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0;
@@ -56,6 +51,31 @@ test('list click with select-and-seek seeks to cue start and keeps playing', asy
     return delta > -0.1 && delta < 1;
   }, undefined, { timeout: 5000 });
   await page.waitForFunction(() => !document.getElementById('player').paused);
+});
+
+test('list click with select-only selects without seeking', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    const sel = document.getElementById('click-behavior');
+    sel.value = 'select-only';
+    sel.dispatchEvent(new Event('change'));
+  });
+  await page.waitForFunction(() => {
+    const player = document.getElementById('player');
+    return player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0;
+  });
+  await page.evaluate(() => { document.getElementById('player').currentTime = 1; });
+
+  await page.locator('.cue[data-idx="4"]').click();
+
+  await expect(page.locator('.cue[data-idx="4"]')).toHaveClass(/selected/);
+  await page.waitForTimeout(300);
+  const state = await page.evaluate(() => {
+    const player = document.getElementById('player');
+    return { currentTime: player.currentTime, paused: player.paused };
+  });
+  expect(state.currentTime).toBeLessThan(2);
+  expect(state.paused).toBe(true);
 });
 
 test('list click with select-and-seek seeks to cue start but stays paused', async ({ page }) => {
@@ -81,4 +101,26 @@ test('list click with select-and-seek seeks to cue start but stays paused', asyn
   }, undefined, { timeout: 5000 });
   const paused = await page.evaluate(() => document.getElementById('player').paused);
   expect(paused).toBe(true);
+});
+
+test('list click with select-and-play seeks to cue start and starts playback', async ({ page }) => {
+  await page.goto(server.url);
+  await page.evaluate(() => {
+    const sel = document.getElementById('click-behavior');
+    sel.value = 'select-and-play';
+    sel.dispatchEvent(new Event('change'));
+  });
+  await page.waitForFunction(() => {
+    const player = document.getElementById('player');
+    return player.readyState >= 1 && Number.isFinite(player.duration) && player.duration > 0;
+  });
+  await page.evaluate(() => { document.getElementById('player').currentTime = 1; });
+
+  await page.locator('.cue[data-idx="4"]').click();
+
+  await page.waitForFunction(() => {
+    const player = document.getElementById('player');
+    const seg = DATA.segments[4];
+    return Math.abs(player.currentTime - seg.start / 1000) < 0.5 && !player.paused;
+  }, undefined, { timeout: 5000 });
 });

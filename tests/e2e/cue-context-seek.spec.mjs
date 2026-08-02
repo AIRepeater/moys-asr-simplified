@@ -39,7 +39,10 @@ async function openCueListContextMenu(page, idx) {
 }
 
 test('cue-list context menu jumps to the subtitle and plays when click behavior is select-only', async ({ page }) => {
-  // Given: the editor opens with the default select-only click behavior and loaded media.
+  // Given: select-only is explicitly chosen, with loaded media.
+  await page.addInitScript((settingsKey) => {
+    localStorage.setItem(settingsKey, JSON.stringify({ clickBehavior: 'select-only' }));
+  }, EDITOR_SETTINGS_KEY);
   await page.goto(server.url);
   await expect(page.locator('#player-empty')).toBeHidden();
 

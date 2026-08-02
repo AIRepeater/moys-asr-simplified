@@ -281,11 +281,12 @@ __WAVEFORM_CSS__
     <label class="editor-settings-item" title="字幕列表与波形字幕块的普通单击行为；双击编辑不受影响">
       点击字幕块时
       <select id="click-behavior">
-        <option value="select-only" selected>仅选中</option>
-        <option value="select-and-seek">选中并跳转</option>
+        <option value="select-and-seek" selected>选中并跳转</option>
+        <option value="select-only">仅选中（不跳转）</option>
+        <option value="select-and-play">选中跳转并开始播放</option>
       </select>
     </label>
-    <small class="editor-settings-hint" id="click-behavior-hint">「仅选中」时可以用F键功能来跳转并播放字幕</small>
+    <small class="editor-settings-hint" id="click-behavior-hint">暂停时只跳转，不自动播放；播放中跳转后继续播放。</small>
     <label class="toggle editor-settings-item" title="开启后，普通点击属于表情包或颜色分组的字幕时，会同时选中该分组的全部成员；关闭时只选中点击的那一条">
       <input type="checkbox" id="select-group-members"> 同时选中分组内项目
     </label>

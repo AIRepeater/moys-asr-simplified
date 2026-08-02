@@ -2152,9 +2152,10 @@
       ctx.stroke();
     }
 
-    seekFromPointer(event, row) {
+    seekFromPointer(event, row, playAfterSeek = false) {
       this.options.seek(this.timeFromPointer(event, row) / 1000);
       this.updatePlayback();
+      if (playAfterSeek && this.player?.paused) this.options.togglePlayback?.();
     }
 
     timeFromPointer(event, row) {
@@ -2784,8 +2785,11 @@
       this.content.querySelectorAll('.waveform-cue-block.dragging').forEach((block) => block.classList.remove('dragging'));
       this.drag = null;
       if (!drag.changed) {
-        // select-only 模式下点击字幕块只选中不跳转；select-and-seek 跳到点击位置
-        if (this.options.getClickBehavior?.() !== 'select-only') this.seekFromPointer(event, drag.row);
+        // select-only 只选中；select-and-seek 跳到点击位置；select-and-play 还会开始播放。
+        const clickBehavior = this.options.getClickBehavior?.();
+        if (clickBehavior !== 'select-only') {
+          this.seekFromPointer(event, drag.row, clickBehavior === 'select-and-play');
+        }
         return;
       }
       drag.indices.forEach((idx) => { this.options.getSegments()[idx]._dirty = true; });
