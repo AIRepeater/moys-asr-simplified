@@ -12,6 +12,7 @@ const context = {
 };
 vm.runInNewContext(source, context);
 const helpers = context.window.AsrWaveform.testing;
+const builtinWorkspaces = context.window.AsrWaveform.builtinWorkspaces;
 
 
 test('decodes compact signed min/max peaks', () => {
@@ -46,6 +47,29 @@ test('uses browser-compatible media signatures', () => {
     JSON.parse(JSON.stringify(helpers.sourceForFile({ name: 'x.wav', size: 42, lastModified: 1234 }))),
     { name: 'x.wav', size: 42, modified_ms: 1234 },
   );
+});
+
+
+test('uses display defaults for each built-in workspace preset', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(builtinWorkspaces.classic.editorDisplay)), {
+    cueListShowIndex: true,
+    cueListShowTime: true,
+    cueListShowSticker: true,
+    cueListShowCharcount: true,
+    cueEditorShowNavigation: true,
+    cueEditorShowTimeActions: true,
+    cueEditorShowSticker: true,
+  });
+  assert.deepEqual(JSON.parse(JSON.stringify(builtinWorkspaces.traditional.editorDisplay)), {
+    cueListShowIndex: true,
+    cueListShowTime: true,
+    cueListShowSticker: true,
+    cueListShowCharcount: true,
+    cueEditorShowNavigation: false,
+    cueEditorShowTimeActions: true,
+    cueEditorShowSticker: false,
+  });
+  assert.equal(builtinWorkspaces['wave-right'].editorDisplay.cueEditorShowTimeActions, false);
 });
 
 

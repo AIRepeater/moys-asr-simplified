@@ -114,28 +114,36 @@
     showGroupBadges: true,
     dragPlayhead: true,
   };
-  // 内置工作区默认的列表/编辑区显示开关：列表默认显示表情包列；编辑区默认收起时间操作与表情包。
-  const BUILTIN_EDITOR_DISPLAY = {
+  // 内置工作区默认的列表/编辑区显示开关：列表默认显示表情包列。
+  const DEFAULT_EDITOR_DISPLAY = {
     cueListShowIndex: true, cueListShowTime: true, cueListShowSticker: true, cueListShowCharcount: true,
     cueEditorShowNavigation: false, cueEditorShowTimeActions: false, cueEditorShowSticker: false,
+  };
+  const SUBTITLE_LIST_EDITOR_DISPLAY = {
+    ...DEFAULT_EDITOR_DISPLAY,
+    cueEditorShowNavigation: true, cueEditorShowTimeActions: true, cueEditorShowSticker: true,
+  };
+  const TRADITIONAL_SUBTITLE_EDITOR_DISPLAY = {
+    ...DEFAULT_EDITOR_DISPLAY,
+    cueEditorShowTimeActions: true,
   };
   const BUILTIN_WORKSPACES = {
     // 字幕列表编辑（界面显示名）：聚焦右侧整列字幕列表，以 custom 渲染器渲染。
     classic: {
       preset: 'custom', waveformMode: 'multi', splitPercent: 60, columnPercent: 36,
       rows: [42, 18, 40], tree: SUBTITLE_LIST_EDIT_LAYOUT_TREE,
-      editorDisplay: BUILTIN_EDITOR_DISPLAY,
+      editorDisplay: SUBTITLE_LIST_EDITOR_DISPLAY,
     },
     'wave-right': {
       preset: 'wave-right', waveformMode: 'multi', splitPercent: 60, columnPercent: 30,
       rows: [42, 18, 40], tree: DEFAULT_RIGHT_LAYOUT_TREE,
-      editorDisplay: BUILTIN_EDITOR_DISPLAY,
+      editorDisplay: DEFAULT_EDITOR_DISPLAY,
     },
     // 传统字幕编辑器：左上视频+当前字幕、右侧字幕列表、底部单行波形；以 custom 渲染器渲染。
     traditional: {
       preset: 'custom', waveformMode: 'basic', splitPercent: 60, columnPercent: 36,
       rows: [42, 18, 40], tree: TRADITIONAL_SUBTITLE_LAYOUT_TREE,
-      editorDisplay: BUILTIN_EDITOR_DISPLAY,
+      editorDisplay: TRADITIONAL_SUBTITLE_EDITOR_DISPLAY,
     },
   };
   const PALETTE = {
