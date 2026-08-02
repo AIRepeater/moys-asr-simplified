@@ -86,7 +86,7 @@
         workspaceId: saved.workspaceId,
         guiLang: saved.guiLang,
         showRareLangs: saved.showRareLangs || false,
-        appVersion: "1.1.0",
+        appVersion: "1.2.0",
         stickerDir: saved.stickerDir || "",
         providers: [
           {
