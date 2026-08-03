@@ -40,10 +40,16 @@ Launcher 在选择 Qwen-Audio 后提供以下单次任务字段：
 
 - `Prompt / 上下文`：对应 API 的 `input.context`，最多 400 字符；它是领域词表/前文增强，不是通用 system prompt。
 - `即时热词`：每行或逗号分隔，转成 `parameters.vocabulary`；不需要先创建词表。
-- `预编译热词 ID`：对应 `parameters.vocabulary_id`，必须先在百炼控制台按 Qwen-Audio 创建。
 - `即时热词权重`：支持 1–5 和 50；50 是超级热词，适合少量必须命中的词。
 
-这些字段只进入当前子进程命令行，不保存到 `.env` 或工程 JSON。
+预编译 `vocabulary_id` 暂不在 Launcher 展示；底层 CLI / `.env` 能力保留，待词表管理和模型校验等功能完善后再开放。
+Launcher 字段只进入当前子进程命令行，不保存到 `.env` 或工程 JSON。
+
+## 当前模型接入范围
+
+- `qwen-audio-3.0-asr-flash-filetrans`：已接入，使用异步文件转写接口，当前 Launcher 的即时热词入口对应此模型。
+- `qwen-audio-3.0-asr-flash`：暂未接入。它是短音频同步接口，不能直接复用 Filetrans 的提交、轮询和结果解析流程。
+- `qwen-audio-3.0-asr-flash-streaming`：暂未接入。它是实时流式接口，需要单独的流式传输和增量结果处理。
 
 ## 配置约定
 

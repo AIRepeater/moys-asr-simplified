@@ -83,8 +83,9 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen
 
 Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，由 MAW 自动适配；字/词时间戳不使用旧 Qwen3 的 `--enable-words` 开关。可选增强配置：
 
-选择 Qwen-Audio 后，Launcher 的高级选项会显示 `Prompt / 上下文`、`即时热词`、
-`预编译热词 ID` 和权重。这些字段只随本次转写提交，不会写入 `.env` 或工程 JSON。
+选择 Qwen-Audio 后，Launcher 的高级选项会显示 `Prompt / 上下文`、`即时热词` 和权重。
+预编译 `vocabulary_id` 暂不在 Launcher 开放，底层 CLI / `.env` 能力保留；Launcher 字段只随本次转写提交，
+不会写入 `.env` 或工程 JSON。
 
 ```text
 --vocabulary-id ID       覆盖百炼预编译词表 ID

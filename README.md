@@ -151,7 +151,7 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen
 
 它支持 Qwen-Audio 专用的即时热词、预编译词表和 context：
 
-- Launcher 的高级选项会在选择 Qwen-Audio 后显示 `Prompt / 上下文`、`即时热词`、`预编译热词 ID` 和权重；这些值只随本次转写发送，不会保存到 `.env`。
+- Launcher 的高级选项会在选择 Qwen-Audio 后显示 `Prompt / 上下文`、`即时热词` 和权重；预编译 `vocabulary_id` 暂不在 Launcher 开放，底层 CLI / `.env` 能力保留。这些 Launcher 值只随本次转写发送，不会保存到 `.env`。
 - `hotwords.txt`：每行一个即时热词，默认以权重 5 发送；可用 `--hotword-weight 1` 到 `5` 或 `50` 调整。
 - 命令行可重复使用 `--hotword "词"` 追加本次即时热词；它会和 `hotwords.txt` 合并。
 - `DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID` 或 `--vocabulary-id`：使用百炼预先创建的词表；词表的目标模型必须是 Qwen-Audio。

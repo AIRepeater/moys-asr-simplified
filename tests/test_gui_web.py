@@ -739,16 +739,16 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn("const selectedModel = () =>", script)
         self.assertIn("applyProviderLanguages(provider(), selectedModel())", script)
 
-    def test_qwen_audio_launcher_exposes_one_shot_context_hotwords_and_vocabulary(self) -> None:
+    def test_qwen_audio_launcher_exposes_one_shot_context_and_hotwords_only(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
-        for field in ("qwenAudioContext", "qwenAudioHotwords", "qwenAudioVocabularyId", "qwenAudioHotwordWeight"):
+        for field in ("qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordWeight"):
             self.assertIn(f'id="{field}"', page)
         self.assertIn('qwenAudioContext: $("qwenAudioContext").value.trim()', script)
         self.assertIn('qwenAudioHotwords: $("qwenAudioHotwords").value.trim()', script)
-        self.assertIn('qwenAudioVocabularyId: $("qwenAudioVocabularyId").value.trim()', script)
-        self.assertIn('qwenAudioOptions").classList.toggle("hidden", !enabled)', script)
+        self.assertNotIn('id="qwenAudioVocabularyId"', page)
+        self.assertNotIn("qwenAudioVocabularyId", script)
         self.assertIn('supportsContext', script)
 
     def test_workspace_is_visible_for_beijing_and_required_only_for_singapore(self) -> None:
