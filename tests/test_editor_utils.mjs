@@ -67,6 +67,86 @@ test('joins merged subtitle text with the configured separator', () => {
   assert.equal(helpers.joinSegmentTexts([{ text: '第一句' }, { text: '第二句' }], ''), '第一句第二句');
 });
 
+test('measures Chinese characters and English words for short-subtitle detection', () => {
+  assert.equal(helpers.subtitleTextLength('什么？'), 2);
+  assert.equal(helpers.subtitleTextLength('一拍即合'), 4);
+  assert.equal(helpers.subtitleTextLength('好的。'), 2);
+  assert.equal(helpers.subtitleTextLength('hello world'), 2);
+  assert.equal(helpers.subtitleTextLength('hello, world!'), 2);
+  assert.equal(helpers.subtitleTextLength('one  two   three'), 3);
+  assert.equal(helpers.subtitleTextLength('   '), 0);
+  assert.equal(helpers.subtitleTextLength('--'), 0);
+  assert.equal(helpers.isShortSubtitleText('什么？', 3), true);
+  assert.equal(helpers.isShortSubtitleText('一拍即合', 3), false);
+  assert.equal(helpers.isShortSubtitleText('yes', 3), true);
+  assert.equal(helpers.isShortSubtitleText('one two three', 3), false);
+  assert.equal(helpers.isShortSubtitleText('', 3), true);
+});
+
+test('plans gap snaps only within the threshold', () => {
+  const segments = [
+    { start: 0, end: 1000, text: '第一句字幕在这里' },
+    { start: 1150, end: 2400, text: '第二句字幕在这里' },
+    { start: 3000, end: 4200, text: '第三句字幕在这里' },
+  ];
+  const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 200, shortCount: 1 })));
+  assert.deepEqual(plan.snaps, [{ index: 1, start: 1000 }]);
+  assert.deepEqual(plan.groups, []);
+  // 阈值为 0 时不拼合任何空隙
+  const disabled = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 0, shortCount: 1 })));
+  assert.deepEqual(disabled.snaps, []);
+  // 输入不被改动
+  assert.equal(segments[1].start, 1150);
+});
+
+test('plans short-subtitle merges into the previous subtitle', () => {
+  const segments = [
+    { start: 0, end: 2000, text: '用卫星拍照片能得到' },
+    { start: 2100, end: 2600, text: '什么？' },
+    { start: 3000, end: 5000, text: '这个东西卖一亿元' },
+  ];
+  const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 0, shortCount: 3 })));
+  assert.deepEqual(plan.snaps, []);
+  assert.deepEqual(plan.groups, [[0, 1]]);
+});
+
+test('merges a short first subtitle forward and chains consecutive shorts backward', () => {
+  const segments = [
+    { start: 0, end: 800, text: '嗯' },
+    { start: 900, end: 2500, text: '我们今天来看看卫星' },
+    { start: 2600, end: 2900, text: '对吧' },
+    { start: 3000, end: 3300, text: '没错' },
+    { start: 3400, end: 5000, text: '这个东西卖一亿元' },
+  ];
+  const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 0, shortCount: 3 })));
+  // 首条「嗯」向前并入 1；「对吧」「没错」各自过短，链式并入上一条所在组
+  assert.deepEqual(plan.groups, [[0, 1, 2, 3]]);
+});
+
+test('skips auto-merge pairs that are disabled or have different speakers', () => {
+  const segments = [
+    { start: 0, end: 2000, text: '第一句长字幕内容', speaker: 'S1' },
+    { start: 2100, end: 2600, text: '什么？', speaker: 'S2' },
+    { start: 3000, end: 5000, text: '第二句长字幕内容' },
+    { start: 5100, end: 5600, text: '嗯', disabled: true },
+  ];
+  const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 0, shortCount: 3 })));
+  assert.deepEqual(plan.groups, []);
+});
+
+test('translates auto-merge flash hints to English', () => {
+  assert.equal(i18n.translateText('自动拼合', 'en'), 'Auto-merge');
+  assert.equal(i18n.translateText('没有需要拼合的空隙或过短字幕', 'en'), 'No small gaps or short subtitles to merge');
+  assert.equal(
+    i18n.translateText('已自动拼合：拼合 2 处空隙，合并 1 条短字幕', 'en'),
+    'Auto-merge: snapped 2 gaps, merged 1 short subtitles',
+  );
+  assert.equal(
+    i18n.translateText('已自动拼合：合并 3 条短字幕', 'en'),
+    'Auto-merge: merged 3 short subtitles',
+  );
+});
+
 test('formats removed silence duration and media share for the summary', () => {
   assert.equal(helpers.formatHumanDuration(45_890), '45秒');
   assert.equal(helpers.formatHumanDuration(1_455_890), '24分15秒');

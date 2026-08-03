@@ -56,6 +56,68 @@
     return segments.map((segment) => String(segment?.text || '')).join(separator);
   }
 
+  // 字幕“字数/词数”计量：含 CJK 字符时按「字」计（只数字母与汉字等文字、数字，
+  // 不计空白与标点），否则按空白切分计「词」数（同样要求词内至少一个文字/数字）。
+  function subtitleTextLength(text) {
+    const normalized = String(text || '').trim();
+    if (!normalized) return 0;
+    // CJK 判定区间：U+3400–U+4DBF（扩展 A）、U+4E00–U+9FFF（基本区）、U+F900–U+FAFF（兼容表意）。
+    if (/[㐀-䶿一-鿿豈-﫿]/.test(normalized)) {
+      const matches = normalized.match(/[\p{L}\p{N}]/gu);
+      return matches ? matches.length : 0;
+    }
+    return normalized.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+  }
+
+  // 短字幕判定：中文少于 threshold 个字 / 英文少于 threshold 个词。
+  function isShortSubtitleText(text, threshold) {
+    const limit = Math.max(1, Math.round(Number(threshold) || 3));
+    return subtitleTextLength(text) < limit;
+  }
+
+  // 自动拼合计划（纯函数，不改动输入）。返回：
+  // - snaps: [{ index, start }]，相邻空隙在 (0, gapMs] 时把后方字幕 start 前拓到前一条 end；
+  // - groups: [[idx, ...]]，过短字幕与上一条（首条则与下一条）组成的合并组；
+  //   禁用项或 speaker 不一致的组合不合并。
+  function planAutoMerge(segments, options = {}) {
+    const gapMs = Math.max(0, Math.round(Number(options.gapMs) || 0));
+    const shortCount = Math.max(1, Math.round(Number(options.shortCount) || 3));
+    const source = Array.isArray(segments) ? segments : [];
+    const snaps = [];
+    for (let i = 1; i < source.length; i++) {
+      const previous = source[i - 1];
+      const current = source[i];
+      if (!previous || !current) continue;
+      if (!Number.isFinite(previous.end) || !Number.isFinite(current.start)) continue;
+      const gap = current.start - previous.end;
+      if (gap > 0 && gap <= gapMs) snaps.push({ index: i, start: previous.end });
+    }
+    const canMergePair = (leftIdx, rightIdx) => {
+      const left = source[leftIdx];
+      const right = source[rightIdx];
+      if (!left || !right) return false;
+      if (left.disabled || right.disabled) return false;
+      return (left.speaker ?? null) === (right.speaker ?? null);
+    };
+    const groups = [];
+    let currentGroup = source.length ? [0] : [];
+    for (let i = 1; i < source.length; i++) {
+      const groupTail = currentGroup[currentGroup.length - 1];
+      const mergeBackward = isShortSubtitleText(source[i].text, shortCount);
+      // 组内首条自身过短且尚未并入上一条时，把后一条拉进来（首条向前合并语义）。
+      const mergeForward = currentGroup.length === 1
+        && isShortSubtitleText(source[currentGroup[0]].text, shortCount);
+      if ((mergeBackward || mergeForward) && canMergePair(groupTail, i)) {
+        currentGroup.push(i);
+      } else {
+        groups.push(currentGroup);
+        currentGroup = [i];
+      }
+    }
+    if (currentGroup.length) groups.push(currentGroup);
+    return { snaps, groups: groups.filter((group) => group.length > 1) };
+  }
+
   function formatHumanDuration(durationMs) {
     const totalSeconds = Math.max(0, Math.floor(Number(durationMs) / 1000) || 0);
     const seconds = totalSeconds % 60;
@@ -717,6 +779,9 @@
     buildReplacementPreview,
     cueMetrics,
     joinSegmentTexts,
+    subtitleTextLength,
+    isShortSubtitleText,
+    planAutoMerge,
     formatHumanDuration,
     formatGapRemoveDuration,
     splitCharOffsetAtTime,

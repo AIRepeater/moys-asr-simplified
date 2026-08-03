@@ -33,6 +33,8 @@
     '多行': 'Multi-row', '基础': 'Basic', '隐藏': 'Hidden',
     '选择': 'Select', '分割': 'Razor', '移除静音空隙': 'Remove silent gaps',
     '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '工作区': 'Workspace',
+    '自动拼合': 'Auto-merge', '自动拼合设置': 'Auto-merge settings', '空隙': 'Gap', '短句': 'Short',
+    '没有需要拼合的空隙或过短字幕': 'No small gaps or short subtitles to merge',
     '字幕列表编辑': 'Subtitle list editor', '右侧整列波形': 'Waveform column right',
     '传统字幕编辑器': 'Traditional subtitle editor',
     '编辑布局': 'Edit layout', '完成布局': 'Done editing', '重置工作区': 'Reset workspace',
@@ -218,6 +220,12 @@
     '选择工具（V，默认）：点击选中、拖动移动、拖动边界调整；Ctrl/Shift 多选，Shift+空白拖拽框选，Alt 切换禁用，Alt 拖共享边界只动一侧': 'Select tool (V, default): click to select, drag to move, drag edges to trim; Ctrl/Shift multi-select, Shift+drag on blank area to box-select, Alt toggles disabled, Alt-drag changes one shared edge',
     '分割工具（R）：点击字幕块在指针位置安全拆分（按词/字级时间码对齐，拒绝 100ms 以内的边缘拆分）；Esc 切回选择': 'Razor tool (R): click a subtitle block to split at the pointer using word/character timing; splits within 100 ms of an edge are rejected; Esc returns to Select',
     '打开可拖动的移除静音空隙工具窗': 'Open the draggable silent-gap tool',
+    '把相邻字幕间的小空隙拼合起来（后方字幕向前拓展）；过短的字幕直接并入上一条':
+      'Snap small gaps between adjacent subtitles (the later one extends backward); very short subtitles merge into the previous one',
+    '相邻字幕空隙不超过该毫秒值时，将后方字幕向前拓展拼合；0 表示不处理空隙':
+      'When the gap between two subtitles is within this many milliseconds, extend the later subtitle backward to close it; 0 disables gap snapping',
+    '中文少于 N 个字、英文少于 N 个词的字幕，直接并入上一条（首条则并入下一条）':
+      'A subtitle with fewer than N Chinese characters or N English words merges into the previous one (the first subtitle merges into the next)',
     '播放时跳过已移除的静音空隙；左键定位到空隙内时可临时预览': 'Skip removed silent gaps during playback; clicking inside a gap previews it temporarily',
     '工作区：窗口布局与显示状态（列表显示项、波形模式等）': 'Workspace: window layout and display state (list fields, waveform mode, etc.)',
     '显示面板标题条和拖动预览': 'Show panel title bars and drag previews',
@@ -381,6 +389,18 @@
     if (match) return `chars/s ${match[1]}`;
     match = /^合并\s+(\d+)\s+条字幕$/.exec(text);
     if (match) return `Merge ${match[1]} subtitles`;
+    // flashHint：已自动拼合：拼合 2 处空隙，合并 1 条短字幕
+    match = /^已自动拼合：(.+)$/.exec(text);
+    if (match) {
+      const parts = match[1].split('，').map((part) => {
+        let inner = /^拼合\s*(\d+)\s*处空隙$/.exec(part);
+        if (inner) return `snapped ${inner[1]} gaps`;
+        inner = /^合并\s*(\d+)\s*条短字幕$/.exec(part);
+        if (inner) return `merged ${inner[1]} short subtitles`;
+        return translateText(part, EN);
+      });
+      return `Auto-merge: ${parts.join(', ')}`;
+    }
     match = /^删除\s+(\d+)\s+条字幕$/.exec(text);
     if (match) return `Delete ${match[1]} subtitles`;
     match = /^已将关联字幕统一设为「(.+)」$/.exec(text);

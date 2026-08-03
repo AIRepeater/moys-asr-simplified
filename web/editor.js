@@ -19,6 +19,10 @@ const DEFAULT_EDITOR_SETTINGS = {
   selectGroupMembers: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
   mergeJoinText: '',
+  // 自动拼合：相邻空隙不超过该毫秒值时，后方字幕向前拓展拼合（0 表示不处理空隙）。
+  autoMergeGapMs: 200,
+  // 自动拼合：中文少于 N 个字 / 英文少于 N 个词的字幕直接并入上一条。
+  autoMergeShortCount: 3,
   // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
   exportColorUnified: true,
   // 自动保存仅对绑定工程的 localhost 服务器版生效。
@@ -48,6 +52,8 @@ function readEditorSettings() {
       cueEditorShowSticker: saved.cueEditorShowSticker === true,
       selectGroupMembers: saved.selectGroupMembers === true,
       mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
+      autoMergeGapMs: clampAutoMergeGapMs(saved.autoMergeGapMs),
+      autoMergeShortCount: clampAutoMergeShortCount(saved.autoMergeShortCount),
       exportColorUnified: saved.exportColorUnified !== false,
       autoSaveProject: saved.autoSaveProject !== false,
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
@@ -63,6 +69,16 @@ function readEditorSettings() {
 function clampAutoSaveInterval(value) {
   const seconds = Math.round(Number(value));
   return Math.min(3600, Math.max(5, Number.isFinite(seconds) ? seconds : 30));
+}
+
+function clampAutoMergeGapMs(value) {
+  const ms = Math.round(Number(value));
+  return Math.min(10000, Math.max(0, Number.isFinite(ms) ? ms : DEFAULT_EDITOR_SETTINGS.autoMergeGapMs));
+}
+
+function clampAutoMergeShortCount(value) {
+  const count = Math.round(Number(value));
+  return Math.min(20, Math.max(1, Number.isFinite(count) ? count : DEFAULT_EDITOR_SETTINGS.autoMergeShortCount));
 }
 
 function saveEditorSettings(settings) {
@@ -397,6 +413,9 @@ const gapRemoveScanButton = document.getElementById('gap-remove-scan');
 const gapRemoveSkipPlayback = document.getElementById('gap-skip-playback');
 const gapRemoveList = document.getElementById('gap-remove-list');
 const gapRemoveClearAllButton = document.getElementById('gap-remove-clear-all');
+const autoMergeRunButton = document.getElementById('auto-merge-run');
+const autoMergeGapMsInput = document.getElementById('auto-merge-gap-ms');
+const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
 let gapPreviewRange = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
@@ -490,6 +509,8 @@ document.addEventListener('mawe:languagechange', () => refreshSplitKeyHelp());
 splitKeySel.value = EDITOR_SETTINGS.splitKey;
 refreshSplitKeyHelp();
 if (mergeJoinTextInput) mergeJoinTextInput.value = EDITOR_SETTINGS.mergeJoinText;
+if (autoMergeGapMsInput) autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
+if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
 overlayToggle.checked = EDITOR_SETTINGS.overlayEnabled;
 exportStartAtZeroToggle.checked = EDITOR_SETTINGS.exportStartAtZero;
 if (selectGroupMembersToggle) selectGroupMembersToggle.checked = EDITOR_SETTINGS.selectGroupMembers;
@@ -539,6 +560,34 @@ splitKeySel.addEventListener('change', () => {
 });
 if (mergeJoinTextInput) mergeJoinTextInput.addEventListener('input', () => {
   updateEditorSettings({ mergeJoinText: mergeJoinTextInput.value });
+});
+// 自动拼合：阈值即时持久化；change 时把显示值回钳到合法区间，避免输入中途被改写。
+autoMergeRunButton?.addEventListener('click', autoMergeSegments);
+autoMergeGapMsInput?.addEventListener('input', () => {
+  updateEditorSettings({ autoMergeGapMs: clampAutoMergeGapMs(autoMergeGapMsInput.value) });
+});
+autoMergeGapMsInput?.addEventListener('change', () => {
+  autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
+});
+autoMergeShortCountInput?.addEventListener('input', () => {
+  updateEditorSettings({ autoMergeShortCount: clampAutoMergeShortCount(autoMergeShortCountInput.value) });
+});
+autoMergeShortCountInput?.addEventListener('change', () => {
+  autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
+});
+[autoMergeGapMsInput, autoMergeShortCountInput].forEach((input) => {
+  input?.addEventListener('wheel', (event) => {
+    if (!event.deltaY) return;
+    event.preventDefault();
+    input.focus({ preventScroll: true });
+    try {
+      if (event.deltaY < 0) input.stepUp();
+      else input.stepDown();
+    } catch (_) {
+      return;
+    }
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }, { passive: false });
 });
 bindCueListDisplayToggle(cueListShowIndexToggle, 'cueListShowIndex');
 bindCueListDisplayToggle(cueListShowTimeToggle, 'cueListShowTime');
@@ -1809,17 +1858,9 @@ function splitFromContextMenu(idx, x, y, waveformTimeMs = null) {
 }
 
 // === 合并 ===
-function mergeSegments(idxs) {
-  if (idxs.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
-  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
-  if (sorted.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
-  // 确保连续
-  for (let i = 1; i < sorted.length; i++) {
-    if (sorted[i] !== sorted[i - 1] + 1) {
-      flashHint('选中的字幕必须连续');
-      return;
-    }
-  }
+// 把 DATA.segments 中连续下标 sorted 合并为一条，并维护 group 引用与组时间范围。
+// 不做参数校验、撤销与渲染，由调用方负责（mergeSegments / autoMergeSegments 共用）。
+function mergeContiguousIndices(sorted) {
   const segs = sorted.map(i => DATA.segments[i]);
   const stickerGroup = window.AsrEditorUtils.resolveMergedGroupInheritance(
     DATA.segments, sorted, 'sticker', 'sticker_ref',
@@ -1845,8 +1886,6 @@ function mergeSegments(idxs) {
     _dirty: true,
   };
   if (merged.items.length === 0) merged.items = null;
-  clearSelection();
-  pushUndo('合并字幕');
 
   // 选区并非全部同组时，不继承该组；先按删除切点规则重组外部存活成员，
   // 避免合并掉某个 head 后留下悬空引用。
@@ -1877,12 +1916,64 @@ function mergeSegments(idxs) {
     remapRef(segment.color_ref);
   });
   syncTimelineGroupRanges();
+  return merged;
+}
+
+function mergeSegments(idxs) {
+  if (idxs.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
+  const sorted = [...new Set(idxs)].sort((a, b) => a - b);
+  if (sorted.length < 2) { flashHint('请选择至少两个字幕块！'); return; }
+  // 确保连续
+  for (let i = 1; i < sorted.length; i++) {
+    if (sorted[i] !== sorted[i - 1] + 1) {
+      flashHint('选中的字幕必须连续');
+      return;
+    }
+  }
+  clearSelection();
+  pushUndo('合并字幕');
+  mergeContiguousIndices(sorted);
   renderAll();
   // 合并完成后选中合并结果，方便继续对这句新字幕操作
   selectOnly(sorted[0]);
   const el = container.querySelector(`.cue[data-idx="${sorted[0]}"]`);
   if (el) scrollCueToCenter(el);
   flashHint(`已合并 ${sorted.length} 条`);
+}
+
+// === 自动拼合 ===
+// 一键处理整段工程：相邻空隙不超过 autoMergeGapMs 时把后方字幕向前拓展拼合；
+// 过短的字幕（中文 < N 字 / 英文 < N 词）并入上一条（首条则并入下一条）。
+function autoMergeSegments() {
+  const plan = window.AsrEditorUtils.planAutoMerge(DATA.segments, {
+    gapMs: EDITOR_SETTINGS.autoMergeGapMs,
+    shortCount: EDITOR_SETTINGS.autoMergeShortCount,
+  });
+  if (!plan.snaps.length && !plan.groups.length) {
+    flashHint('没有需要拼合的空隙或过短字幕');
+    return;
+  }
+  if (editingState) finishEdit(false);
+  clearSelection();
+  pushUndo('自动拼合');
+  plan.snaps.forEach(({ index, start }) => {
+    const segment = DATA.segments[index];
+    if (segment && start > segment.start && start < segment.end) {
+      segment.start = start;
+      segment._dirty = true;
+    }
+  });
+  // 合并从后往前进行，保持靠前组的下标仍然有效
+  for (let i = plan.groups.length - 1; i >= 0; i--) {
+    mergeContiguousIndices(plan.groups[i]);
+  }
+  renderAll();
+  update();
+  const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
+  const parts = [];
+  if (plan.snaps.length) parts.push(`拼合 ${plan.snaps.length} 处空隙`);
+  if (mergedCount) parts.push(`合并 ${mergedCount} 条短字幕`);
+  flashHint(`已自动拼合：${parts.join('，')}`);
 }
 
 // === 组拆分 helper（删除 / 清除颜色 / 清除表情包 通用）===

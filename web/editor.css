@@ -1164,6 +1164,15 @@
   .toolbar .gap-removed-export-dropdown .dropdown-menu { border-color: var(--gap-accent-menu-border); }
   .gap-remove-summary { color: var(--amber-hover); font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
   .gap-skip-toggle { white-space: nowrap; }
+
+  /* 自动拼合 —— 波形工具栏内的紧凑阈值组 */
+  .auto-merge-settings { display: inline-flex; align-items: center; gap: 10px; }
+  .auto-merge-field {
+    display: inline-flex; align-items: center; gap: 4px;
+    color: var(--text-muted); font-size: 12px; white-space: nowrap;
+  }
+  .auto-merge-field input[type=number] { width: 52px; }
+  .auto-merge-field-unit { color: var(--text-muted); font-size: 11px; }
   .gap-remove-panel {
     position: fixed; top: 116px; right: 18px; z-index: 320;
     display: none; flex-direction: column;
