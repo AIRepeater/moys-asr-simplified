@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- 增加阿里云百炼 `qwen-audio-3.0-asr-flash-filetrans`：支持异步文件转写、即时热词、预编译 `vocabulary_id`、context 上下文和说话人分离；保留旧 Qwen3/Fun-ASR 的 API 兼容路径。
+
 ## [1.2.0-beta.1] - 2026-07-30
 
 ### Added

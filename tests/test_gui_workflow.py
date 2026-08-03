@@ -399,6 +399,10 @@ class GuiWorkflowTests(unittest.TestCase):
             default_srt_path(Path("clip.mp4"), model="fun-asr").name,
             "clip.fun-asr.srt",
         )
+        self.assertEqual(
+            default_srt_path(Path("clip.mp4"), model="qwen-audio-3.0-asr-flash-filetrans").name,
+            "clip.qwen-audio.srt",
+        )
         self.assertEqual(default_srt_path(Path("clip.mp4"), provider="soniox").name, "clip.soniox.srt")
 
     def test_entrypoint_transcribe_soniox_help_dispatches_soniox_script(self) -> None:

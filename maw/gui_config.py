@@ -13,6 +13,7 @@ ROOT: Final = Path(__file__).resolve().parents[1]
 DEFAULT_ENV_PATH: Final = ROOT / ".env"
 EXAMPLE_ENV_PATH: Final = ROOT / ".env.example"
 DEFAULT_MODEL_ID: Final = "qwen3-asr-flash-filetrans"
+QWEN_AUDIO_MODEL_ID: Final = "qwen-audio-3.0-asr-flash-filetrans"
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,6 +212,14 @@ QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
         languages=LANGUAGES,
     ),
     ModelConfig(
+        id=QWEN_AUDIO_MODEL_ID,
+        label="Qwen-Audio 3.0 ASR（热词 / 上下文）",
+        env_key="DASHSCOPE_API_KEY",
+        note="支持即时热词、上下文与说话人分离",
+        supports_speaker=True,
+        languages=FUNASR_LANGUAGES,
+    ),
+    ModelConfig(
         id="fun-asr",
         label="Fun-ASR（支持说话人）",
         env_key="DASHSCOPE_API_KEY",
@@ -233,7 +242,7 @@ SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
 PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
     ProviderConfig(
         id="qwen",
-        label="阿里云百炼（FunASR/QwenASR）",
+        label="阿里云百炼（Qwen / Qwen-Audio / FunASR）",
         key_url="https://help.aliyun.com/zh/model-studio/get-api-key",
         models=QWEN_MODELS,
         regions=REGIONS,

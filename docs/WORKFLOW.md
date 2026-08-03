@@ -73,9 +73,33 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 
 CLI 默认不内嵌波形；需要交给编辑器直接打开且不想生成 `<媒体名>.waveform.json` sidecar 时，加 `--with-waveform`。波形提取会额外用 FFmpeg 完整扫一遍媒体，失败时只给警告，不影响字幕与 JSON 输出。输入视频会先由 FFmpeg 提取单声道 16kHz WAV；音频输入也会通过 FFprobe 获取时长。没有 FFmpeg/FFprobe 时，这一步无法完成。
 
+## 用 Qwen-Audio 3.0 ASR 转写（热词与上下文）
+
+在 Launcher 的百炼 Provider 中选择 `Qwen-Audio 3.0 ASR（热词 / 上下文）`，或使用命令行：
+
+```powershell
+uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen-audio-3.0-asr-flash-filetrans -ll 2m --json
+```
+
+Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，由 MAW 自动适配；字/词时间戳不使用旧 Qwen3 的 `--enable-words` 开关。可选增强配置：
+
+```text
+--vocabulary-id ID       覆盖百炼预编译词表 ID
+--hotword-weight 5       hotwords.txt 即时热词权重，可用 1-5 或 50
+--context "领域词表"     发送最多 400 字符上下文
+--context-file path.txt  从 UTF-8 文件读取上下文
+--speaker                 开启说话人分离
+--speaker-colors          开启说话人分离并写入颜色快照
+```
+
+也可以在 `.env` 中设置 `DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID`、
+`DASHSCOPE_QWEN_AUDIO_HOTWORD_WEIGHT` 和 `DASHSCOPE_QWEN_AUDIO_CONTEXT_FILE`。
+预编译词表必须按 Qwen-Audio 目标模型创建；Fun-ASR 使用独立的
+`DASHSCOPE_FUNASR_VOCABULARY_ID`。上下文参数形状和限制以[官方 HTTP API](https://help.aliyun.com/zh/model-studio/fun-asr-recorded-speech-recognition-http-api)为准。
+
 ## 用 Fun-ASR 转写（百炼第二模型，支持说话人）
 
-在 Launcher 中选择「阿里云百炼（FunASR/QwenASR）」Provider，再把模型切换为 `Fun-ASR（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
+在 Launcher 中选择百炼 Provider，再把模型切换为 `Fun-ASR（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
 
 命令行示例：
 
