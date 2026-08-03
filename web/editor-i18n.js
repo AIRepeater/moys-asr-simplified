@@ -35,6 +35,7 @@
     '跳过空隙': 'Skip gaps', '播放时跳过空隙': 'Skip gaps during playback', '未扫描空隙': 'Gaps not scanned', '工作区': 'Workspace',
     '自动拼合': 'Auto-merge', '自动拼合设置': 'Auto-merge settings', '空隙': 'Gap', '短句': 'Short',
     '没有需要拼合的空隙或过短字幕': 'No small gaps or short subtitles to merge',
+    '字幕时长不足 200ms，无法拆分': 'Subtitles shorter than 200 ms cannot be split',
     '字幕列表编辑': 'Subtitle list editor', '右侧整列波形': 'Waveform column right',
     '传统字幕编辑器': 'Traditional subtitle editor',
     '编辑布局': 'Edit layout', '完成布局': 'Done editing', '重置工作区': 'Reset workspace',
@@ -401,6 +402,9 @@
       });
       return `Auto-merge: ${parts.join(', ')}`;
     }
+    // flashHint：已自动修复 2 处 0 长时间码（保底 100ms）
+    match = /^已自动修复\s*(\d+)\s*处\s*0\s*长时间码（保底\s*100ms）$/.exec(text);
+    if (match) return `Auto-repaired ${match[1]} zero-length timings (100 ms minimum)`;
     match = /^删除\s+(\d+)\s+条字幕$/.exec(text);
     if (match) return `Delete ${match[1]} subtitles`;
     match = /^已将关联字幕统一设为「(.+)」$/.exec(text);

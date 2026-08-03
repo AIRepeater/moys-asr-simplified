@@ -1216,11 +1216,15 @@ function remapPanelItems(items, oldStart, oldEnd, newStart, newEnd) {
   if (!Array.isArray(items) || !items.length) return items;
   const oldDuration = Math.max(1, oldEnd - oldStart);
   const newDuration = Math.max(1, newEnd - newStart);
-  return items.map((item) => ({
-    ...item,
-    start: Math.round(newStart + ((item.start - oldStart) / oldDuration) * newDuration),
-    end: Math.round(newStart + ((item.end - oldStart) / oldDuration) * newDuration),
-  }));
+  return items.map((item) => {
+    // 等比缩放后钳回段内，并保证 end > start（防止取整后出现 0 长词块）。
+    const mappedStart = Math.round(newStart + ((item.start - oldStart) / oldDuration) * newDuration);
+    const mappedEnd = Math.round(newStart + ((item.end - oldStart) / oldDuration) * newDuration);
+    let start = Math.min(Math.max(mappedStart, newStart), newEnd);
+    const end = Math.min(Math.max(mappedEnd, start + 1), newEnd);
+    if (end <= start) start = Math.max(newStart, end - 1);
+    return { ...item, start, end };
+  });
 }
 
 function ensureCuePanelUndo() {
@@ -1739,6 +1743,12 @@ function splitAtCursor() {
     return;
   }
 
+  // 拆分后任一侧都不能短于 100ms（与波形分割工具同规则），否则拒绝拆分。
+  if (seg.end - seg.start < 200) {
+    flashHint('字幕时长不足 200ms，无法拆分');
+    return;
+  }
+
   const rightStartChar = fullText.length - rightText.length;
   const items = seg.items || [];
   const { leftItems, rightItems } = splitItemsAtChar(items, rightStartChar, fullText);
@@ -1760,7 +1770,9 @@ function splitAtCursor() {
   } else {
     const ratio = cursorOffset / fullText.length;
     const t = seg.start + (seg.end - seg.start) * ratio;
-    leftEnd = Math.round(t); rightStart = Math.round(t);
+    // 无词级时间码时按光标位置拆分；钳制边界保证两侧都至少 100ms。
+    const clamped = Math.min(Math.max(Math.round(t), seg.start + 100), seg.end - 100);
+    leftEnd = clamped; rightStart = clamped;
   }
 
   const leftSeg = {
@@ -4434,6 +4446,10 @@ async function openProjectFile(file, mediaFiles = [], pendingMediaRequest = null
   try {
     const text = await file.text();
     const data = JSON.parse(text);
+    // 先兜底修复 0 长/倒挂时间码（保底 100ms），再校验结构，让旧工程仍能打开。
+    if (data && Array.isArray(data.segments)) {
+      window.AsrEditorUtils.normalizeSegmentTimings(data.segments);
+    }
     if (!isMawProject(data)) {
       flashHint('打开了错误的文件，请使用 MAW 生成的 JSON 工程文件。');
       if (pendingProjectMediaSelection === pendingMediaRequest) pendingProjectMediaSelection = null;
@@ -5637,6 +5653,9 @@ window.addEventListener('drop', (e) => {
 });
 
 // === 启动 ===
+// 兜底：工程可能带有上游写入的 0 长/倒挂段、词时间码（旧版工具或异常识别结果），
+// 加载时统一拉齐到至少 100ms，避免拆分后看不见字幕块、工程无法保存。
+const repairedTimingCount = window.AsrEditorUtils.normalizeSegmentTimings(DATA.segments);
 cleanPunctuation();
 configureServerSaveControls();
 configureServerAutoSave();
@@ -5648,6 +5667,9 @@ configureWorkspaceTransfer();
 totalCountEl.textContent = DATA.segments.length;
 renderAll();
 updateGapRemoveUi();
+if (repairedTimingCount > 0) {
+  flashHint(`已自动修复 ${repairedTimingCount} 处 0 长时间码（保底 100ms）`);
+}
 if (SERVER_CONFIG?.autoLoadedMediaName) {
   flashHint(`已自动加载媒体：${SERVER_CONFIG.autoLoadedMediaName}`);
 }

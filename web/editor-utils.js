@@ -75,6 +75,48 @@
     return subtitleTextLength(text) < limit;
   }
 
+  // 时长兜底（与 maw/project.py 的 repair_segment_durations 同规则，原地修改）：
+  // 任何 0 长（或倒挂）的段 / item 至少保留 minMs，且保持单调不重叠、item 不越出
+  // 所属段。只修改非法值，本已合法的短时长时间码（如真实的 60ms 词）保持不动。
+  // 返回修复的边界数量。
+  function normalizeSegmentTimings(segments, minMs = 100) {
+    const floor = Math.max(1, Math.round(Number(minMs) || 100));
+    const source = Array.isArray(segments) ? segments : [];
+    let fixed = 0;
+    let previousSegmentEnd = 0;
+    source.forEach((segment) => {
+      if (!segment || typeof segment !== 'object') return;
+      let start = Math.round(Number(segment.start));
+      let end = Math.round(Number(segment.end));
+      if (!Number.isFinite(start)) start = 0;
+      if (!Number.isFinite(end)) end = start;
+      if (start < previousSegmentEnd) { start = previousSegmentEnd; fixed++; }
+      const items = Array.isArray(segment.items) ? segment.items : null;
+      let previousItemEnd = start;
+      if (items) {
+        items.forEach((item) => {
+          if (!item || typeof item !== 'object') return;
+          let itemStart = Math.round(Number(item.start));
+          let itemEnd = Math.round(Number(item.end));
+          if (!Number.isFinite(itemStart)) itemStart = previousItemEnd;
+          if (!Number.isFinite(itemEnd)) itemEnd = itemStart;
+          if (itemStart < previousItemEnd) { itemStart = previousItemEnd; fixed++; }
+          if (itemEnd <= itemStart) { itemEnd = itemStart + floor; fixed++; }
+          item.start = itemStart;
+          item.end = itemEnd;
+          previousItemEnd = itemEnd;
+        });
+        const lastEnd = items.length ? items[items.length - 1].end : null;
+        if (Number.isFinite(lastEnd) && end < lastEnd) { end = lastEnd; fixed++; }
+      }
+      if (end <= start) { end = start + floor; fixed++; }
+      segment.start = start;
+      segment.end = end;
+      previousSegmentEnd = end;
+    });
+    return fixed;
+  }
+
   // 自动拼合计划（纯函数，不改动输入）。返回：
   // - snaps: [{ index, start }]，相邻空隙在 (0, gapMs] 时把后方字幕 start 前拓到前一条 end；
   // - groups: [[idx, ...]]，过短字幕与上一条（首条则与下一条）组成的合并组；
@@ -781,6 +823,7 @@
     joinSegmentTexts,
     subtitleTextLength,
     isShortSubtitleText,
+    normalizeSegmentTimings,
     planAutoMerge,
     formatHumanDuration,
     formatGapRemoveDuration,

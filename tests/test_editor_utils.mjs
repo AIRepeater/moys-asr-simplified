@@ -147,6 +147,71 @@ test('translates auto-merge flash hints to English', () => {
   );
 });
 
+test('widens a zero-length trailing item and extends its segment', () => {
+  const segments = [
+    {
+      start: 17790,
+      end: 20340,
+      text: '用卫星拍照片 能得到什么？',
+      items: [
+        { text: '用卫星拍照片 能得到', start: 17790, end: 20340 },
+        { text: '什么？', start: 20340, end: 20340 },
+      ],
+    },
+  ];
+  const fixed = helpers.normalizeSegmentTimings(segments);
+  assert.ok(fixed >= 1);
+  assert.equal(segments[0].end, 20440);
+  assert.equal(segments[0].items[1].end, 20440);
+});
+
+test('widens a zero-length segment and keeps following segments ordered', () => {
+  const segments = [
+    { start: 0, end: 1000, text: '第一句' },
+    { start: 1000, end: 1000, text: '嗯' },
+    { start: 1000, end: 2000, text: '第二句' },
+  ];
+  const fixed = helpers.normalizeSegmentTimings(segments);
+  assert.ok(fixed >= 2);
+  assert.deepEqual([segments[1].start, segments[1].end], [1000, 1100]);
+  assert.equal(segments[2].start, 1100);
+});
+
+test('widens inverted items without touching genuine short timings', () => {
+  const segments = [
+    {
+      start: 0,
+      end: 300,
+      text: 'The end.',
+      items: [
+        { text: 'The', start: 0, end: 60 },
+        { text: ' end.', start: 60, end: 300 },
+      ],
+    },
+    {
+      start: 400,
+      end: 460,
+      text: 'short but valid',
+      items: [{ text: 'oops', start: 460, end: 400 }],
+    },
+  ];
+  const fixed = helpers.normalizeSegmentTimings(segments);
+  assert.equal(fixed, 2);
+  // 合法的 60ms 词保持不变
+  assert.equal(segments[0].items[0].end, 60);
+  assert.deepEqual([segments[0].start, segments[0].end], [0, 300]);
+  // 倒挂 item 拉齐到 100ms，段 end 随之延伸
+  assert.deepEqual([segments[1].items[0].start, segments[1].items[0].end], [460, 560]);
+  assert.equal(segments[1].end, 560);
+});
+
+test('translates timing-repair flash hints to English', () => {
+  assert.equal(
+    i18n.translateText('已自动修复 2 处 0 长时间码（保底 100ms）', 'en'),
+    'Auto-repaired 2 zero-length timings (100 ms minimum)',
+  );
+});
+
 test('formats removed silence duration and media share for the summary', () => {
   assert.equal(helpers.formatHumanDuration(45_890), '45秒');
   assert.equal(helpers.formatHumanDuration(1_455_890), '24分15秒');
