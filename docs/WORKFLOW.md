@@ -90,6 +90,7 @@ Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，�
 ```text
 --vocabulary-id ID       覆盖百炼预编译词表 ID
 --hotword "词"           追加一个即时热词，可重复传入
+--hotword-file path.txt  使用指定 UTF-8 文本文件作为即时热词来源
 --hotword-weight 5       hotwords.txt 即时热词权重，可用 1-5 或 50
 --context "领域词表"     发送最多 400 字符上下文
 --context-file path.txt  从 UTF-8 文件读取上下文
@@ -97,10 +98,14 @@ Qwen-Audio 的 filetrans API 使用 `input.file_urls` 和 `output.results[]`，�
 --speaker-colors          开启说话人分离并写入颜色快照
 ```
 
+热词文本支持 `热词: 权重` 或 `热词：权重`，单项权重可覆盖全局权重；未指定时使用 `--hotword-weight`。按百炼规则，含非 ASCII 字符的单项最多 15 个字符，纯 ASCII 单项最多 7 个空格分隔的单词，每次最多 2000 项，权重 50 最多 50 项。不合规项会提示警告并在发送时忽略。
+
 也可以在 `.env` 中设置 `DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID`、
 `DASHSCOPE_QWEN_AUDIO_HOTWORD_WEIGHT` 和 `DASHSCOPE_QWEN_AUDIO_CONTEXT_FILE`。
 预编译词表必须按 Qwen-Audio 目标模型创建；Fun-ASR 使用独立的
 `DASHSCOPE_FUNASR_VOCABULARY_ID`。上下文参数形状和限制以[官方 HTTP API](https://help.aliyun.com/zh/model-studio/fun-asr-recorded-speech-recognition-http-api)为准。
+
+Prompt / 上下文用于提供领域背景、前文或会话信息；即时热词用于提高明确专有名词、人名、产品名的命中概率。需要随每次音频变化的背景优先用 Prompt，稳定且必须准确识别的短词优先用即时热词，二者可以同时配置。
 
 ## 用 Fun-ASR 转写（百炼第二模型，支持说话人）
 

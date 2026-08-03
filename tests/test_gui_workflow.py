@@ -86,6 +86,22 @@ class GuiWorkflowTests(unittest.TestCase):
         hotword_positions = [index for index, value in enumerate(command) if value == "--hotword"]
         self.assertEqual([command[index + 1] for index in hotword_positions], ["张三", "李四", "阿里云"])
 
+    def test_build_transcribe_command_qwen_audio_uses_hotword_file_mode(self) -> None:
+        hotwords_file = self.root / "hotwords.txt"
+        hotwords_file.write_text("张三\n阿里云\n", encoding="utf-8")
+        request = TranscriptionRequest(
+            media_path=self.media_path,
+            srt_path=self.srt_path,
+            model="qwen-audio-3.0-asr-flash-filetrans",
+            qwen_audio_hotwords_file=str(hotwords_file),
+            qwen_audio_hotwords="不会被使用",
+        )
+
+        command = build_transcribe_command(request, executable=Path("python.exe"), frozen=False)
+
+        self.assertEqual(command[command.index("--hotword-file") + 1], str(hotwords_file))
+        self.assertNotIn("--hotword", command)
+
     def test_build_transcribe_command_frozen_mode_dispatches_same_executable(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
 

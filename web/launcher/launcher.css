@@ -419,6 +419,40 @@ textarea::placeholder {
   gap: 12px;
 }
 
+.qwen-audio-hotwords-source {
+  display: grid;
+  gap: 6px;
+}
+
+.qwen-audio-hotwords-source.drag-over textarea,
+.qwen-audio-hotwords-source.drag-over .path-row {
+  border-color: var(--accent);
+  background-color: var(--bg-raised);
+  box-shadow: 0 0 0 2px var(--accent-soft);
+}
+
+.character-count {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.character-count.over-limit {
+  color: var(--red);
+}
+
+.field-warning {
+  display: none;
+  margin: 0;
+  color: var(--amber);
+  font-size: 12px;
+  white-space: pre-line;
+}
+
+.field-warning.visible {
+  display: block;
+}
+
 .ghost,
 .primary {
   height: 34px;

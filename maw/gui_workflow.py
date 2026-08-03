@@ -6,7 +6,6 @@ import html
 import json
 import os
 import queue
-import re
 import subprocess
 import sys
 import threading
@@ -19,6 +18,7 @@ from typing import Final, TextIO, final
 
 from maw.gui_config import QWEN_AUDIO_MODEL_ID, DEFAULT_MODEL_ID, DEFAULT_ENV_PATH, load_env
 from maw.gui_platform import asset_path
+from maw.qwen_audio import split_qwen_audio_hotwords
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +38,7 @@ class TranscriptionRequest:
     length_limit: str = ""
     qwen_audio_context: str = ""
     qwen_audio_hotwords: str = ""
+    qwen_audio_hotwords_file: str = ""
     qwen_audio_vocabulary_id: str = ""
     qwen_audio_hotword_weight: str = ""
     region: str = ""
@@ -149,8 +150,11 @@ def build_transcribe_command(
         _append_option(command, "--vocabulary-id", request.qwen_audio_vocabulary_id)
         _append_option(command, "--hotword-weight", request.qwen_audio_hotword_weight)
         _append_option(command, "--context", request.qwen_audio_context)
-        for hotword in split_qwen_audio_hotwords(request.qwen_audio_hotwords):
-            command.extend(["--hotword", hotword])
+        if request.qwen_audio_hotwords_file:
+            _append_option(command, "--hotword-file", request.qwen_audio_hotwords_file)
+        else:
+            for hotword in split_qwen_audio_hotwords(request.qwen_audio_hotwords):
+                command.extend(["--hotword", hotword])
     return command
 
 
@@ -344,15 +348,6 @@ def _require_output(path: Path, label: str) -> None:
 def _append_option(command: list[str], name: str, value: str) -> None:
     if value.strip():
         command.extend([name, value.strip()])
-
-
-def split_qwen_audio_hotwords(value: str) -> list[str]:
-    """把 Launcher 的换行/逗号分隔热词转换成重复的 --hotword 参数。"""
-    return [
-        word.strip()
-        for word in re.split(r"[\r\n,，;；]+", value)
-        if word.strip()
-    ]
 
 
 def _ignore(_message: str) -> None:

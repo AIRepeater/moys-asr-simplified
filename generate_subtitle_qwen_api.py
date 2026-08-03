@@ -30,6 +30,7 @@ from pathlib import Path
 import requests
 
 from edit import get_default_sticker_dir
+from maw.qwen_audio import parse_qwen_audio_hotwords
 from maw.speaker import apply_speaker_colors, split_items_by_speaker
 from waveform import embed_waveform
 
@@ -254,12 +255,15 @@ def parse_duration(value: str) -> float:
 _parse_duration = parse_duration
 
 
-def load_hotwords() -> list[str]:
-    """从 hotwords.txt 读取热词列表，忽略注释行和空行。"""
-    if not HOTWORDS_FILE.exists():
+def load_hotwords(path: str | os.PathLike[str] | None = None) -> list[str]:
+    """从 UTF-8 热词文件读取列表，忽略注释行和空行。"""
+    source = Path(path).expanduser() if path else HOTWORDS_FILE
+    if not source.exists():
+        if path:
+            raise FileNotFoundError(f"即时热词文件不存在: {source}")
         return []
     words = []
-    for line in HOTWORDS_FILE.read_text(encoding="utf-8").splitlines():
+    for line in source.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             words.append(line)
@@ -738,7 +742,10 @@ def submit_filetrans(base_url: str, api_key: str, file_url: str,
             params["vocabulary_id"] = vocabulary_id
         if hotwords:
             weight = _validate_hotword_weight(hotword_weight)
-            params["vocabulary"] = {word: weight for word in hotwords if word.strip()}
+            entries, _issues = parse_qwen_audio_hotwords(hotwords, weight)
+            params["vocabulary"] = {entry.text: entry.weight for entry in entries}
+            if not params["vocabulary"]:
+                params.pop("vocabulary")
         input_payload = {"file_urls": [file_url]}
         if context:
             input_payload["context"] = context
@@ -1012,8 +1019,20 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
 
     if hotwords:
         if is_qwen_audio_model(model):
+            filtered_hotwords, hotword_issues = parse_qwen_audio_hotwords(
+                hotwords,
+                resolved_hotword_weight,
+            )
+            for issue in hotword_issues:
+                print(
+                    f"[热词] 忽略第 {issue.index} 项（{issue.code}）：{issue.text}"
+                )
+            hotword_count = len(filtered_hotwords)
+        else:
+            hotword_count = len(hotwords)
+        if is_qwen_audio_model(model):
             print(
-                f"[热词] 将通过 Qwen-Audio 即时 vocabulary 发送 {len(hotwords)} 个热词，"
+                f"[热词] 将通过 Qwen-Audio 即时 vocabulary 发送 {hotword_count} 个热词，"
                 f"weight={resolved_hotword_weight}。"
             )
         elif is_funasr_model(model):
@@ -1174,6 +1193,10 @@ def main():
         help="追加一个 Qwen-Audio 即时热词；可重复传入，与 hotwords.txt 合并",
     )
     parser.add_argument(
+        "--hotword-file", default=None,
+        help="使用指定 UTF-8 文本文件作为 Qwen-Audio 即时热词来源，替代默认 hotwords.txt",
+    )
+    parser.add_argument(
         "--hotword-weight", type=parse_hotword_weight, default=None,
         help="Qwen-Audio hotwords.txt 的即时热词权重（1-5 或 50；默认读 .env 的 5）",
     )
@@ -1222,7 +1245,10 @@ def main():
     video_exts = {".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v"}
     is_video = input_path.suffix.lower() in video_exts
 
-    hotwords = load_hotwords()
+    try:
+        hotwords = load_hotwords(args.hotword_file)
+    except (OSError, UnicodeError) as exc:
+        parser.error(str(exc))
     for hotword in args.hotword or []:
         normalized = hotword.strip()
         if normalized and normalized not in hotwords:

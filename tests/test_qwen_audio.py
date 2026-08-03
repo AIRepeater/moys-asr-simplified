@@ -1,24 +1,54 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from generate_subtitle_qwen_api import (
     QWEN_AUDIO_FILETRANS_MODEL,
     build_qwen_audio_context,
     is_qwen_audio_model,
+    load_hotwords,
     parse_funasr_transcription_result,
     poll_task,
     submit_filetrans,
     supports_speaker_diarization,
 )
+from maw.qwen_audio import parse_qwen_audio_hotwords
 
 
 class QwenAudioAdapterTests(unittest.TestCase):
+    def test_load_hotwords_accepts_an_explicit_text_file(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "custom.txt"
+            path.write_text("张三\n# 注释\n\n阿里云\n", encoding="utf-8")
+
+            self.assertEqual(load_hotwords(path), ["张三", "阿里云"])
+
     def test_model_detection_and_speaker_support(self) -> None:
         self.assertTrue(is_qwen_audio_model(QWEN_AUDIO_FILETRANS_MODEL))
         self.assertTrue(supports_speaker_diarization(QWEN_AUDIO_FILETRANS_MODEL))
         self.assertFalse(is_qwen_audio_model("qwen3-asr-flash-filetrans"))
+
+    def test_hotwords_support_individual_weights_and_filter_invalid_entries(self) -> None:
+        entries, issues = parse_qwen_audio_hotwords([
+            "厄尔尼诺",
+            "obsidian: 50",
+            "布洛芬：5",
+            "这是一条超过十五个字符的中文热词",
+            "one two three four five six seven eight",
+            "坏词: 6",
+        ], 4)
+
+        self.assertEqual(
+            [(entry.text, entry.weight) for entry in entries],
+            [("厄尔尼诺", 4), ("obsidian", 50), ("布洛芬", 5)],
+        )
+        self.assertEqual(
+            [issue.code for issue in issues],
+            ["text_too_long", "too_many_ascii_words", "invalid_weight"],
+        )
 
     def test_context_uses_rest_messages_shape_and_400_character_limit(self) -> None:
         context = build_qwen_audio_context("词表" + ("x" * 500))
@@ -66,6 +96,32 @@ class QwenAudioAdapterTests(unittest.TestCase):
         self.assertNotIn("enable_words", payload["parameters"])
         self.assertNotIn("enable_itn", payload["parameters"])
         response.raise_for_status.assert_called_once_with()
+
+    @mock.patch("generate_subtitle_qwen_api.requests.post")
+    def test_submit_uses_individual_hotword_weights_and_ignores_invalid_entries(
+        self,
+        post: mock.Mock,
+    ) -> None:
+        response = mock.Mock()
+        response.json.return_value = {
+            "output": {"task_id": "task-weighted", "task_status": "PENDING"}
+        }
+        post.return_value = response
+
+        submit_filetrans(
+            "https://dashscope.aliyuncs.com",
+            "secret",
+            "oss://temporary/audio.wav",
+            language="zh",
+            enable_words=True,
+            enable_itn=False,
+            model=QWEN_AUDIO_FILETRANS_MODEL,
+            hotwords=["厄尔尼诺", "obsidian: 50", "坏词: 6"],
+            hotword_weight=4,
+        )
+
+        payload = post.call_args.kwargs["json"]
+        self.assertEqual(payload["parameters"]["vocabulary"], {"厄尔尼诺": 4, "obsidian": 50})
 
     @mock.patch("generate_subtitle_qwen_api.requests.get")
     def test_poll_reads_qwen_audio_subtask_result(self, get: mock.Mock) -> None:

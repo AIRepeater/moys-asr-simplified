@@ -151,14 +151,18 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen
 
 它支持 Qwen-Audio 专用的即时热词、预编译词表和 context：
 
-- Launcher 的高级选项会在选择 Qwen-Audio 后显示 `Prompt / 上下文`、`即时热词` 和权重；预编译 `vocabulary_id` 暂不在 Launcher 开放，底层 CLI / `.env` 能力保留。这些 Launcher 值只随本次转写发送，不会保存到 `.env`。
-- `hotwords.txt`：每行一个即时热词，默认以权重 5 发送；可用 `--hotword-weight 1` 到 `5` 或 `50` 调整。
+- Launcher 的高级选项会在选择 Qwen-Audio 后显示 `Prompt / 上下文`、`即时热词` 和全局权重；即时热词支持直接输入或选择 UTF-8 `.txt` 文件。每项也可写成 `热词: 权重` 或 `热词：权重` 单独覆盖全局权重，权重只能是 1–5 或 50。预编译 `vocabulary_id` 暂不在 Launcher 开放，底层 CLI / `.env` 能力保留。这些 Launcher 值只随本次转写发送，不会保存到 `.env`。
+- `hotwords.txt`：默认热词文件，每行一个即时热词；也可用 `--hotword-file path.txt` 指定其他 UTF-8 文本文件。可用 `--hotword-weight 1` 到 `5` 或 `50` 调整权重。
 - 命令行可重复使用 `--hotword "词"` 追加本次即时热词；它会和 `hotwords.txt` 合并。
 - `DASHSCOPE_QWEN_AUDIO_VOCABULARY_ID` 或 `--vocabulary-id`：使用百炼预先创建的词表；词表的目标模型必须是 Qwen-Audio。
 - `--context "领域词表或前文"`：发送最多 400 字符的 `input.context`；较长内容建议用 `--context-file` 或 `.env` 中的 `DASHSCOPE_QWEN_AUDIO_CONTEXT_FILE`。
 - `--speaker` / `--speaker-colors`：开启说话人分离和可选颜色快照。
 
+即时热词按百炼规则校验：含非 ASCII 字符的单项最多 15 个字符，纯 ASCII 单项最多 7 个空格分隔的单词，每次最多 2000 项，权重 50 最多 50 项。不符合规则的输入会在 Launcher 下方警告，并在发送时忽略。
+
 Qwen-Audio 的输出默认使用 `.qwen-audio.` 文件名标签。即时热词与预编译词表同时配置时，以百炼服务端规则为准；Fun-ASR 需要单独创建并配置 `DASHSCOPE_FUNASR_VOCABULARY_ID`。
+
+Prompt / 上下文与即时热词的选择：Prompt 适合描述本次音频的领域、前文或会话背景，例如“这是某产品发布会，涉及 XXX、YYY”；即时热词适合明确的专有名词、人名、产品名，需要模型重点命中。变化频繁、需要解释上下文时优先 Prompt；稳定、短小、必须准确识别的词优先即时热词。两者也可以同时使用。
 
 
 ## 百炼 Fun-ASR（同一供应商，支持说话人）

@@ -569,6 +569,52 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(request.qwen_audio_vocabulary_id, "vocab-qwen-audio")
         self.assertEqual(request.qwen_audio_hotword_weight, "50")
 
+    def test_request_from_payload_passes_qwen_audio_hotword_file_mode(self) -> None:
+        media = self.root / "clip.mp3"
+        media.write_bytes(b"media")
+        hotwords = self.root / "hotwords.txt"
+        hotwords.write_text("张三\n阿里云\n", encoding="utf-8")
+        request = _request_from_payload({
+            "providerId": "qwen",
+            "modelId": "qwen-audio-3.0-asr-flash-filetrans",
+            "mediaPath": str(media),
+            "srtPath": str(self.root / "out.srt"),
+            "apiKey": "sk-test",
+            "region": "beijing",
+            "qwenAudioHotwordsMode": "file",
+            "qwenAudioHotwordsFile": str(hotwords),
+            "qwenAudioHotwords": "不会被使用",
+        }, self.env_path)
+
+        self.assertEqual(request.qwen_audio_hotwords_file, str(hotwords))
+        self.assertEqual(request.qwen_audio_hotwords, "")
+
+    def test_request_from_payload_rejects_missing_qwen_audio_hotword_file(self) -> None:
+        media = self.root / "clip.mp3"
+        media.write_bytes(b"media")
+
+        with self.assertRaisesRegex(PreflightError, "\\.txt"):
+            _request_from_payload({
+                "providerId": "qwen",
+                "modelId": "qwen-audio-3.0-asr-flash-filetrans",
+                "mediaPath": str(media),
+                "srtPath": str(self.root / "out.srt"),
+                "apiKey": "sk-test",
+                "region": "beijing",
+                "qwenAudioHotwordsMode": "file",
+                "qwenAudioHotwordsFile": str(self.root / "missing.txt"),
+            }, self.env_path)
+
+    def test_read_hotword_file_returns_utf8_text(self) -> None:
+        hotwords = self.root / "hotwords.txt"
+        hotwords.write_text("张三\n阿里云\n", encoding="utf-8")
+
+        result = self.api.read_hotword_file({"path": str(hotwords)})
+
+        self.assertTrue(result["ok"])
+        self.assertEqual(result["path"], str(hotwords))
+        self.assertEqual(result["text"], "张三\n阿里云\n")
+
     def test_request_from_payload_rejects_qwen_audio_context_over_400_characters(self) -> None:
         media = self.root / "clip.mp3"
         media.write_bytes(b"media")
@@ -624,15 +670,15 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertIn(str(result.json_path).replace("\\", "\\\\"), event_script)
         self.assertIn('"htmlPath": ""', event_script)
 
-    def test_route_dropped_path_routes_json_media_and_reject(self) -> None:
+    def test_route_dropped_path_routes_json_media_and_hotword_file(self) -> None:
         """Given dropped paths, When routed, Then event type mirrors launcher drop behavior."""
         media = _route_dropped_path(r"D:\Videos\clip.MP4")
         project = _route_dropped_path(r"D:\Videos\clip.json")
-        rejected = _route_dropped_path(r"D:\Videos\clip.txt")
+        hotwords = _route_dropped_path(r"D:\Videos\clip.txt")
 
         self.assertEqual(media, {"type": "dropMedia", "path": r"D:\Videos\clip.MP4"})
         self.assertEqual(project, {"type": "dropJson", "path": r"D:\Videos\clip.json"})
-        self.assertEqual(rejected, {"type": "dropReject", "path": r"D:\Videos\clip.txt"})
+        self.assertEqual(hotwords, {"type": "dropHotwordFile", "path": r"D:\Videos\clip.txt"})
 
 
 @final
@@ -743,10 +789,20 @@ class LauncherAssetContractTests(unittest.TestCase):
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
-        for field in ("qwenAudioContext", "qwenAudioHotwords", "qwenAudioHotwordWeight"):
+        for field in ("qwenAudioContext", "qwenAudioHotwordsMode", "qwenAudioHotwords", "qwenAudioHotwordsFile", "qwenAudioHotwordWeight"):
             self.assertIn(f'id="{field}"', page)
         self.assertIn('qwenAudioContext: $("qwenAudioContext").value.trim()', script)
         self.assertIn('qwenAudioHotwords: $("qwenAudioHotwords").value.trim()', script)
+        self.assertIn('qwenAudioHotwordsMode: $("qwenAudioHotwordsMode").value', script)
+        self.assertIn('qwenAudioHotwordsFile: $("qwenAudioHotwordsFile").value.trim()', script)
+        self.assertIn('kind: "hotwords"', script)
+        self.assertIn('read_hotword_file', script)
+        self.assertIn('qwenAudioContextCount', page)
+        self.assertIn('classList.toggle("over-limit", count > 400)', script)
+        self.assertIn('qwenAudioHotwordsWarning', page)
+        self.assertIn('qwen_audio_hotwords_weight_override_hint', script)
+        self.assertIn('parseHotwordEntry', script)
+        self.assertIn('MAX_SUPER_HOTWORDS = 50', script)
         self.assertNotIn('id="qwenAudioVocabularyId"', page)
         self.assertNotIn("qwenAudioVocabularyId", script)
         self.assertIn('supportsContext', script)
