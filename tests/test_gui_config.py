@@ -115,7 +115,8 @@ class GuiConfigTests(unittest.TestCase):
         self.assertTrue(qwen_audio.supports_context)
         self.assertTrue(qwen_audio.supports_hotwords)
         self.assertTrue(qwen_audio.supports_vocabulary)
-        self.assertIn("热词", qwen_audio.label)
+        self.assertEqual(qwen_audio.label, "qwen-audio-3.0-asr（热词 / 上下文）")
+        self.assertIn("热词", qwen_audio.note)
         funasr = gui_config.MODELS[2]
         self.assertEqual(funasr.id, "fun-asr")
         self.assertEqual(funasr.env_key, "DASHSCOPE_API_KEY")

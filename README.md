@@ -87,7 +87,7 @@ Moy 的 ASR 工作流由两部分组成：
 选择供应商和媒体 -> 生成 SRT + JSON 工程 -> 打开 MAWE 校对 -> 保存或导出
 ```
 
-在 Launcher 里选择阿里云百炼或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。百炼 Provider 下可以选择 Qwen3 ASR、支持热词/上下文的 Qwen-Audio 3.0 ASR，或支持说话人分离的 Fun-ASR。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
+在 Launcher 里选择阿里云百炼或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。阿里云百炼 Provider 下可以选择 `qwen3-asr（准确率更高）`、`qwen-audio-3.0-asr（热词 / 上下文）` 或 `fun-asr（支持说话人）`。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
 
 GUI 还可以直接选择工程 JSON 并启动 `http://127.0.0.1` 本地编辑器服务器；中英文界面可在右上角切换。
 启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商组织模型、语言和 API Key 获取入口；当前面向国内用户默认使用北京地域，地域和 Workspace 控件暂不显示。选择 Qwen-Audio、Fun-ASR 或 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
@@ -141,9 +141,9 @@ uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" -ll 2m --jso
 如果不使用 uv，请看 [docs/WORKFLOW.md](docs/WORKFLOW.md) 的普通 Python 安装方式。
 
 
-## 百炼 Qwen-Audio 3.0 ASR（热词与上下文）
+## 百炼 qwen-audio-3.0-asr-flash-filetrans（热词与上下文）
 
-Qwen-Audio 使用同一个 `DASHSCOPE_API_KEY`、地域和临时 OSS 上传链路。在 Launcher 的百炼 Provider 中选择 `Qwen-Audio 3.0 ASR（热词 / 上下文）`，或在命令行显式指定模型：
+Qwen-Audio 使用同一个 `DASHSCOPE_API_KEY`、地域和临时 OSS 上传链路。在 Launcher 的阿里云百炼 Provider 中选择 `qwen-audio-3.0-asr（热词 / 上下文）`，或在命令行显式指定模型：
 
 ```powershell
 uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen-audio-3.0-asr-flash-filetrans --json
@@ -165,9 +165,9 @@ Qwen-Audio 的输出默认使用 `.qwen-audio.` 文件名标签。即时热词�
 Prompt / 上下文与即时热词的选择：Prompt 适合描述本次音频的领域、前文或会话背景，例如“这是某产品发布会，涉及 XXX、YYY”；即时热词适合明确的专有名词、人名、产品名，需要模型重点命中。变化频繁、需要解释上下文时优先 Prompt；稳定、短小、必须准确识别的词优先即时热词。两者也可以同时使用。
 
 
-## 百炼 Fun-ASR（同一供应商，支持说话人）
+## 百炼 fun-asr（同一供应商，支持说话人）
 
-Fun-ASR 与 Qwen 共用 `DASHSCOPE_API_KEY`、地域配置和临时 OSS 上传链路。在 Launcher 的百炼 Provider 下把模型切换为 `Fun-ASR（支持说话人）` 即可；开启「给不同说话人分配字幕颜色」后，Launcher 会同时启用说话人分离。
+Fun-ASR 与 Qwen 共用 `DASHSCOPE_API_KEY`、地域配置和临时 OSS 上传链路。在 Launcher 的阿里云百炼 Provider 下把模型切换为 `fun-asr（支持说话人）` 即可；开启「给不同说话人分配字幕颜色」后，Launcher 会同时启用说话人分离。
 
 命令行也可以直接选择第二个模型：
 

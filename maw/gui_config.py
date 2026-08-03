@@ -210,13 +210,13 @@ SONIOX_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
 QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ModelConfig(
         id=DEFAULT_MODEL_ID,
-        label="Qwen3 ASR（准确率更高）",
+        label="qwen3-asr（准确率更高）",
         env_key="DASHSCOPE_API_KEY",
         languages=LANGUAGES,
     ),
     ModelConfig(
         id=QWEN_AUDIO_MODEL_ID,
-        label="Qwen-Audio 3.0 ASR（热词 / 上下文）",
+        label="qwen-audio-3.0-asr（热词 / 上下文）",
         env_key="DASHSCOPE_API_KEY",
         note="支持即时热词、上下文与说话人分离",
         supports_speaker=True,
@@ -227,7 +227,7 @@ QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ),
     ModelConfig(
         id="fun-asr",
-        label="Fun-ASR（支持说话人）",
+        label="fun-asr（支持说话人）",
         env_key="DASHSCOPE_API_KEY",
         note="支持说话人分离与词级时间戳",
         supports_speaker=True,
@@ -248,7 +248,7 @@ SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
 PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
     ProviderConfig(
         id="qwen",
-        label="阿里云百炼（Qwen / Qwen-Audio / FunASR）",
+        label="阿里云百炼（QwenASR / FunASR）",
         key_url="https://help.aliyun.com/zh/model-studio/get-api-key",
         models=QWEN_MODELS,
         regions=REGIONS,

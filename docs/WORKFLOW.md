@@ -75,7 +75,7 @@ CLI 默认不内嵌波形；需要交给编辑器直接打开且不想生成 `<�
 
 ## 用 Qwen-Audio 3.0 ASR 转写（热词与上下文）
 
-在 Launcher 的百炼 Provider 中选择 `Qwen-Audio 3.0 ASR（热词 / 上下文）`，或使用命令行：
+在 Launcher 的阿里云百炼 Provider 中选择 `qwen-audio-3.0-asr（热词 / 上下文）`，或使用命令行：
 
 ```powershell
 uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model qwen-audio-3.0-asr-flash-filetrans -ll 2m --json
@@ -109,7 +109,7 @@ Prompt / 上下文用于提供领域背景、前文或会话信息；即时热�
 
 ## 用 Fun-ASR 转写（百炼第二模型，支持说话人）
 
-在 Launcher 中选择百炼 Provider，再把模型切换为 `Fun-ASR（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
+在 Launcher 中选择阿里云百炼 Provider，再把模型切换为 `fun-asr（支持说话人）`。它复用 `DASHSCOPE_API_KEY`、地域和 Workspace 配置，默认输出名标签为 `.fun-asr.`。
 
 命令行示例：
 
