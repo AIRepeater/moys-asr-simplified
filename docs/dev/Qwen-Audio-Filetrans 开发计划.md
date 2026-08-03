@@ -34,6 +34,17 @@
 4. 契约测试：覆盖请求 payload、轮询 URL、speaker/时间戳解析和上下文长度限制。
 5. 文档与验收：更新 README、工作流、`.env.example`、调研记录和 changelog。
 
+## Launcher 后续改进
+
+Launcher 在选择 Qwen-Audio 后提供以下单次任务字段：
+
+- `Prompt / 上下文`：对应 API 的 `input.context`，最多 400 字符；它是领域词表/前文增强，不是通用 system prompt。
+- `即时热词`：每行或逗号分隔，转成 `parameters.vocabulary`；不需要先创建词表。
+- `预编译热词 ID`：对应 `parameters.vocabulary_id`，必须先在百炼控制台按 Qwen-Audio 创建。
+- `即时热词权重`：支持 1–5 和 50；50 是超级热词，适合少量必须命中的词。
+
+这些字段只进入当前子进程命令行，不保存到 `.env` 或工程 JSON。
+
 ## 配置约定
 
 ```ini

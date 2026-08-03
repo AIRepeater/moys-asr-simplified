@@ -27,6 +27,34 @@
     open_editor: "Open Subtitle Editor",
     server_refresh: "Refresh"
   });
+  Object.assign(STRINGS.zh, {
+    qwen_audio_context: "Prompt / 上下文",
+    qwen_audio_context_placeholder: "例如：产品名、专业术语、上一轮识别结果……",
+    qwen_audio_context_hint: "领域词表或前文提示；本次任务最多发送 400 个字符，不是通用系统指令。",
+    qwen_audio_hotwords: "即时热词",
+    qwen_audio_hotwords_placeholder: "张三\n阿里云百炼\n专业术语",
+    qwen_audio_hotwords_hint: "每行一个，也支持逗号分隔；只作用于本次 Qwen-Audio 转写。",
+    qwen_audio_vocabulary_id: "预编译热词 ID",
+    qwen_audio_vocabulary_id_placeholder: "例如：vocab-xxxxxxxx",
+    qwen_audio_vocabulary_id_hint: "先在百炼控制台按 Qwen-Audio 创建；不是网上搜索出来的 ID。",
+    qwen_audio_hotword_weight: "即时热词权重",
+    qwen_audio_hotword_weight_hint: "权重 50 适合少量必须命中的词，最多 50 个。",
+    context_too_long: "Qwen-Audio 上下文最多 400 个字符。"
+  });
+  Object.assign(STRINGS.en, {
+    qwen_audio_context: "Prompt / context",
+    qwen_audio_context_placeholder: "For example: product names, domain terms, or prior recognition text…",
+    qwen_audio_context_hint: "Domain terms or prior context; at most 400 characters per request, not a general system prompt.",
+    qwen_audio_hotwords: "Instant hotwords",
+    qwen_audio_hotwords_placeholder: "Zhang San\nAlibaba Cloud Model Studio\ndomain term",
+    qwen_audio_hotwords_hint: "One per line or comma-separated; applies only to this Qwen-Audio transcription.",
+    qwen_audio_vocabulary_id: "Precompiled vocabulary ID",
+    qwen_audio_vocabulary_id_placeholder: "For example: vocab-xxxxxxxx",
+    qwen_audio_vocabulary_id_hint: "Create it for Qwen-Audio in Model Studio first; it is not an ID to find online.",
+    qwen_audio_hotword_weight: "Instant hotword weight",
+    qwen_audio_hotword_weight_hint: "Weight 50 is for a small number of must-hit terms; up to 50 terms.",
+    context_too_long: "Qwen-Audio context is limited to 400 characters."
+  });
   const SERVER_STARTING_TEXT = { zh: "启动中……", en: "Starting…" };
 
   const MEDIA_EXTS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"]);
@@ -39,6 +67,7 @@
       server_stop_failed: "无法停止当前端口上的 MAW 字幕编辑服务器。",
       api_key_missing: "请填写 API Key，或先在 ⚙ 配置/密钥区保存。",
       workspace_missing: "新加坡地域需要 Workspace ID。",
+      context_too_long: "Qwen-Audio 上下文最多 400 个字符。",
       output_missing: "请填写 SRT 输出路径。",
       server_no_response: (detail) => `编辑器服务器没有响应（${detail || "http://127.0.0.1"}）——端口可能被占用或启动失败，请更换端口后重试。`,
       sticker_dir_invalid: "表情包根目录不存在。"
@@ -51,6 +80,7 @@
       server_stop_failed: "Unable to stop the MAW subtitle editor server on the current port.",
       api_key_missing: "Enter an API Key, or save one first in Settings / API key.",
       workspace_missing: "Singapore region requires a Workspace ID.",
+      context_too_long: "Qwen-Audio context is limited to 400 characters.",
       output_missing: "Enter an SRT output path.",
       server_no_response: (detail) => `The editor server did not respond (${detail || "http://127.0.0.1"}). The port may be occupied or startup failed; choose another port and retry.`,
       sticker_dir_invalid: "Sticker root directory does not exist."
@@ -85,7 +115,7 @@
         providers: [
           {
             id: "qwen",
-            label: "阿里云百炼（FunASR/QwenASR）",
+            label: "阿里云百炼（Qwen / Qwen-Audio / FunASR）",
             keyUrl: "https://help.aliyun.com/zh/model-studio/get-api-key",
             apiKey: saved.apiKey,
             maskedApiKey: saved.apiKey ? "sk-…demo" : "",
@@ -94,6 +124,7 @@
             commonLanguages: ["", "zh", "en"],
             models: [
               { id: "qwen3-asr-flash-filetrans", label: "Qwen3 ASR（准确率更高）", envKey: "DASHSCOPE_API_KEY", note: "", supportsSpeaker: false, languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Mandarin" }, { id: "en", label: "英语 / English" }] },
+              { id: "qwen-audio-3.0-asr-flash-filetrans", label: "Qwen-Audio 3.0 ASR（热词 / 上下文）", envKey: "DASHSCOPE_API_KEY", note: "支持即时热词、上下文与说话人分离", supportsSpeaker: true, supportsContext: true, supportsHotwords: true, supportsVocabulary: true, languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Chinese" }, { id: "en", label: "英语 / English" }] },
               { id: "fun-asr", label: "Fun-ASR（支持说话人）", envKey: "DASHSCOPE_API_KEY", note: "支持说话人分离与词级时间戳", supportsSpeaker: true, languages: [{ id: "", label: "自动识别" }, { id: "zh", label: "中文 / Chinese" }, { id: "en", label: "英语 / English" }] }
             ],
             regions: [{ id: "beijing", label: "北京（华北 2，默认）" }, { id: "singapore", label: "新加坡（需要 Workspace ID）" }],
@@ -114,7 +145,7 @@
           }
         ]
       }),
-      default_output: async ({ mediaPath, providerId, modelId }) => ({ ok: true, path: mediaPath ? mediaPath.replace(/\.[^.\\/]+$/, providerId === "soniox" ? ".soniox.srt" : (modelId === "fun-asr" ? ".fun-asr.srt" : ".qwen3-asr-api.srt")) : "" }),
+      default_output: async ({ mediaPath, providerId, modelId }) => ({ ok: true, path: mediaPath ? mediaPath.replace(/\.[^.\\/]+$/, providerId === "soniox" ? ".soniox.srt" : (modelId === "fun-asr" ? ".fun-asr.srt" : (modelId === "qwen-audio-3.0-asr-flash-filetrans" ? ".qwen-audio.srt" : ".qwen3-asr-api.srt"))) : "" }),
       choose_file: async ({ kind }) => ({ ok: true, path: kind === "json" ? "D:\\Demo\\project.json" : "D:\\Demo\\clip.mp4" }),
       save_settings: async (payload) => { saved = { ...saved, ...payload }; return { ok: true, maskedApiKey: payload.apiKey ? "sk-…mock" : "", message: "mock saved" }; },
       save_prefs: async (payload) => { if (Object.prototype.hasOwnProperty.call(payload, "modelId")) localStorage.setItem(LAST_MODEL_KEY, payload.modelId || ""); if (Object.prototype.hasOwnProperty.call(payload, "language")) localStorage.setItem(LAST_LANGUAGE_KEY, payload.language || ""); if (Object.prototype.hasOwnProperty.call(payload, "showRareLangs")) saved.showRareLangs = Boolean(payload.showRareLangs); return { ok: true }; },
@@ -167,8 +198,8 @@
   function setRunning(running) { state.running = running; $("progress").classList.toggle("hidden", !running); $("start").disabled = running; setStatus(running ? t("running") : t("ready")); }
   function fillSelect(id, items, value) { const el = $(id); el.innerHTML = ""; items.forEach((item) => el.add(new Option(item.label, item.id))); el.value = value ?? ""; }
   function setError(field, message) { const input = $(field); const hint = $(`${field}Error`); if (input) input.classList.toggle("invalid", Boolean(message)); if (hint) { hint.textContent = message || ""; hint.classList.toggle("visible", Boolean(message)); } }
-  function clearErrors() { ["mediaPath", "srtPath", "apiKey", "workspaceId", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir"].forEach((field) => setError(field, "")); }
-  function formPayload() { return { providerId: $("provider").value, modelId: $("model").value, mediaPath: $("mediaPath").value.trim(), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), region: $("region").value, workspaceId: $("workspaceId").value.trim(), language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), testRun: $("testRun").checked, speakerColors: $("speakerColors").checked, generateHtml: $("generateHtml").checked, guiLang: state.lang }; }
+  function clearErrors() { ["mediaPath", "srtPath", "apiKey", "workspaceId", "qwenAudioContext", "jsonPath", "serverMediaPath", "port", "ffmpegPath", "stickerDir"].forEach((field) => setError(field, "")); }
+  function formPayload() { return { providerId: $("provider").value, modelId: $("model").value, mediaPath: $("mediaPath").value.trim(), srtPath: $("srtPath").value.trim(), apiKey: $("apiKey").value.trim(), region: $("region").value, workspaceId: $("workspaceId").value.trim(), language: languageValue(), lengthLimit: $("lengthLimit").value.trim(), qwenAudioContext: $("qwenAudioContext").value.trim(), qwenAudioHotwords: $("qwenAudioHotwords").value.trim(), qwenAudioVocabularyId: $("qwenAudioVocabularyId").value.trim(), qwenAudioHotwordWeight: $("qwenAudioHotwordWeight").value, testRun: $("testRun").checked, speakerColors: $("speakerColors").checked, generateHtml: $("generateHtml").checked, guiLang: state.lang }; }
   function serverPayload() { return { jsonPath: $("jsonPath").value.trim(), mediaPath: $("serverMediaPath").value.trim(), port: $("port").value || "8250", guiLang: state.lang }; }
   function renderMaweButton() {
     const button = $("openMawe");
@@ -186,7 +217,8 @@
   function renderKeyStatus() { const masked = state.config ? provider().maskedApiKey : ""; $("keyStatus").textContent = masked ? t("key_loaded").replace("{key}", masked) : t("key_empty"); }
   function renderLanguage() { document.documentElement.lang = state.lang === "zh" ? "zh-CN" : "en"; document.querySelectorAll("[data-i18n]").forEach((node) => { node.textContent = t(node.dataset.i18n); }); document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => { node.placeholder = t(node.dataset.i18nPlaceholder); }); document.querySelectorAll("[data-i18n-title]").forEach((node) => { node.title = t(node.dataset.i18nTitle); }); $("langToggle").textContent = t("other_language"); $("demoBadge").textContent = t("demo_mode"); renderKeyStatus(); renderStickerCurrent(); renderMaweButton(); }
   function applyProvider(persistReset = false) { const current = provider(); const preferred = state.config.lastModel; const fallback = state.config.modelId || current.models[0]?.id; const modelValue = current.models.some((item) => item.id === preferred) ? preferred : (current.models.some((item) => item.id === fallback) ? fallback : current.models[0]?.id); fillSelect("model", current.models, modelValue); fillSelect("region", current.regions, state.config.region || "beijing"); applySelectedModel(persistReset); $("openKeyUrl").textContent = current.label; $("regionField").classList.toggle("hidden", current.regions.length === 0); $("apiKey").value = current.apiKey || ""; renderKeyStatus(); syncWorkspace(); }
-  function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
+  function applySelectedModel(persistReset = false) { const current = provider(); const model = selectedModel(); applyProviderLanguages(current, model, persistReset); $("speakerColorsField").classList.toggle("hidden", !model.supportsSpeaker); syncQwenAudioOptions(model); syncDefaultOutput(); if (persistReset) savePrefsDebounced({ modelId: model.id, language: languageValue() }); }
+  function syncQwenAudioOptions(model) { const enabled = Boolean(model?.supportsContext || model?.supportsHotwords || model?.supportsVocabulary); $("qwenAudioOptions").classList.toggle("hidden", !enabled); $("qwenAudioContextField").classList.toggle("hidden", !model?.supportsContext); $("qwenAudioHotwordsField").classList.toggle("hidden", !model?.supportsHotwords); $("qwenAudioVocabularyField").classList.toggle("hidden", !model?.supportsVocabulary); $("qwenAudioHotwordWeightField").classList.toggle("hidden", !model?.supportsHotwords); }
   function applyProviderLanguages(current, model, persistReset = false) { const el = $("language"); const previous = el.multiple ? Array.from(el.selectedOptions).map((o) => o.value) : (el.value ? [el.value] : []); const remembered = state.config.lastLanguage; const wanted = previous.length && persistReset ? previous : (remembered !== null && remembered !== undefined ? (remembered ? remembered.split(",") : []) : [state.config.language].filter(Boolean)); el.multiple = Boolean(current.multiLanguage); $("advancedOptionsGrid").classList.toggle("single-language", !current.multiLanguage); if (current.multiLanguage) el.size = 6; else el.removeAttribute("size"); const showRare = Boolean(state.config.showRareLangs); const commons = current.commonLanguages || []; const available = model.languages?.length ? model.languages : current.languages; const visible = !showRare && commons.length ? available.filter((item) => commons.includes(item.id)) : available; fillSelect("language", visible, ""); const codes = new Set(visible.map((item) => item.id)); const restored = wanted.filter((code) => code && codes.has(code)); if (current.multiLanguage) { Array.from(el.options).forEach((o) => { o.selected = restored.includes(o.value); }); } else { el.value = restored[0] || ""; } $("languageHint").classList.toggle("hidden", !current.multiLanguage); $("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0); $("languageReset").classList.toggle("hidden", !current.multiLanguage); }
   function languageValue() { const el = $("language"); if (el.multiple) return Array.from(el.selectedOptions).map((o) => o.value).filter(Boolean).join(","); return el.value; }
   function syncWorkspace() { $("workspaceField").classList.toggle("hidden", provider().regions.length === 0); }
@@ -196,7 +228,7 @@
   function setMedia(path) { $("mediaPath").value = path; setError("mediaPath", ""); syncDefaultOutput(); }
   function setJsonPath(path) { $("jsonPath").value = path; setError("jsonPath", ""); refreshServerMedia(); }
   function applyErrorResult(result, logDetail = true) { const message = errText(result.code, result.detail || result.error); if (result.field) setError(result.field, message); if (result.field === "port" || result.field === "serverMediaPath" || result.field === "jsonPath") expandServer(); setStatus(message); if (logDetail && (result.detail || result.error)) appendLog(`[error] ${result.code || "backend_error"}: ${result.detail || result.error}`); }
-  function validateLocal() { clearErrors(); const data = formPayload(); if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); return true; }
+  function validateLocal() { clearErrors(); const data = formPayload(); if (!data.mediaPath) return fail("mediaPath", errText("media_not_found", "")); if (!data.srtPath) return fail("srtPath", errText("output_missing", "")); if (!data.apiKey && !provider().apiKey) return fail("apiKey", errText("api_key_missing", "")); if (provider().regions.length > 0 && data.region === "singapore" && !data.workspaceId) return fail("workspaceId", errText("workspace_missing", "")); if (selectedModel().supportsContext && data.qwenAudioContext.length > 400) return fail("qwenAudioContext", errText("context_too_long", "")); return true; }
   function fail(field, message) { setError(field, message); setStatus(message); const input = $(field); if (input && input.scrollIntoView) input.scrollIntoView({ behavior: "smooth", block: "center" }); return false; }
   function toggle(id) { $(id).classList.toggle("collapsed"); renderChevron(id); }
   function setupScrollbarFlash() {
@@ -282,7 +314,7 @@
   $("pickMedia").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (!result.ok) return; if (!MEDIA_EXTS.has(ext(result.path))) { setStatus(t("drop_reject")); return; } setMedia(result.path); });
   $("pickJson").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "json" }); if (result.ok) setJsonPath(result.path); });
   $("jsonPath").addEventListener("input", () => setError("jsonPath", "")); $("jsonPath").addEventListener("change", refreshServerMedia); $("pickServerMedia").addEventListener("click", async () => { const result = await bridge("choose_file", { kind: "media" }); if (result.ok) { $("serverMediaPath").value = result.path; setError("serverMediaPath", ""); } });
-  ["apiKey", "workspaceId", "serverMediaPath", "port", "ffmpegPath", "stickerDir"].forEach((field) => { const el = $(field); el?.addEventListener("input", () => { setError(field, ""); if (field === "port") { state.detectedServerUrl = ""; renderMaweButton(); } }); el?.addEventListener("change", () => { setError(field, ""); if (field === "port") void checkExistingServer(); }); });
+  ["apiKey", "workspaceId", "qwenAudioContext", "qwenAudioHotwords", "qwenAudioVocabularyId", "qwenAudioHotwordWeight", "serverMediaPath", "port", "ffmpegPath", "stickerDir"].forEach((field) => { const el = $(field); el?.addEventListener("input", () => { setError(field, ""); if (field === "port") { state.detectedServerUrl = ""; renderMaweButton(); } }); el?.addEventListener("change", () => { setError(field, ""); if (field === "port") void checkExistingServer(); }); });
   $("refreshServerStatus").addEventListener("click", async () => { $("refreshServerStatus").disabled = true; try { await checkExistingServer(); } finally { $("refreshServerStatus").disabled = false; } });
   $("openKeyUrl").addEventListener("click", () => bridge("open_url", { url: provider().keyUrl }));
   $("ffmpegHelp").addEventListener("click", () => bridge("open_url", { url: "https://ffmpeg.org/download.html" }));

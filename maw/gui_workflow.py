@@ -6,6 +6,7 @@ import html
 import json
 import os
 import queue
+import re
 import subprocess
 import sys
 import threading
@@ -35,6 +36,10 @@ class TranscriptionRequest:
     language: str = ""
     api_key: str = ""
     length_limit: str = ""
+    qwen_audio_context: str = ""
+    qwen_audio_hotwords: str = ""
+    qwen_audio_vocabulary_id: str = ""
+    qwen_audio_hotword_weight: str = ""
     region: str = ""
     workspace_id: str = ""
     provider: str = "qwen"
@@ -140,6 +145,12 @@ def build_transcribe_command(
             command.append("--speaker-colors")
     _append_option(command, "--language", request.language)
     _append_option(command, "--length-limit", request.length_limit)
+    if request.provider == "qwen" and request.model == QWEN_AUDIO_MODEL_ID:
+        _append_option(command, "--vocabulary-id", request.qwen_audio_vocabulary_id)
+        _append_option(command, "--hotword-weight", request.qwen_audio_hotword_weight)
+        _append_option(command, "--context", request.qwen_audio_context)
+        for hotword in split_qwen_audio_hotwords(request.qwen_audio_hotwords):
+            command.extend(["--hotword", hotword])
     return command
 
 
@@ -333,6 +344,15 @@ def _require_output(path: Path, label: str) -> None:
 def _append_option(command: list[str], name: str, value: str) -> None:
     if value.strip():
         command.extend([name, value.strip()])
+
+
+def split_qwen_audio_hotwords(value: str) -> list[str]:
+    """把 Launcher 的换行/逗号分隔热词转换成重复的 --hotword 参数。"""
+    return [
+        word.strip()
+        for word in re.split(r"[\r\n,，;；]+", value)
+        if word.strip()
+    ]
 
 
 def _ignore(_message: str) -> None:

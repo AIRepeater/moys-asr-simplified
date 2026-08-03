@@ -1170,6 +1170,10 @@ def main():
         help="覆盖当前模型的百炼预编译 vocabulary_id（也可在 .env 配置）",
     )
     parser.add_argument(
+        "--hotword", action="append", default=None,
+        help="追加一个 Qwen-Audio 即时热词；可重复传入，与 hotwords.txt 合并",
+    )
+    parser.add_argument(
         "--hotword-weight", type=parse_hotword_weight, default=None,
         help="Qwen-Audio hotwords.txt 的即时热词权重（1-5 或 50；默认读 .env 的 5）",
     )
@@ -1219,6 +1223,10 @@ def main():
     is_video = input_path.suffix.lower() in video_exts
 
     hotwords = load_hotwords()
+    for hotword in args.hotword or []:
+        normalized = hotword.strip()
+        if normalized and normalized not in hotwords:
+            hotwords.append(normalized)
 
     with tempfile.TemporaryDirectory() as tmpdir:
         if args.file_url:

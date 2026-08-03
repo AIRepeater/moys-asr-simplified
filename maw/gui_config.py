@@ -23,6 +23,9 @@ class ModelConfig:
     env_key: str
     note: str = ""
     supports_speaker: bool = False
+    supports_context: bool = False
+    supports_hotwords: bool = False
+    supports_vocabulary: bool = False
     languages: tuple[tuple[str, str], ...] = ()
 
 
@@ -217,6 +220,9 @@ QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
         env_key="DASHSCOPE_API_KEY",
         note="支持即时热词、上下文与说话人分离",
         supports_speaker=True,
+        supports_context=True,
+        supports_hotwords=True,
+        supports_vocabulary=True,
         languages=FUNASR_LANGUAGES,
     ),
     ModelConfig(

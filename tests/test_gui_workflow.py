@@ -67,6 +67,25 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertEqual(command.count("--with-waveform"), 1)
         self.assertNotIn("secret-key", " ".join(command))
 
+    def test_build_transcribe_command_qwen_audio_passes_one_shot_context_hotwords_and_vocabulary(self) -> None:
+        request = TranscriptionRequest(
+            media_path=self.media_path,
+            srt_path=self.srt_path,
+            model="qwen-audio-3.0-asr-flash-filetrans",
+            qwen_audio_context="产品名和专业术语",
+            qwen_audio_hotwords="张三\n李四,阿里云",
+            qwen_audio_vocabulary_id="vocab-qwen-audio",
+            qwen_audio_hotword_weight="50",
+        )
+
+        command = build_transcribe_command(request, executable=Path("python.exe"), frozen=False)
+
+        self.assertEqual(command[command.index("--context") + 1], "产品名和专业术语")
+        self.assertEqual(command[command.index("--vocabulary-id") + 1], "vocab-qwen-audio")
+        self.assertEqual(command[command.index("--hotword-weight") + 1], "50")
+        hotword_positions = [index for index, value in enumerate(command) if value == "--hotword"]
+        self.assertEqual([command[index + 1] for index in hotword_positions], ["张三", "李四", "阿里云"])
+
     def test_build_transcribe_command_frozen_mode_dispatches_same_executable(self) -> None:
         request = TranscriptionRequest(media_path=self.media_path, srt_path=self.srt_path)
 

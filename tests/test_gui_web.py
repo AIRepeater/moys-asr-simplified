@@ -16,7 +16,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from maw.gui_web import EventPump, LauncherApi, LauncherPaths, _port, _request_from_payload, _route_dropped_path  # noqa: E402
+from maw.gui_web import EventPump, LauncherApi, LauncherPaths, PreflightError, _port, _request_from_payload, _route_dropped_path  # noqa: E402
 from maw.gui_workflow import TranscriptionRequest, TranscriptionResult  # noqa: E402
 
 
@@ -66,6 +66,9 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertEqual(config["models"][2]["id"], "fun-asr")
         self.assertFalse(config["models"][0]["supportsSpeaker"])
         self.assertTrue(config["models"][1]["supportsSpeaker"])
+        self.assertTrue(config["models"][1]["supportsContext"])
+        self.assertTrue(config["models"][1]["supportsHotwords"])
+        self.assertTrue(config["models"][1]["supportsVocabulary"])
         self.assertEqual(config["models"][1]["languages"][0]["id"], "")
         self.assertEqual(config["languages"][0]["id"], "")
 
@@ -545,6 +548,42 @@ class GuiWebBridgeTests(unittest.TestCase):
         self.assertFalse(qwen.speaker_colors)
         self.assertTrue(funasr.speaker_colors)
 
+    def test_request_from_payload_passes_qwen_audio_options_without_persisting_them(self) -> None:
+        media = self.root / "clip.mp3"
+        media.write_bytes(b"media")
+        request = _request_from_payload({
+            "providerId": "qwen",
+            "modelId": "qwen-audio-3.0-asr-flash-filetrans",
+            "mediaPath": str(media),
+            "srtPath": str(self.root / "out.srt"),
+            "apiKey": "sk-test",
+            "region": "beijing",
+            "qwenAudioContext": "产品名和专业术语",
+            "qwenAudioHotwords": "张三\n李四,阿里云",
+            "qwenAudioVocabularyId": "vocab-qwen-audio",
+            "qwenAudioHotwordWeight": "50",
+        }, self.env_path)
+
+        self.assertEqual(request.qwen_audio_context, "产品名和专业术语")
+        self.assertEqual(request.qwen_audio_hotwords, "张三\n李四,阿里云")
+        self.assertEqual(request.qwen_audio_vocabulary_id, "vocab-qwen-audio")
+        self.assertEqual(request.qwen_audio_hotword_weight, "50")
+
+    def test_request_from_payload_rejects_qwen_audio_context_over_400_characters(self) -> None:
+        media = self.root / "clip.mp3"
+        media.write_bytes(b"media")
+
+        with self.assertRaisesRegex(PreflightError, "400"):
+            _request_from_payload({
+                "providerId": "qwen",
+                "modelId": "qwen-audio-3.0-asr-flash-filetrans",
+                "mediaPath": str(media),
+                "srtPath": str(self.root / "out.srt"),
+                "apiKey": "sk-test",
+                "region": "beijing",
+                "qwenAudioContext": "x" * 401,
+            }, self.env_path)
+
     def test_event_pump_batches_events_and_preserves_order(self) -> None:
         pump = EventPump(window_getter=lambda: self.window)
         pump.enqueue({"type": "log", "message": "one"})
@@ -699,6 +738,18 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertIn('$("languageFilterHint").classList.toggle("hidden", showRare || commons.length === 0);', script)
         self.assertIn("const selectedModel = () =>", script)
         self.assertIn("applyProviderLanguages(provider(), selectedModel())", script)
+
+    def test_qwen_audio_launcher_exposes_one_shot_context_hotwords_and_vocabulary(self) -> None:
+        page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
+        script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
+
+        for field in ("qwenAudioContext", "qwenAudioHotwords", "qwenAudioVocabularyId", "qwenAudioHotwordWeight"):
+            self.assertIn(f'id="{field}"', page)
+        self.assertIn('qwenAudioContext: $("qwenAudioContext").value.trim()', script)
+        self.assertIn('qwenAudioHotwords: $("qwenAudioHotwords").value.trim()', script)
+        self.assertIn('qwenAudioVocabularyId: $("qwenAudioVocabularyId").value.trim()', script)
+        self.assertIn('qwenAudioOptions").classList.toggle("hidden", !enabled)', script)
+        self.assertIn('supportsContext', script)
 
     def test_workspace_is_visible_for_beijing_and_required_only_for_singapore(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")

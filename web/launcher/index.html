@@ -91,6 +91,40 @@
               <p id="languageFilterHint" class="hint hidden" data-i18n="language_filter_hint">默认仅显示常用语言，其余可在「配置」中开启。</p>
             </div>
           </div>
+          <div id="qwenAudioOptions" class="qwen-audio-options hidden">
+            <div id="qwenAudioContextField" class="field">
+              <label for="qwenAudioContext" data-i18n="qwen_audio_context">Prompt / 上下文</label>
+              <textarea id="qwenAudioContext" rows="3" autocomplete="off" data-i18n-placeholder="qwen_audio_context_placeholder"></textarea>
+              <p class="hint" data-i18n="qwen_audio_context_hint">领域词表或前文提示；本次任务最多发送 400 个字符，不是通用系统指令。</p>
+              <p id="qwenAudioContextError" class="field-error"></p>
+            </div>
+            <div class="qwen-audio-options-grid">
+              <div id="qwenAudioHotwordsField" class="field">
+                <label for="qwenAudioHotwords" data-i18n="qwen_audio_hotwords">即时热词</label>
+                <textarea id="qwenAudioHotwords" rows="3" autocomplete="off" data-i18n-placeholder="qwen_audio_hotwords_placeholder"></textarea>
+                <p class="hint" data-i18n="qwen_audio_hotwords_hint">每行一个，也支持逗号分隔；只作用于本次 Qwen-Audio 转写。</p>
+              </div>
+              <div class="qwen-audio-options-side">
+                <div id="qwenAudioVocabularyField" class="field">
+                  <label for="qwenAudioVocabularyId" data-i18n="qwen_audio_vocabulary_id">预编译热词 ID</label>
+                  <input id="qwenAudioVocabularyId" type="text" autocomplete="off" data-i18n-placeholder="qwen_audio_vocabulary_id_placeholder">
+                  <p class="hint" data-i18n="qwen_audio_vocabulary_id_hint">先在百炼控制台按 Qwen-Audio 创建；不是网上搜索出来的 ID。</p>
+                </div>
+                <div id="qwenAudioHotwordWeightField" class="field">
+                  <label for="qwenAudioHotwordWeight" data-i18n="qwen_audio_hotword_weight">即时热词权重</label>
+                  <select id="qwenAudioHotwordWeight">
+                    <option value="1">1（较弱）</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                    <option value="4">4</option>
+                    <option value="5" selected>5（较强）</option>
+                    <option value="50">50（超级热词）</option>
+                  </select>
+                  <p class="hint" data-i18n="qwen_audio_hotword_weight_hint">权重 50 适合少量必须命中的词，最多 50 个。</p>
+                </div>
+              </div>
+            </div>
+          </div>
           <div id="speakerColorsField" class="field hidden">
             <label class="check-field" for="speakerColors" data-i18n-title="speaker_colors_title">
               <input id="speakerColors" type="checkbox" checked>

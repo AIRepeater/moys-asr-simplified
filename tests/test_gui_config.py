@@ -112,6 +112,9 @@ class GuiConfigTests(unittest.TestCase):
         qwen_audio = gui_config.MODELS[1]
         self.assertEqual(qwen_audio.id, "qwen-audio-3.0-asr-flash-filetrans")
         self.assertTrue(qwen_audio.supports_speaker)
+        self.assertTrue(qwen_audio.supports_context)
+        self.assertTrue(qwen_audio.supports_hotwords)
+        self.assertTrue(qwen_audio.supports_vocabulary)
         self.assertIn("热词", qwen_audio.label)
         funasr = gui_config.MODELS[2]
         self.assertEqual(funasr.id, "fun-asr")

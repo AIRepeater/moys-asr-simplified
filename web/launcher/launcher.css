@@ -57,7 +57,8 @@ body {
 
 button,
 input,
-select {
+select,
+textarea {
   font: inherit;
 }
 
@@ -347,7 +348,8 @@ label {
 }
 
 input,
-select {
+select,
+textarea {
   height: 34px;
   width: 100%;
   color: var(--text-primary);
@@ -382,6 +384,39 @@ input:hover {
 
 input::placeholder {
   color: var(--text-faint);
+}
+
+textarea {
+  min-height: 72px;
+  padding: 8px 10px;
+  resize: vertical;
+  line-height: 1.45;
+}
+
+textarea:hover,
+textarea:focus {
+  border-color: var(--border-strong);
+  background-color: var(--bg-raised);
+}
+
+textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.qwen-audio-options {
+  margin-top: 12px;
+}
+
+.qwen-audio-options-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, .8fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.qwen-audio-options-side {
+  display: grid;
+  gap: 12px;
 }
 
 .ghost,
@@ -679,6 +714,7 @@ code {
 
 @media (max-width:620px) {
   .grid-two,
+  .qwen-audio-options-grid,
   .path-row {
     grid-template-columns: 1fr;
   }

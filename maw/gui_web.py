@@ -38,6 +38,7 @@ ERROR_MESSAGES: Final[dict[str, str]] = {
     "api_key_missing": "API key is required.",
     "workspace_missing": "Workspace ID is required for Singapore region.",
     "output_missing": "SRT output path is required.",
+    "context_too_long": "Qwen-Audio context is limited to 400 characters.",
     "server_no_response": "Editor server did not respond.",
     "server_stop_not_maw": "The process using this port is not a MAW editor server.",
     "server_stop_failed": "Unable to stop the MAW editor server.",
@@ -471,6 +472,13 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
         raise PreflightError("apiKey", "api_key_missing", "API key is required.")
     if provider.id == "qwen" and region == "singapore" and not workspace_id:
         raise PreflightError("workspaceId", "workspace_missing", "Workspace ID is required for Singapore region.")
+    qwen_audio_context = str(payload.get("qwenAudioContext") or "").strip() if model.supports_context else ""
+    if len(qwen_audio_context) > 400:
+        raise PreflightError(
+            "qwenAudioContext",
+            "context_too_long",
+            "Qwen-Audio context is limited to 400 characters.",
+        )
     return TranscriptionRequest(
         media_path=media,
         srt_path=srt,
@@ -478,6 +486,19 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
         language=str(payload.get("language") or ""),
         api_key=api_key,
         length_limit="2m" if bool(payload.get("testRun")) else str(payload.get("lengthLimit") or "").strip(),
+        qwen_audio_context=qwen_audio_context,
+        qwen_audio_hotwords=(
+            str(payload.get("qwenAudioHotwords") or "").strip()
+            if model.supports_hotwords else ""
+        ),
+        qwen_audio_vocabulary_id=(
+            str(payload.get("qwenAudioVocabularyId") or "").strip()
+            if model.supports_vocabulary else ""
+        ),
+        qwen_audio_hotword_weight=(
+            str(payload.get("qwenAudioHotwordWeight") or "").strip()
+            if model.supports_hotwords else ""
+        ),
         region=region,
         workspace_id=workspace_id,
         provider=provider.id,
@@ -707,6 +728,9 @@ def _model_payload(model: ModelConfig) -> dict[str, object]:
         "envKey": model.env_key,
         "note": model.note,
         "supportsSpeaker": model.supports_speaker,
+        "supportsContext": model.supports_context,
+        "supportsHotwords": model.supports_hotwords,
+        "supportsVocabulary": model.supports_vocabulary,
         "languages": [
             {"id": value, "label": label}
             for value, label in model.languages
