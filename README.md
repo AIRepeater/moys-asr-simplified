@@ -90,7 +90,7 @@ Moy 的 ASR 工作流由两部分组成：
 在 Launcher 里选择阿里云百炼或 Soniox、媒体与 SRT 输出位置，确认模型、语言和可选时长上限，填写对应的 API Key，即可生成 SRT、JSON 工程和便携编辑器 HTML。百炼 Provider 下可以选择 Qwen3 ASR、支持热词/上下文的 Qwen-Audio 3.0 ASR，或支持说话人分离的 Fun-ASR。需要复用 Key 时，可点“存入本地环境”；密钥只保存在本机 `.env`，不会写入工程文件或日志。
 
 GUI 还可以直接选择工程 JSON 并启动 `http://127.0.0.1` 本地编辑器服务器；中英文界面可在右上角切换。
-启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商组织模型、地域、语言和 API Key 获取入口；选择 Qwen-Audio、Fun-ASR 或 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
+启动器支持从资源管理器拖入音视频文件来自动填充媒体路径，并按供应商组织模型、语言和 API Key 获取入口；当前面向国内用户默认使用北京地域，地域和 Workspace 控件暂不显示。选择 Qwen-Audio、Fun-ASR 或 Soniox 时可在「高级选项」中开启「给不同说话人分配字幕颜色」。
 
 普通版仍要求系统能找到 `ffmpeg` 和 `ffprobe`。如果 Launcher 提示未检测到 FFmpeg，可以换用 `MAWxFF` 版；也可以自行安装 FFmpeg，把它的 `bin` 目录加入 PATH 后重新打开 MAW。
 

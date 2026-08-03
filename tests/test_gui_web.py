@@ -751,13 +751,23 @@ class LauncherAssetContractTests(unittest.TestCase):
         self.assertNotIn("qwenAudioVocabularyId", script)
         self.assertIn('supportsContext', script)
 
-    def test_workspace_is_visible_for_beijing_and_required_only_for_singapore(self) -> None:
+    def test_regional_fields_are_temporarily_hidden_for_domestic_launcher(self) -> None:
         page = (ROOT / "web" / "launcher" / "index.html").read_text(encoding="utf-8")
         script = (ROOT / "web" / "launcher" / "launcher.js").read_text(encoding="utf-8")
 
+        self.assertIn('id="regionField" class="field hidden"', page)
+        self.assertIn('id="workspaceField" class="field hidden"', page)
         self.assertIn("北京地域选填（推荐），新加坡地域必填。", page)
         self.assertIn(
-            '$("workspaceField").classList.toggle("hidden", provider().regions.length === 0);',
+            "const SHOW_REGIONAL_FIELDS = false;",
+            script,
+        )
+        self.assertIn(
+            '$("regionField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || current.regions.length === 0);',
+            script,
+        )
+        self.assertIn(
+            '$("workspaceField").classList.toggle("hidden", !SHOW_REGIONAL_FIELDS || provider().regions.length === 0);',
             script,
         )
         self.assertIn('data.region === "singapore" && !data.workspaceId', script)
