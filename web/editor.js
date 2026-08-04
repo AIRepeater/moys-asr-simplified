@@ -19,10 +19,16 @@ const DEFAULT_EDITOR_SETTINGS = {
   selectGroupMembers: false,
   // 合并字幕时各段文本之间插入的连接符（默认两个空格；留空则直接拼接）。
   mergeJoinText: '',
-  // 自动拼合：相邻空隙不超过该毫秒值时，后方字幕向前拓展拼合（0 表示不处理空隙）。
+  // 拼合字幕：相邻间隔不超过该毫秒值时拓展字幕长度拼合（0 表示不处理间隔）。
   autoMergeGapMs: 200,
-  // 自动拼合：中文少于 N 个字 / 英文少于 N 个词的字幕直接并入上一条。
+  // 拼合字幕：backward 向前拓展（默认，后方字幕起点前拓）/ forward 向后拓展（前方字幕终点后延）。
+  autoMergeSnapDirection: 'backward',
+  // 拼合字幕：中文少于 N 个字 / 英文少于 N 个词的字幕并入相邻字幕。
   autoMergeShortCount: 3,
+  // 拼合字幕：是否吸收过短字幕（默认开启；关闭后只拼合间隔）。
+  autoMergeAbsorbShort: true,
+  // 拼合字幕：previous 向前吸收（默认，并入上一条）/ next 向后吸收（并入下一条）。
+  autoMergeAbsorbDirection: 'previous',
   // 按颜色导出 SRT：统一导出先选择一个 SRT 文件名作为前缀。
   exportColorUnified: true,
   // 自动保存仅对绑定工程的 localhost 服务器版生效。
@@ -53,7 +59,10 @@ function readEditorSettings() {
       selectGroupMembers: saved.selectGroupMembers === true,
       mergeJoinText: typeof saved.mergeJoinText === 'string' ? saved.mergeJoinText : DEFAULT_EDITOR_SETTINGS.mergeJoinText,
       autoMergeGapMs: clampAutoMergeGapMs(saved.autoMergeGapMs),
+      autoMergeSnapDirection: saved.autoMergeSnapDirection === 'forward' ? 'forward' : 'backward',
       autoMergeShortCount: clampAutoMergeShortCount(saved.autoMergeShortCount),
+      autoMergeAbsorbShort: saved.autoMergeAbsorbShort !== false,
+      autoMergeAbsorbDirection: saved.autoMergeAbsorbDirection === 'next' ? 'next' : 'previous',
       exportColorUnified: saved.exportColorUnified !== false,
       autoSaveProject: saved.autoSaveProject !== false,
       autoSaveIntervalSeconds: clampAutoSaveInterval(saved.autoSaveIntervalSeconds),
@@ -413,9 +422,17 @@ const gapRemoveScanButton = document.getElementById('gap-remove-scan');
 const gapRemoveSkipPlayback = document.getElementById('gap-skip-playback');
 const gapRemoveList = document.getElementById('gap-remove-list');
 const gapRemoveClearAllButton = document.getElementById('gap-remove-clear-all');
+const AUTO_MERGE_PANEL_POSITION_KEY = 'moy.asr.auto_merge.panel.v1';
+const autoMergePanel = document.getElementById('auto-merge-panel');
+const autoMergeDragHandle = document.getElementById('auto-merge-drag-handle');
+const autoMergeCloseButton = document.getElementById('auto-merge-close');
+const autoMergeManageButton = document.getElementById('auto-merge-manage');
 const autoMergeRunButton = document.getElementById('auto-merge-run');
 const autoMergeGapMsInput = document.getElementById('auto-merge-gap-ms');
+const autoMergeSnapDirectionSelect = document.getElementById('auto-merge-snap-direction');
+const autoMergeAbsorbShortToggle = document.getElementById('auto-merge-absorb-short');
 const autoMergeShortCountInput = document.getElementById('auto-merge-short-count');
+const autoMergeAbsorbDirectionSelect = document.getElementById('auto-merge-absorb-direction');
 let gapPreviewRange = null;
 let gapRemovePanelDrag = null;
 let currentCuePanelIdx = -1;
@@ -509,8 +526,7 @@ document.addEventListener('mawe:languagechange', () => refreshSplitKeyHelp());
 splitKeySel.value = EDITOR_SETTINGS.splitKey;
 refreshSplitKeyHelp();
 if (mergeJoinTextInput) mergeJoinTextInput.value = EDITOR_SETTINGS.mergeJoinText;
-if (autoMergeGapMsInput) autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
-if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
+syncAutoMergePanelInputs();
 overlayToggle.checked = EDITOR_SETTINGS.overlayEnabled;
 exportStartAtZeroToggle.checked = EDITOR_SETTINGS.exportStartAtZero;
 if (selectGroupMembersToggle) selectGroupMembersToggle.checked = EDITOR_SETTINGS.selectGroupMembers;
@@ -561,7 +577,15 @@ splitKeySel.addEventListener('change', () => {
 if (mergeJoinTextInput) mergeJoinTextInput.addEventListener('input', () => {
   updateEditorSettings({ mergeJoinText: mergeJoinTextInput.value });
 });
-// 自动拼合：阈值即时持久化；change 时把显示值回钳到合法区间，避免输入中途被改写。
+// 拼合字幕工具窗：参数即时持久化；number 输入 change 时把显示值回钳到合法区间。
+const autoMergeFloatingPanel = createFloatingPanel({
+  panel: autoMergePanel,
+  dragHandle: autoMergeDragHandle,
+  manageButton: autoMergeManageButton,
+  positionKey: AUTO_MERGE_PANEL_POSITION_KEY,
+  onOpen: syncAutoMergePanelInputs,
+});
+autoMergeCloseButton?.addEventListener('click', () => autoMergeFloatingPanel.close());
 autoMergeRunButton?.addEventListener('click', autoMergeSegments);
 autoMergeGapMsInput?.addEventListener('input', () => {
   updateEditorSettings({ autoMergeGapMs: clampAutoMergeGapMs(autoMergeGapMsInput.value) });
@@ -569,14 +593,28 @@ autoMergeGapMsInput?.addEventListener('input', () => {
 autoMergeGapMsInput?.addEventListener('change', () => {
   autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
 });
+autoMergeSnapDirectionSelect?.addEventListener('change', () => {
+  updateEditorSettings({
+    autoMergeSnapDirection: autoMergeSnapDirectionSelect.value === 'forward' ? 'forward' : 'backward',
+  });
+});
+autoMergeAbsorbShortToggle?.addEventListener('change', () => {
+  updateEditorSettings({ autoMergeAbsorbShort: autoMergeAbsorbShortToggle.checked });
+  syncAutoMergeAbsorbFields();
+});
 autoMergeShortCountInput?.addEventListener('input', () => {
   updateEditorSettings({ autoMergeShortCount: clampAutoMergeShortCount(autoMergeShortCountInput.value) });
 });
 autoMergeShortCountInput?.addEventListener('change', () => {
   autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
 });
-[autoMergeGapMsInput, autoMergeShortCountInput].forEach((input) => {
-  input?.addEventListener('wheel', (event) => {
+autoMergeAbsorbDirectionSelect?.addEventListener('change', () => {
+  updateEditorSettings({
+    autoMergeAbsorbDirection: autoMergeAbsorbDirectionSelect.value === 'next' ? 'next' : 'previous',
+  });
+});
+autoMergePanel?.querySelectorAll('input[type="number"]').forEach((input) => {
+  input.addEventListener('wheel', (event) => {
     if (!event.deltaY) return;
     event.preventDefault();
     input.focus({ preventScroll: true });
@@ -805,6 +843,113 @@ function clearAllGaps() {
   state.manual_corrections = false;
   setGapRemoveData(state);
   flashHint('已清理全部空隙区段');
+}
+
+// 可拖动非模态工具窗（移除静音空隙 / 拼合字幕共用模式）：
+// 负责显示/隐藏、工具栏按钮 active 态、标题栏拖动与位置持久化、窗口缩放回钳、Esc 关闭。
+function createFloatingPanel({ panel, dragHandle, manageButton, positionKey, onOpen }) {
+  if (!panel) return { open() {}, close() {}, toggle() {}, isOpen: () => false };
+  let drag = null;
+
+  function isOpen() { return panel.classList.contains('show'); }
+
+  function setPosition(left, top, { persist = false } = {}) {
+    const rect = panel.getBoundingClientRect();
+    const margin = 6;
+    const maxLeft = Math.max(margin, window.innerWidth - rect.width - margin);
+    const maxTop = Math.max(margin, window.innerHeight - rect.height - margin);
+    const nextLeft = Math.min(maxLeft, Math.max(margin, Math.round(left)));
+    const nextTop = Math.min(maxTop, Math.max(margin, Math.round(top)));
+    panel.style.left = `${nextLeft}px`;
+    panel.style.top = `${nextTop}px`;
+    panel.style.right = 'auto';
+    if (persist) {
+      try {
+        localStorage.setItem(positionKey, JSON.stringify({ left: nextLeft, top: nextTop }));
+      } catch (_) {
+        // file:// 隐私模式可能拒绝 localStorage；拖动本身仍保持可用。
+      }
+    }
+  }
+
+  function restorePosition() {
+    let saved = null;
+    try {
+      saved = JSON.parse(localStorage.getItem(positionKey) || 'null');
+    } catch (_) {
+      saved = null;
+    }
+    if (Number.isFinite(saved?.left) && Number.isFinite(saved?.top)) {
+      setPosition(saved.left, saved.top);
+      return;
+    }
+    const rect = panel.getBoundingClientRect();
+    setPosition(rect.left, rect.top);
+  }
+
+  function open() {
+    if (typeof onOpen === 'function') onOpen();
+    panel.classList.add('show');
+    panel.setAttribute('aria-hidden', 'false');
+    manageButton?.classList.add('active');
+    manageButton?.setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(restorePosition);
+  }
+
+  function close() {
+    panel.classList.remove('show', 'dragging');
+    panel.setAttribute('aria-hidden', 'true');
+    drag = null;
+    manageButton?.classList.remove('active');
+    manageButton?.setAttribute('aria-expanded', 'false');
+  }
+
+  function toggle() { if (isOpen()) close(); else open(); }
+
+  function finishDrag(event) {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    try {
+      dragHandle?.releasePointerCapture?.(event.pointerId);
+    } catch (_) {
+      // 指针在浏览器窗口外释放时，capture 可能已由浏览器自动清理。
+    }
+    drag = null;
+    panel.classList.remove('dragging');
+    const rect = panel.getBoundingClientRect();
+    setPosition(rect.left, rect.top, { persist: true });
+  }
+
+  dragHandle?.addEventListener('pointerdown', (event) => {
+    if (event.button !== 0 || event.target.closest('button')) return;
+    const rect = panel.getBoundingClientRect();
+    drag = {
+      pointerId: event.pointerId,
+      offsetX: event.clientX - rect.left,
+      offsetY: event.clientY - rect.top,
+    };
+    panel.classList.add('dragging');
+    dragHandle.setPointerCapture?.(event.pointerId);
+    event.preventDefault();
+  });
+  dragHandle?.addEventListener('pointermove', (event) => {
+    if (!drag || event.pointerId !== drag.pointerId) return;
+    event.preventDefault();
+    setPosition(event.clientX - drag.offsetX, event.clientY - drag.offsetY);
+  });
+  dragHandle?.addEventListener('pointerup', finishDrag);
+  dragHandle?.addEventListener('pointercancel', finishDrag);
+  manageButton?.addEventListener('click', toggle);
+  window.addEventListener('resize', () => {
+    if (!isOpen()) return;
+    const rect = panel.getBoundingClientRect();
+    setPosition(rect.left, rect.top, { persist: true });
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !isOpen() || editingState) return;
+    event.preventDefault();
+    close();
+  });
+  return { open, close, toggle, isOpen };
 }
 
 function gapRemovePanelIsOpen() {
@@ -1953,25 +2098,52 @@ function mergeSegments(idxs) {
   flashHint(`已合并 ${sorted.length} 条`);
 }
 
-// === 自动拼合 ===
-// 一键处理整段工程：相邻空隙不超过 autoMergeGapMs 时把后方字幕向前拓展拼合；
-// 过短的字幕（中文 < N 字 / 英文 < N 词）并入上一条（首条则并入下一条）。
+// === 拼合字幕 ===
+// 把工具窗参数同步到控件；「吸收过短字幕」关闭时禁用短句相关参数。
+function syncAutoMergePanelInputs() {
+  if (autoMergeGapMsInput) autoMergeGapMsInput.value = String(EDITOR_SETTINGS.autoMergeGapMs);
+  if (autoMergeSnapDirectionSelect) autoMergeSnapDirectionSelect.value = EDITOR_SETTINGS.autoMergeSnapDirection;
+  if (autoMergeAbsorbShortToggle) autoMergeAbsorbShortToggle.checked = EDITOR_SETTINGS.autoMergeAbsorbShort;
+  if (autoMergeShortCountInput) autoMergeShortCountInput.value = String(EDITOR_SETTINGS.autoMergeShortCount);
+  if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.value = EDITOR_SETTINGS.autoMergeAbsorbDirection;
+  syncAutoMergeAbsorbFields();
+}
+
+function syncAutoMergeAbsorbFields() {
+  const enabled = EDITOR_SETTINGS.autoMergeAbsorbShort;
+  if (autoMergeShortCountInput) autoMergeShortCountInput.disabled = !enabled;
+  if (autoMergeAbsorbDirectionSelect) autoMergeAbsorbDirectionSelect.disabled = !enabled;
+  autoMergePanel?.classList.toggle('absorb-disabled', !enabled);
+}
+
+// 一键处理整段工程：相邻间隔不超过 autoMergeGapMs 时按拓展方向拼合；
+// 过短的字幕（中文 < N 字 / 英文 < N 词）按吸收方向并入相邻字幕。
 function autoMergeSegments() {
   const plan = window.AsrEditorUtils.planAutoMerge(DATA.segments, {
     gapMs: EDITOR_SETTINGS.autoMergeGapMs,
+    snapDirection: EDITOR_SETTINGS.autoMergeSnapDirection,
+    absorbShort: EDITOR_SETTINGS.autoMergeAbsorbShort,
     shortCount: EDITOR_SETTINGS.autoMergeShortCount,
+    absorbDirection: EDITOR_SETTINGS.autoMergeAbsorbDirection,
   });
   if (!plan.snaps.length && !plan.groups.length) {
-    flashHint('没有需要拼合的空隙或过短字幕');
+    flashHint('没有需要拼合的间隔或过短字幕');
     return;
   }
   if (editingState) finishEdit(false);
   clearSelection();
-  pushUndo('自动拼合');
-  plan.snaps.forEach(({ index, start }) => {
-    const segment = DATA.segments[index];
-    if (segment && start > segment.start && start < segment.end) {
-      segment.start = start;
+  pushUndo('拼合字幕');
+  plan.snaps.forEach((snap) => {
+    const segment = DATA.segments[snap.index];
+    if (!segment) return;
+    // 向前拓展：后方字幕 start 前拓；向后拓展：前方字幕 end 后延。只许延长不许缩短。
+    if (snap.edge === 'end') {
+      if (snap.time > segment.end) {
+        segment.end = snap.time;
+        segment._dirty = true;
+      }
+    } else if (snap.time > segment.start && snap.time < segment.end) {
+      segment.start = snap.time;
       segment._dirty = true;
     }
   });
@@ -1983,9 +2155,9 @@ function autoMergeSegments() {
   update();
   const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
   const parts = [];
-  if (plan.snaps.length) parts.push(`拼合 ${plan.snaps.length} 处空隙`);
-  if (mergedCount) parts.push(`合并 ${mergedCount} 条短字幕`);
-  flashHint(`已自动拼合：${parts.join('，')}`);
+  if (plan.snaps.length) parts.push(`拼合 ${plan.snaps.length} 处间隔`);
+  if (mergedCount) parts.push(`吸收 ${mergedCount} 条短字幕`);
+  flashHint(`已拼合字幕：${parts.join('，')}`);
 }
 
 // === 组拆分 helper（删除 / 清除颜色 / 清除表情包 通用）===

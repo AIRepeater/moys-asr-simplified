@@ -117,12 +117,18 @@
     return fixed;
   }
 
-  // 自动拼合计划（纯函数，不改动输入）。返回：
-  // - snaps: [{ index, start }]，相邻空隙在 (0, gapMs] 时把后方字幕 start 前拓到前一条 end；
-  // - groups: [[idx, ...]]，过短字幕与上一条（首条则与下一条）组成的合并组；
+  // 拼合字幕计划（纯函数，不改动输入）。返回：
+  // - snaps: [{ index, edge, time }]，相邻间隔在 (0, gapMs] 时：
+  //   snapDirection 'backward'（向前拓展，默认）把后方字幕 start 前拓到前一条 end；
+  //   snapDirection 'forward'（向后拓展）把前方字幕 end 后延到后一条 start。
+  // - groups: [[idx, ...]]，过短字幕的合并组；absorbDirection 'previous'（向前吸收，
+  //   默认）并入上一条、'next'（向后吸收）并入下一条；absorbShort 为 false 时不合并。
   //   禁用项或 speaker 不一致的组合不合并。
   function planAutoMerge(segments, options = {}) {
     const gapMs = Math.max(0, Math.round(Number(options.gapMs) || 0));
+    const snapDirection = options.snapDirection === 'forward' ? 'forward' : 'backward';
+    const absorbShort = options.absorbShort !== false;
+    const absorbDirection = options.absorbDirection === 'next' ? 'next' : 'previous';
     const shortCount = Math.max(1, Math.round(Number(options.shortCount) || 3));
     const source = Array.isArray(segments) ? segments : [];
     const snaps = [];
@@ -132,7 +138,9 @@
       if (!previous || !current) continue;
       if (!Number.isFinite(previous.end) || !Number.isFinite(current.start)) continue;
       const gap = current.start - previous.end;
-      if (gap > 0 && gap <= gapMs) snaps.push({ index: i, start: previous.end });
+      if (gap <= 0 || gap > gapMs) continue;
+      if (snapDirection === 'forward') snaps.push({ index: i - 1, edge: 'end', time: current.start });
+      else snaps.push({ index: i, edge: 'start', time: previous.end });
     }
     const canMergePair = (leftIdx, rightIdx) => {
       const left = source[leftIdx];
@@ -142,22 +150,35 @@
       return (left.speaker ?? null) === (right.speaker ?? null);
     };
     const groups = [];
-    let currentGroup = source.length ? [0] : [];
-    for (let i = 1; i < source.length; i++) {
-      const groupTail = currentGroup[currentGroup.length - 1];
-      const mergeBackward = isShortSubtitleText(source[i].text, shortCount);
-      // 组内首条自身过短且尚未并入上一条时，把后一条拉进来（首条向前合并语义）。
-      const mergeForward = currentGroup.length === 1
-        && isShortSubtitleText(source[currentGroup[0]].text, shortCount);
-      if ((mergeBackward || mergeForward) && canMergePair(groupTail, i)) {
-        currentGroup.push(i);
-      } else {
-        groups.push(currentGroup);
-        currentGroup = [i];
+    if (absorbShort) {
+      const indexRange = (from, to) => Array.from({ length: to - from + 1 }, (_, k) => from + k);
+      let i = 0;
+      while (i < source.length) {
+        if (!isShortSubtitleText(source[i]?.text, shortCount)) { i++; continue; }
+        // 连续过短字幕区间 [i..j]（相邻短字幕之间也要满足合并条件）
+        let j = i;
+        while (j + 1 < source.length
+            && isShortSubtitleText(source[j + 1]?.text, shortCount)
+            && canMergePair(j, j + 1)) j++;
+        const lastGroup = groups[groups.length - 1];
+        const canExtendLast = !!(lastGroup && lastGroup[lastGroup.length - 1] === i - 1 && canMergePair(i - 1, i));
+        const canMergeBackward = i > 0 && canMergePair(i - 1, i);
+        const canMergeForward = j + 1 < source.length && canMergePair(j, j + 1);
+        if (absorbDirection === 'next') {
+          // 向后吸收：优先并入下一条；没有下一条（或不可合并）时退回上一条
+          if (canMergeForward) groups.push(indexRange(i, j + 1));
+          else if (canExtendLast) for (let k = i; k <= j; k++) lastGroup.push(k);
+          else if (canMergeBackward) groups.push(indexRange(i - 1, j));
+        } else {
+          // 向前吸收：优先并入上一条；首条（或上一条不可合并）时退回下一条
+          if (canExtendLast) for (let k = i; k <= j; k++) lastGroup.push(k);
+          else if (canMergeBackward) groups.push(indexRange(i - 1, j));
+          else if (canMergeForward) groups.push(indexRange(i, j + 1));
+        }
+        i = j + 1;
       }
     }
-    if (currentGroup.length) groups.push(currentGroup);
-    return { snaps, groups: groups.filter((group) => group.length > 1) };
+    return { snaps, groups };
   }
 
   function formatHumanDuration(durationMs) {

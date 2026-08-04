@@ -90,13 +90,24 @@ test('plans gap snaps only within the threshold', () => {
     { start: 3000, end: 4200, text: '第三句字幕在这里' },
   ];
   const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 200, shortCount: 1 })));
-  assert.deepEqual(plan.snaps, [{ index: 1, start: 1000 }]);
+  assert.deepEqual(plan.snaps, [{ index: 1, edge: 'start', time: 1000 }]);
   assert.deepEqual(plan.groups, []);
-  // 阈值为 0 时不拼合任何空隙
+  // 阈值为 0 时不拼合任何间隔
   const disabled = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 0, shortCount: 1 })));
   assert.deepEqual(disabled.snaps, []);
   // 输入不被改动
   assert.equal(segments[1].start, 1150);
+});
+
+test('snaps by extending the earlier subtitle forward when direction is forward', () => {
+  const segments = [
+    { start: 0, end: 1000, text: '第一句字幕在这里' },
+    { start: 1150, end: 2400, text: '第二句字幕在这里' },
+  ];
+  const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, {
+    gapMs: 200, snapDirection: 'forward', shortCount: 1,
+  })));
+  assert.deepEqual(plan.snaps, [{ index: 0, edge: 'end', time: 1150 }]);
 });
 
 test('plans short-subtitle merges into the previous subtitle', () => {
@@ -108,6 +119,25 @@ test('plans short-subtitle merges into the previous subtitle', () => {
   const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, { gapMs: 0, shortCount: 3 })));
   assert.deepEqual(plan.snaps, []);
   assert.deepEqual(plan.groups, [[0, 1]]);
+  // 关闭吸收后不产生任何合并组
+  const noAbsorb = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, {
+    gapMs: 0, shortCount: 3, absorbShort: false,
+  })));
+  assert.deepEqual(noAbsorb.groups, []);
+});
+
+test('absorbs short subtitles into the next subtitle when direction is next', () => {
+  const segments = [
+    { start: 0, end: 2000, text: '用卫星拍照片能得到' },
+    { start: 2100, end: 2600, text: '什么？' },
+    { start: 3000, end: 5000, text: '这个东西卖一亿元' },
+    { start: 5100, end: 5400, text: '对吧' },
+  ];
+  const plan = JSON.parse(JSON.stringify(helpers.planAutoMerge(segments, {
+    gapMs: 0, shortCount: 3, absorbDirection: 'next',
+  })));
+  // 「什么？」并入下一条；结尾的「对吧」没有下一条，退回并入上一条所在组
+  assert.deepEqual(plan.groups, [[1, 2, 3]]);
 });
 
 test('merges a short first subtitle forward and chains consecutive shorts backward', () => {
@@ -134,16 +164,16 @@ test('skips auto-merge pairs that are disabled or have different speakers', () =
   assert.deepEqual(plan.groups, []);
 });
 
-test('translates auto-merge flash hints to English', () => {
-  assert.equal(i18n.translateText('自动拼合', 'en'), 'Auto-merge');
-  assert.equal(i18n.translateText('没有需要拼合的空隙或过短字幕', 'en'), 'No small gaps or short subtitles to merge');
+test('translates snap-subtitles flash hints to English', () => {
+  assert.equal(i18n.translateText('拼合字幕', 'en'), 'Snap subtitles');
+  assert.equal(i18n.translateText('没有需要拼合的间隔或过短字幕', 'en'), 'No intervals or short subtitles to snap');
   assert.equal(
-    i18n.translateText('已自动拼合：拼合 2 处空隙，合并 1 条短字幕', 'en'),
-    'Auto-merge: snapped 2 gaps, merged 1 short subtitles',
+    i18n.translateText('已拼合字幕：拼合 2 处间隔，吸收 1 条短字幕', 'en'),
+    'Snap subtitles: snapped 2 intervals, absorbed 1 short subtitles',
   );
   assert.equal(
-    i18n.translateText('已自动拼合：合并 3 条短字幕', 'en'),
-    'Auto-merge: merged 3 short subtitles',
+    i18n.translateText('已拼合字幕：吸收 3 条短字幕', 'en'),
+    'Snap subtitles: absorbed 3 short subtitles',
   );
 });
 
