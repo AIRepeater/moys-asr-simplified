@@ -164,6 +164,42 @@ test('skips auto-merge pairs that are disabled or have different speakers', () =
   assert.deepEqual(plan.groups, []);
 });
 
+test('applies backward snaps by extending the later subtitle start earlier', () => {
+  const segments = [
+    { start: 0, end: 1000, text: '前一句字幕' },
+    { start: 1150, end: 2400, text: '后一句字幕' },
+  ];
+  const changed = helpers.applyAutoMergeSnaps(segments, [{ index: 1, edge: 'start', time: 1000 }]);
+  assert.equal(changed, 1);
+  assert.deepEqual([segments[1].start, segments[1].end], [1000, 2400]);
+  assert.equal(segments[1]._dirty, true);
+});
+
+test('applies forward snaps by extending the earlier subtitle end later', () => {
+  const segments = [
+    { start: 0, end: 1000, text: '前一句字幕' },
+    { start: 1150, end: 2400, text: '后一句字幕' },
+  ];
+  const changed = helpers.applyAutoMergeSnaps(segments, [{ index: 0, edge: 'end', time: 1150 }]);
+  assert.equal(changed, 1);
+  assert.deepEqual([segments[0].start, segments[0].end], [0, 1150]);
+});
+
+test('never shortens a subtitle when applying snaps', () => {
+  const segments = [
+    { start: 100, end: 1000, text: '前一句字幕' },
+    { start: 1200, end: 2400, text: '后一句字幕' },
+  ];
+  // start 只会变小（前拓）、end 只会变大（后延）；相反方向的 snap 被忽略
+  const changed = helpers.applyAutoMergeSnaps(segments, [
+    { index: 0, edge: 'start', time: 500 },
+    { index: 1, edge: 'end', time: 1000 },
+  ]);
+  assert.equal(changed, 0);
+  assert.deepEqual([segments[0].start, segments[0].end], [100, 1000]);
+  assert.deepEqual([segments[1].start, segments[1].end], [1200, 2400]);
+});
+
 test('translates snap-subtitles flash hints to English', () => {
   assert.equal(i18n.translateText('拼合字幕', 'en'), 'Snap subtitles');
   assert.equal(i18n.translateText('没有需要拼合的间隔或过短字幕', 'en'), 'No intervals or short subtitles to snap');

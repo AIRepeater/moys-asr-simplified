@@ -1184,8 +1184,8 @@
   .gap-skip-toggle { white-space: nowrap; }
 
   /* 拼合字幕 —— 复用 .gap-remove-panel 家族样式，只补充自有差异 */
-  .auto-merge-field-wide { grid-column: 1 / -1; }
-  .auto-merge-field-wide input[type=checkbox] { justify-self: end; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  .auto-merge-absorb-field { margin: 8px 0; }
+  .auto-merge-absorb-field input[type=checkbox] { justify-self: end; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
   .auto-merge-panel select {
     justify-self: end; max-width: 120px; padding: 4px 6px;
     color: var(--text-primary); background: var(--bg-input); border: 1px solid var(--border);
@@ -2263,7 +2263,7 @@
 
 <h1>
   <span class="media-name empty" id="media-name" title="">未加载媒体</span>
-  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-04 11:54</span>
+  <span class="gen-time" id="gen-time" data-label="生成时间">生成时间 2026-08-04 12:48</span>
   <span class="json-name empty" id="json-name" title="点击复制 JSON 文件名">未加载工程</span>
 </h1>
 <div class="toolbar row-actions">
@@ -2485,11 +2485,13 @@
         </select>
         <small>向前：后方字幕的起点前拓；向后：前方字幕的终点后延</small>
       </label>
-      <label class="gap-remove-field auto-merge-field-wide" title="关闭后只拼合间隔，不合并任何字幕">
-        <span class="gap-remove-field-label">吸收过短字幕</span>
-        <input type="checkbox" id="auto-merge-absorb-short" checked>
-        <small>过短的字幕直接并入相邻字幕；关闭后只拼合间隔</small>
-      </label>
+    </div>
+    <label class="gap-remove-field auto-merge-absorb-field" title="关闭后只拼合间隔，不合并任何字幕">
+      <span class="gap-remove-field-label">吸收过短字幕</span>
+      <input type="checkbox" id="auto-merge-absorb-short" checked>
+      <small>过短的字幕直接并入相邻字幕；关闭后只拼合间隔</small>
+    </label>
+    <div class="gap-remove-fields">
       <label class="gap-remove-field">
         <span class="gap-remove-field-label">短字幕阈值</span>
         <span class="gap-remove-number-control">
@@ -3055,6 +3057,30 @@
       }
     }
     return { snaps, groups };
+  }
+
+  // 应用拼合间隔计划（原地修改 segments）：向前拓展把后方字幕 start 前拓到前一条
+  // end；向后拓展把前方字幕 end 后延到后一条 start。只许延长、不许缩短。
+  // 返回实际改动的字幕条数。
+  function applyAutoMergeSnaps(segments, snaps) {
+    const source = Array.isArray(segments) ? segments : [];
+    let changed = 0;
+    (Array.isArray(snaps) ? snaps : []).forEach((snap) => {
+      const segment = source[snap?.index];
+      if (!segment || !Number.isFinite(snap.time)) return;
+      if (snap.edge === 'end') {
+        if (snap.time > segment.end) {
+          segment.end = snap.time;
+          segment._dirty = true;
+          changed++;
+        }
+      } else if (snap.time >= 0 && snap.time < segment.start) {
+        segment.start = snap.time;
+        segment._dirty = true;
+        changed++;
+      }
+    });
+    return changed;
   }
 
   function formatHumanDuration(durationMs) {
@@ -3722,6 +3748,7 @@
     isShortSubtitleText,
     normalizeSegmentTimings,
     planAutoMerge,
+    applyAutoMergeSnaps,
     formatHumanDuration,
     formatGapRemoveDuration,
     splitCharOffsetAtTime,
@@ -9320,20 +9347,7 @@ function autoMergeSegments() {
   if (editingState) finishEdit(false);
   clearSelection();
   pushUndo('拼合字幕');
-  plan.snaps.forEach((snap) => {
-    const segment = DATA.segments[snap.index];
-    if (!segment) return;
-    // 向前拓展：后方字幕 start 前拓；向后拓展：前方字幕 end 后延。只许延长不许缩短。
-    if (snap.edge === 'end') {
-      if (snap.time > segment.end) {
-        segment.end = snap.time;
-        segment._dirty = true;
-      }
-    } else if (snap.time > segment.start && snap.time < segment.end) {
-      segment.start = snap.time;
-      segment._dirty = true;
-    }
-  });
+  const snappedCount = window.AsrEditorUtils.applyAutoMergeSnaps(DATA.segments, plan.snaps);
   // 合并从后往前进行，保持靠前组的下标仍然有效
   for (let i = plan.groups.length - 1; i >= 0; i--) {
     mergeContiguousIndices(plan.groups[i]);
@@ -9342,7 +9356,7 @@ function autoMergeSegments() {
   update();
   const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
   const parts = [];
-  if (plan.snaps.length) parts.push(`拼合 ${plan.snaps.length} 处间隔`);
+  if (snappedCount) parts.push(`拼合 ${snappedCount} 处间隔`);
   if (mergedCount) parts.push(`吸收 ${mergedCount} 条短字幕`);
   flashHint(`已拼合字幕：${parts.join('，')}`);
 }

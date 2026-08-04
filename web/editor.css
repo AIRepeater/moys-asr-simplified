@@ -1166,8 +1166,8 @@
   .gap-skip-toggle { white-space: nowrap; }
 
   /* 拼合字幕 —— 复用 .gap-remove-panel 家族样式，只补充自有差异 */
-  .auto-merge-field-wide { grid-column: 1 / -1; }
-  .auto-merge-field-wide input[type=checkbox] { justify-self: end; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+  .auto-merge-absorb-field { margin: 8px 0; }
+  .auto-merge-absorb-field input[type=checkbox] { justify-self: end; width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
   .auto-merge-panel select {
     justify-self: end; max-width: 120px; padding: 4px 6px;
     color: var(--text-primary); background: var(--bg-input); border: 1px solid var(--border);

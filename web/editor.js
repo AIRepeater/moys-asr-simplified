@@ -2133,20 +2133,7 @@ function autoMergeSegments() {
   if (editingState) finishEdit(false);
   clearSelection();
   pushUndo('拼合字幕');
-  plan.snaps.forEach((snap) => {
-    const segment = DATA.segments[snap.index];
-    if (!segment) return;
-    // 向前拓展：后方字幕 start 前拓；向后拓展：前方字幕 end 后延。只许延长不许缩短。
-    if (snap.edge === 'end') {
-      if (snap.time > segment.end) {
-        segment.end = snap.time;
-        segment._dirty = true;
-      }
-    } else if (snap.time > segment.start && snap.time < segment.end) {
-      segment.start = snap.time;
-      segment._dirty = true;
-    }
-  });
+  const snappedCount = window.AsrEditorUtils.applyAutoMergeSnaps(DATA.segments, plan.snaps);
   // 合并从后往前进行，保持靠前组的下标仍然有效
   for (let i = plan.groups.length - 1; i >= 0; i--) {
     mergeContiguousIndices(plan.groups[i]);
@@ -2155,7 +2142,7 @@ function autoMergeSegments() {
   update();
   const mergedCount = plan.groups.reduce((sum, group) => sum + group.length - 1, 0);
   const parts = [];
-  if (plan.snaps.length) parts.push(`拼合 ${plan.snaps.length} 处间隔`);
+  if (snappedCount) parts.push(`拼合 ${snappedCount} 处间隔`);
   if (mergedCount) parts.push(`吸收 ${mergedCount} 条短字幕`);
   flashHint(`已拼合字幕：${parts.join('，')}`);
 }

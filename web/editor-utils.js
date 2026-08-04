@@ -181,6 +181,30 @@
     return { snaps, groups };
   }
 
+  // 应用拼合间隔计划（原地修改 segments）：向前拓展把后方字幕 start 前拓到前一条
+  // end；向后拓展把前方字幕 end 后延到后一条 start。只许延长、不许缩短。
+  // 返回实际改动的字幕条数。
+  function applyAutoMergeSnaps(segments, snaps) {
+    const source = Array.isArray(segments) ? segments : [];
+    let changed = 0;
+    (Array.isArray(snaps) ? snaps : []).forEach((snap) => {
+      const segment = source[snap?.index];
+      if (!segment || !Number.isFinite(snap.time)) return;
+      if (snap.edge === 'end') {
+        if (snap.time > segment.end) {
+          segment.end = snap.time;
+          segment._dirty = true;
+          changed++;
+        }
+      } else if (snap.time >= 0 && snap.time < segment.start) {
+        segment.start = snap.time;
+        segment._dirty = true;
+        changed++;
+      }
+    });
+    return changed;
+  }
+
   function formatHumanDuration(durationMs) {
     const totalSeconds = Math.max(0, Math.floor(Number(durationMs) / 1000) || 0);
     const seconds = totalSeconds % 60;
@@ -846,6 +870,7 @@
     isShortSubtitleText,
     normalizeSegmentTimings,
     planAutoMerge,
+    applyAutoMergeSnaps,
     formatHumanDuration,
     formatGapRemoveDuration,
     splitCharOffsetAtTime,
