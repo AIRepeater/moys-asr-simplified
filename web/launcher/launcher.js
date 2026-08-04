@@ -65,7 +65,7 @@
     qwen_audio_hotwords: "Instant hotwords",
     qwen_audio_hotwords_mode_text: "Direct input",
     qwen_audio_hotwords_mode_file: "Load from file",
-    qwen_audio_hotwords_placeholder: "哔哩哔哩\nMoy\n扑热息痛\nWubba Lubba Dub Dub",
+    qwen_audio_hotwords_placeholder: "Bilibili\nMoy\nParacetamol\nWubba Lubba Dub Dub",
     qwen_audio_hotwords_hint: "One per line or comma-separated; you can also drop a .txt file here to fill it in; applies only to this Qwen-Audio transcription.",
     qwen_audio_hotwords_file_placeholder: "Drop or choose a .txt hotword file",
     qwen_audio_hotwords_file_hint: "UTF-8 .txt files are supported; one hotword per line.",
