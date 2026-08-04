@@ -87,9 +87,23 @@
     drop_reject_txt: "Hotword source only accepts .txt text files.",
     context_too_long: "Qwen-Audio context is limited to 400 characters."
   });
+  Object.assign(STRINGS.zh, {
+    settings_appearance: "外观",
+    theme_light: "明亮模式",
+    theme_dark: "暗色模式",
+    theme_system: "跟随系统设置"
+  });
+  Object.assign(STRINGS.en, {
+    settings_appearance: "Appearance",
+    theme_light: "Light",
+    theme_dark: "Dark",
+    theme_system: "Follow system"
+  });
   const SERVER_STARTING_TEXT = { zh: "启动中……", en: "Starting…" };
   // Launcher 暂时面向国内用户默认北京；地域和 Workspace 仍保留在请求契约中，后续可重新开放。
   const SHOW_REGIONAL_FIELDS = false;
+  // 界面暂不开放时长上限，底层参数保留。
+  const SHOW_LENGTH_LIMIT_FIELD = false;
 
   const MEDIA_EXTS = new Set([".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".ts", ".m4v", ".mp3", ".wav", ".m4a", ".flac", ".aac", ".ogg"]);
   const ERROR_TEXT = {
@@ -125,11 +139,12 @@
   const HOME_URL = "https://github.com/Moyf/moys-asr-workflow";
   const LAST_MODEL_KEY = "MAW_GUI_LAST_MODEL";
   const LAST_LANGUAGE_KEY = "MAW_GUI_LAST_LANGUAGE";
+  const THEME_KEY = "MAW_GUI_THEME";
   const $ = (id) => document.getElementById(id);
   const HOTWORD_WEIGHTS = new Set([1, 2, 3, 4, 5, 50]);
   const MAX_HOTWORDS = 2000;
   const MAX_SUPER_HOTWORDS = 50;
-  const state = { lang: "zh", serverRunning: false, serverStarting: false, running: false, result: null, config: null, srtAuto: true, serverMediaOk: false, detectedServerUrl: "", dropTarget: "" };
+  const state = { lang: "zh", serverRunning: false, serverStarting: false, running: false, result: null, config: null, srtAuto: true, serverMediaOk: false, detectedServerUrl: "", dropTarget: "", theme: "system" };
   const dragState = { depth: 0 };
   let api = null;
   let prefsTimer = 0;
@@ -213,6 +228,10 @@
   const setStatus = (text) => { if (state.detectedServerUrl) setServerStatus(state.detectedServerUrl, true, text); else $("status").textContent = text; };
   function setServerStatus(url, alreadyRunning = false, prefix = "") { const status = $("status"); status.replaceChildren(); if (prefix) status.append(document.createTextNode(`${prefix} `)); status.append(document.createTextNode(alreadyRunning ? `${t("server_already_running")} ` : `${t("server_address")} `)); const link = document.createElement("a"); link.href = url; link.textContent = url; link.className = "status-link"; link.addEventListener("click", (event) => { event.preventDefault(); bridge("open_url", { url }); }); status.append(link); if (alreadyRunning) { const stop = document.createElement("button"); stop.type = "button"; stop.className = "status-stop-link"; stop.textContent = t("server_stop"); stop.addEventListener("click", stopEditorServer); status.append(stop); } }
   const appendLog = (text) => { const log = $("log"); log.textContent += `${text}\n`; log.scrollTop = log.scrollHeight; };
+
+  function resolveTheme() { if (state.theme === "light" || state.theme === "dark") return state.theme; return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"; }
+  function applyTheme() { if (resolveTheme() === "light") document.documentElement.dataset.theme = "light"; else delete document.documentElement.dataset.theme; $("themeLight").classList.toggle("active", state.theme === "light"); $("themeDark").classList.toggle("active", state.theme === "dark"); $("themeSystem").classList.toggle("active", state.theme === "system"); }
+  function setTheme(pref) { state.theme = pref; try { localStorage.setItem(THEME_KEY, pref); } catch (error) { /* localStorage 不可用时仅作用于本次会话 */ } applyTheme(); }
 
   async function bridge(method, payload = {}) {
     try {
@@ -344,6 +363,10 @@
     const realApi = await waitForBackend();
     api = realApi || mockApi();
     window.MAWLauncher.backend = realApi ? "real" : "mock";
+    const savedTheme = localStorage.getItem(THEME_KEY);
+    state.theme = savedTheme === "light" || savedTheme === "dark" || savedTheme === "system" ? savedTheme : "system";
+    applyTheme();
+    $("lengthLimitField").classList.toggle("hidden", !SHOW_LENGTH_LIMIT_FIELD);
     $("demoBadge").classList.toggle("hidden", window.MAWLauncher.backend !== "mock");
     state.config = await bridge("get_config");
     state.lang = state.config.guiLang || "zh";
@@ -358,6 +381,8 @@
   window.MAWLauncher = { backend: "pending", onBackendEvent: handleBackendEvent, onBackendEvents(events) { events.forEach(handleBackendEvent); } };
 
   $("langToggle").addEventListener("click", async () => { state.lang = state.lang === "zh" ? "en" : "zh"; renderLanguage(); await bridge("save_settings", formPayload()); });
+  $("themeLight").addEventListener("click", () => setTheme("light")); $("themeDark").addEventListener("click", () => setTheme("dark")); $("themeSystem").addEventListener("click", () => setTheme("system"));
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (state.theme === "system") applyTheme(); });
   $("homeLink").addEventListener("click", () => bridge("open_url", { url: HOME_URL }));
   $("provider").addEventListener("change", () => applyProvider(true)); $("model").addEventListener("change", () => applySelectedModel(true)); $("language").addEventListener("change", () => savePrefsDebounced({ language: languageValue() })); $("region").addEventListener("change", syncWorkspace); $("advancedToggle").addEventListener("click", () => toggle("advancedCard"));
   $("testRun").addEventListener("change", syncTestRun);
