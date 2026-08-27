@@ -252,6 +252,7 @@ class PackagingContractTests(unittest.TestCase):
         workflow = read_text(".github/workflows/pr-release-windows.yml")
 
         self.assertRegex(workflow, re.compile(r"on:\s+pull_request:", re.MULTILINE))
+        self.assertRegex(workflow, re.compile(r"push:\s+branches-ignore: \[main\]", re.MULTILINE))
         self.assertIn("windows-2022", workflow)
         self.assertIn("permissions:\n  contents: read", workflow)
         self.assertNotIn("actions/setup-node@v4", workflow)

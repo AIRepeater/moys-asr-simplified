@@ -3,7 +3,8 @@ name: Python lint
 on:
   pull_request:
   push:
-    branches: [main]
+    # 所有分支：非 main 分支的 push 也能得到 lint 反馈。
+    branches: ['**']
 
 permissions:
   contents: read

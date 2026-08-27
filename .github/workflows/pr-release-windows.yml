@@ -3,6 +3,8 @@ name: Preview Windows Release
 on:
   pull_request:
     types: [opened, synchronize, reopened]
+  push:
+    branches-ignore: [main]
   workflow_dispatch:
 
 permissions:
