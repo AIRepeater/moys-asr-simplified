@@ -14,7 +14,6 @@ __pycache__/
 *.m4a
 *.flac
 *.srt
-*.ReaPeaks
 
 # Dev-only browser test tooling (Playwright)
 node_modules/

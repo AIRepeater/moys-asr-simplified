@@ -12,6 +12,7 @@
 - **依赖收窄** ：运行依赖只剩 `jieba`、`requests` 与 `pywebview`；移除 fontTools、opencc、reapeaks 等依赖与 `local` / `ocr` 可选依赖组。
 - **打包同步** ：`MAW.spec` 与打包契约测试按新范围重写，编译产物验证继续由 GitHub Actions（`release.yml` / `pr-release-windows.yml`）承担。
 - **破坏性变更（命令行）** ：移除 `--speaker-colors` 旗标，说话人分离仍可用 `--speaker`；同时移除入口脚本私有兼容别名 `_parse_duration` / `_split_by_silence` / `configure_console_output`。Launcher 的说话人着色开关改为独立的「说话人分离」开关。
+- **批量 manifest 升版** ：`maw-batch-manifest.json` 的 `version` 从 1 升至 2，`outcome` 移除已废弃的 `jsonPath` / `htmlPath` 字段；Launcher 仅消费 `srtPath`，外部按 v1 消费该文件的脚本需要同步调整。
 
 ## [1.5.0-beta.4] - 2026-08-26
 

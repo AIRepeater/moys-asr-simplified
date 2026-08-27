@@ -1188,24 +1188,7 @@ textarea::placeholder {
 
 .settings-grid-action-label {
   line-height: 1;
-}/* 输出与执行固定在抽屉底部，不随面板滚动。 */
-
-.replace-rule-preview {
-  margin-top: 10px;
-  padding: 8px 10px;
-  border: 1px solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--bg-input);
 }
-
-.replace-rule-preview pre {
-  margin: 6px 0 0;
-  color: var(--text-primary);
-  font: inherit;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-}/* 只读取值（如固定的 OCR 模型）：与输入控件同高同底，两列网格行内对齐。 */
 
 .settings-save-status {
   min-height: 1.4em;

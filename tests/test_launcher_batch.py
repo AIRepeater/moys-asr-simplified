@@ -103,6 +103,7 @@ class BatchRunnerTests(unittest.TestCase):
         manifest = manifest_payload(self._items(1), {"apiKey": "secret", "nested": {"token": "private", "model": "qwen"}})
 
         text = json.dumps(manifest)
+        self.assertEqual(manifest["version"], 2)
         self.assertNotIn("secret", text)
         self.assertNotIn("private", text)
         self.assertIn("qwen", text)

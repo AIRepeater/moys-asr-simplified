@@ -66,7 +66,7 @@ Intel Homebrew 常见目录是 /usr/local/bin。
 ----------------------
 
 在 Launcher 的配置中填写对应转写服务商的 API Key，然后重新执行任务。
-不要把真实 API Key 放进工程文件、截图、GitHub Issue 或本 FAQ 文件。
+不要把真实 API Key 放进日志、截图、GitHub Issue 或本 FAQ 文件。
 
 
 五、API 任务超时、上传失败或返回 HTTP 403

@@ -102,8 +102,8 @@ cat > "$APP_DIR/MAW.desktop" <<'EOF'
 Type=Application
 Name=MAW
 Name[zh_CN]=MAW
-Comment=Moy's ASR Workflow - subtitle transcription and editing
-Comment[zh_CN]=Moy 的 ASR 工作流 - 字幕转写与编辑
+Comment=Moy's ASR Workflow - subtitle transcription
+Comment[zh_CN]=Moy 的 ASR 工作流 - 字幕转写
 Exec=MAW
 Icon=MAW
 Terminal=false

@@ -112,6 +112,19 @@ class PackagingContractTests(unittest.TestCase):
         self.assertNotIn('"*.mp4"', spec)
         self.assertNotIn('"*.srt"', spec)
 
+    def test_removed_feature_directories_are_absent_from_the_repository(self) -> None:
+        """Given the trimmed project scope, When the repository tree is read, Then removed feature directories stay gone so nothing can silently re-enter bundled trees."""
+        for removed_dir in (
+            "server-editor",
+            "web/sfx",
+            "examples",
+            "tests/fixtures",
+            "tests/test_data",
+            "desktop",
+            "website",
+        ):
+            self.assertFalse((ROOT / removed_dir).exists(), removed_dir)
+
     def test_macos_bundle_uses_the_icns_app_icon(self) -> None:
         """Given a macOS app bundle, When PyInstaller builds it, Then the bundle has the branded ICNS icon."""
         spec = read_text("MAW.spec")
