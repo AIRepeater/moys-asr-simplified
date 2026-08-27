@@ -7,49 +7,38 @@
 [![GitHub Stars](https://img.shields.io/github/stars/Moyf/moys-asr-workflow)](https://github.com/Moyf/moys-asr-workflow/stargazers)
 [![License](https://img.shields.io/github/license/Moyf/moys-asr-workflow)](LICENSE)
 
-> 本地媒体 → AI 转写 → SRT + `.mosp` 工程 → MAWE 编辑 → 导出。
+> 本地媒体 → Qwen/DashScope AI 转写 → SRT 字幕直出（支持批量）。
 
-官网：[MAW 官网](https://moyf.github.io/moys-asr-workflow/) · [在线编辑器](https://moyf.github.io/moys-asr-workflow/editor/)
+官网：[MAW 官网](https://moyf.github.io/moys-asr-workflow/)
 
-MAW 是一个以 API 转写为主的字幕生成与编辑工作流。它提供 Windows/macOS 图形版、公开 CLI 和本机 Server 编辑器；字幕编辑与工程保存都在本机完成。
+MAW 是一个刻意收窄的在线 ASR 工作流：选择本地音视频文件，经阿里云百炼（Qwen / Fun-ASR）云端转写后直接生成 SRT 字幕。它提供 Windows/macOS/Linux 图形版 Launcher，也保留命令行入口 `generate_subtitle_qwen_api.py` 供脚本化使用。
 
 ## 快速开始
 
 1. [下载最新版](https://github.com/Moyf/moys-asr-workflow/releases/latest)。默认下载带 FFmpeg 的 `MAW-Windows-x64-v*.zip`；如果已安装 `ffmpeg` / `ffprobe`，也可以选择体积更小的 `MAW-lite-Windows-x64-v*.zip`，macOS 下载对应的 `MAW.app` 或 `MAW-lite.app`。
 2. 解压并启动 `MAW.exe` 或 `MAW.app`。
-3. 在 Launcher 配置转写服务的 API Key，选择媒体并点击生成。
-4. 在 MAWE 中检查、编辑字幕，导出 SRT 或其他格式。
+3. 在 Launcher 配置阿里云百炼的 API Key，选择媒体文件并点击「生成字幕」。
+4. 在输出路径得到 UTF-8 SRT 字幕；批量模式可一次转写多个文件。
 
-第一次使用、API 配置、编辑和排错：请从[完整工作流](docs/WORKFLOW.md)开始。
+第一次使用、API 配置和排错：请从[完整工作流](docs/WORKFLOW.md)开始。
 
 ## 核心能力
 
-- 使用 Qwen / Fun-ASR / Soniox 转写，生成 SRT 与 `.mosp` 工程。
-- MAWE Server 编辑器支持波形定位、拆分合并、静音空隙处理、画面预览和多种导出格式。
-- MAWE 支持可选的多重字幕：拖入第二条字幕作为副轨，支持主副字幕交换、绑定/解绑、联动编辑、跨轨道吸附，以及 `G` / `Shift+G` / `H` / `B` 快捷操作。
-- 公开 CLI 可用于批处理和 AI 自动化，详见[命令行文档](docs/CLI.md)。
-- [本地 Qwen3-ASR / FunASR](docs/LOCAL_ASR.md) 和免 Key 的必剪 ASR 均属于实验性入口，仅适合体验。
+- 使用阿里云百炼的 `qwen-audio-3.0-asr`（支持上下文与即时热词）、`fun-asr`（说话人分离）或 `qwen3-asr` 转写，直接输出 SRT。
+- 支持说话人字幕着色、快速测试（前 2 分钟）、调试运行（保留原始返回）。
+- 支持批量转写：队列顺序逐个处理，共用识别设置，结果清单落盘。
+- 根入口脚本 `generate_subtitle_qwen_api.py` 可用于批处理和自动化。
 
 ## 文档
 
-- [完整工作流](docs/WORKFLOW.md) ：安装、配置、转写、编辑、导出和排错。
+- [完整工作流](docs/WORKFLOW.md) ：安装、配置、转写和排错。
 - [常见问题](docs/FAQ.md) ：Windows 下载解压、启动故障与问题反馈。
 - [ASR 服务与配置](docs/PROVIDERS.md) ：服务商选择、Key、费用和隐私边界。
-- [编辑器指南](docs/EDITOR_GUIDE.md) ：MAWE 的编辑、保存和导出。
-- [字幕按键调整](docs/KEYBOARD_ADJUSTMENT.md) ：快捷键和时间微调规则。
-- [命令行与自动化](docs/CLI.md) ：完整参数、范例、Server 管理和退出码。
-- [LLM 字幕后处理协议](docs/LLM_POSTPROCESS_PROTOCOL.md) ：后处理的输入输出与安全边界。
-- [OCR 字幕去重](docs/OCR_SUBTITLE_DEDUP.md) ：画面字幕识别、禁用规则、视频输入、报告和性能说明。
-- [转写后自动处理](docs/POSTPROCESS_PIPELINE.md) ：固定步骤、配置预检、LLM 验证、中间产物和失败恢复。
-- [JSON 工程文件规范](JSON_SCHEMA.md) ：`.mosp` / `.json` 数据契约。
-- [开发说明](docs/DEVELOPMENT.md) ：产品边界、数据契约和开发检查。
 
 ## 重要说明
 
 - 选择云端服务转写时，媒体会直接上传到对应服务商；MAW 没有自己的云端服务器，也不会代管 API Key。
-- `.mosp` 工程是字幕真源；SRT 适合交付，但不会保留全部字级时间码、波形、颜色和其他工程数据。
 - 费用、数据保留和服务可用性以服务商当前政策为准，详见[ASR 服务与配置](docs/PROVIDERS.md)。
-- [3 分钟视频速览](https://www.bilibili.com/video/BV1hXum6yELT)
 
 ## Star History
 

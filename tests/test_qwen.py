@@ -13,7 +13,6 @@ from generate_subtitle_qwen_api import (
     repair_nonpositive_duration_segments,
     split_words_to_segments,
 )
-from maw.project import normalize_project
 
 
 class QwenCliExitContractTests(unittest.TestCase):
@@ -75,7 +74,6 @@ class QwenTimestampRepairTests(unittest.TestCase):
 
         self.assertEqual([(segment["start"], segment["end"]) for segment in repaired], [(0, 1000), (1000, 2000)])
         self.assertEqual(repaired[1]["text"], "嗯！继续。")
-        normalize_project({"segments": repaired})
 
     def test_trailing_zero_duration_segment_merges_into_previous(self) -> None:
         segments = [
@@ -98,7 +96,6 @@ class QwenTimestampRepairTests(unittest.TestCase):
         self.assertEqual(len(repaired), 1)
         self.assertEqual((repaired[0]["start"], repaired[0]["end"]), (0, 1200))
         self.assertEqual(repaired[0]["text"], "前句尾字")
-        normalize_project({"segments": repaired})
 
     def test_all_zero_duration_segments_keep_text_and_gain_minimum_duration(self) -> None:
         segments = [
@@ -110,7 +107,6 @@ class QwenTimestampRepairTests(unittest.TestCase):
 
         self.assertEqual(repaired[0]["text"], "啊。")
         self.assertEqual((repaired[0]["start"], repaired[0]["end"]), (500, 501))
-        normalize_project({"segments": repaired})
 
 
 if __name__ == "__main__":

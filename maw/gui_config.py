@@ -53,13 +53,7 @@ class ModelConfig:
     supports_vocabulary: bool = False
     languages: tuple[tuple[str, str], ...] = ()
     kind: str = "cloud"
-    engine: str = ""
     model_ref: str = ""
-    required_model_refs: tuple[str, ...] = ()
-    requires_runtime: tuple[str, ...] = ()
-    # 上游缓存中的实际模型 ID；当引擎用简写加载（如 FunASR paraformer-zh）
-    # 而缓存目录使用完整 ID 时，扫描器靠它定位已下载的模型。
-    cache_refs: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,11 +85,9 @@ class EffectiveConfig:
     workspace_id: str
     language: str
     gui_lang: str
-    sticker_dir: str
     show_rare_langs: bool = False
     last_model: str | None = None
     last_language: str | None = None
-    model_cache_root: str = ""
     zoom_percent: int = 100
 
 
@@ -173,98 +165,10 @@ FUNASR_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
     ("sk", "斯洛伐克语 / Slovak"),
 )
 
-SENSEVOICE_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
-    ("", "自动识别"),
-    ("zh", "中文 / Chinese"),
-    ("yue", "粤语 / Cantonese"),
-    ("en", "英语 / English"),
-    ("ja", "日语 / Japanese"),
-    ("ko", "韩语 / Korean"),
-)
-
-FUN_ASR_NANO_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
-    ("", "自动识别"),
-    ("zh", "中文 / Chinese"),
-    ("yue", "粤语 / Cantonese"),
-    ("en", "英语 / English"),
-    ("ja", "日语 / Japanese"),
-)
-
-# 关闭「显示相对小众的语言」时，Qwen 保留 9 种、Soniox 保留 8 种常用语言。
+# 关闭「显示相对小众的语言」时，Qwen 保留 9 种常用语言。
 # Qwen 的空代码（自动识别）也始终显示。
 QWEN_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
     "", "zh", "yue", "en", "ja", "ko", "fr", "de", "es", "ru",
-)
-
-# Soniox 官方文档：language_hints 是列表（可多选，仅偏向不限制），
-# 不提供即自动识别；支持 60 种语言（2026-07 文档）。
-# https://soniox.com/docs/stt/concepts/supported-languages
-SONIOX_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
-    ("zh", "中文 / Mandarin"),
-    ("en", "英语 / English"),
-    ("ja", "日语 / Japanese"),
-    ("ko", "韩语 / Korean"),
-    ("af", "南非荷兰语 / Afrikaans"),
-    ("sq", "阿尔巴尼亚语 / Albanian"),
-    ("ar", "阿拉伯语 / Arabic"),
-    ("az", "阿塞拜疆语 / Azerbaijani"),
-    ("eu", "巴斯克语 / Basque"),
-    ("be", "白俄罗斯语 / Belarusian"),
-    ("bn", "孟加拉语 / Bengali"),
-    ("bs", "波斯尼亚语 / Bosnian"),
-    ("bg", "保加利亚语 / Bulgarian"),
-    ("ca", "加泰罗尼亚语 / Catalan"),
-    ("hr", "克罗地亚语 / Croatian"),
-    ("cs", "捷克语 / Czech"),
-    ("da", "丹麦语 / Danish"),
-    ("nl", "荷兰语 / Dutch"),
-    ("et", "爱沙尼亚语 / Estonian"),
-    ("fi", "芬兰语 / Finnish"),
-    ("fr", "法语 / French"),
-    ("gl", "加利西亚语 / Galician"),
-    ("de", "德语 / German"),
-    ("el", "希腊语 / Greek"),
-    ("gu", "古吉拉特语 / Gujarati"),
-    ("he", "希伯来语 / Hebrew"),
-    ("hi", "印地语 / Hindi"),
-    ("hu", "匈牙利语 / Hungarian"),
-    ("id", "印尼语 / Indonesian"),
-    ("it", "意大利语 / Italian"),
-    ("kn", "卡纳达语 / Kannada"),
-    ("kk", "哈萨克语 / Kazakh"),
-    ("lv", "拉脱维亚语 / Latvian"),
-    ("lt", "立陶宛语 / Lithuanian"),
-    ("mk", "马其顿语 / Macedonian"),
-    ("ms", "马来语 / Malay"),
-    ("ml", "马拉雅拉姆语 / Malayalam"),
-    ("mr", "马拉地语 / Marathi"),
-    ("no", "挪威语 / Norwegian"),
-    ("fa", "波斯语 / Persian"),
-    ("pl", "波兰语 / Polish"),
-    ("pt", "葡萄牙语 / Portuguese"),
-    ("pa", "旁遮普语 / Punjabi"),
-    ("ro", "罗马尼亚语 / Romanian"),
-    ("ru", "俄语 / Russian"),
-    ("sr", "塞尔维亚语 / Serbian"),
-    ("sk", "斯洛伐克语 / Slovak"),
-    ("sl", "斯洛文尼亚语 / Slovenian"),
-    ("es", "西班牙语 / Spanish"),
-    ("sw", "斯瓦希里语 / Swahili"),
-    ("sv", "瑞典语 / Swedish"),
-    ("tl", "菲律宾语 / Tagalog"),
-    ("ta", "泰米尔语 / Tamil"),
-    ("te", "泰卢固语 / Telugu"),
-    ("th", "泰语 / Thai"),
-    ("tr", "土耳其语 / Turkish"),
-    ("uk", "乌克兰语 / Ukrainian"),
-    ("ur", "乌尔都语 / Urdu"),
-    ("vi", "越南语 / Vietnamese"),
-    ("cy", "威尔士语 / Welsh"),
-)
-
-# Soniox 60 种里的常用语言（GUI 默认只显示这些；开关打开后显示全部）
-SONIOX_COMMON_LANGUAGES: Final[tuple[str, ...]] = (
-    "zh", "en", "ja", "ko", "fr", "de", "es", "ru",
 )
 
 QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
@@ -295,96 +199,6 @@ QWEN_MODELS: Final[tuple[ModelConfig, ...]] = (
     ),
 )
 
-SONIOX_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="stt-async-v5",
-        label="Soniox Async STT（v5，上下文）",
-        env_key="SONIOX_API_KEY",
-        note="支持 general、text、terms 和 translation_terms 上下文",
-        supports_speaker=True,
-        supports_context=True,
-        languages=SONIOX_LANGUAGES,
-    ),
-)
-
-LOCAL_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="qwen3-asr-local",
-        label="Qwen3-ASR 0.6B（推荐）",
-        env_key="",
-        note="本地运行；首次准备会加载 Qwen3-ASR 与 Forced Aligner",
-        languages=LANGUAGES,
-        kind="local",
-        engine="qwen-asr",
-        model_ref="Qwen/Qwen3-ASR-0.6B",
-        required_model_refs=("Qwen/Qwen3-ForcedAligner-0.6B",),
-        requires_runtime=("qwen_asr", "torch"),
-    ),
-    ModelConfig(
-        id="qwen3-asr-1.7b-local",
-        label="Qwen3-ASR 1.7B",
-        env_key="",
-        note="更高识别质量；与 0.6B 共用 Qwen3 Forced Aligner",
-        languages=LANGUAGES,
-        kind="local",
-        engine="qwen-asr",
-        model_ref="Qwen/Qwen3-ASR-1.7B",
-        required_model_refs=("Qwen/Qwen3-ForcedAligner-0.6B",),
-        requires_runtime=("qwen_asr", "torch"),
-    ),
-    ModelConfig(
-        id="fun-asr-nano-local",
-        label="Fun-ASR-Nano 2512（GPU）",
-        env_key="",
-        note="LLM-ASR 路线；默认配合 FSMN-VAD，中英日及中文方言，建议使用 CUDA",
-        languages=FUN_ASR_NANO_LANGUAGES,
-        kind="local",
-        engine="funasr",
-        model_ref="FunAudioLLM/Fun-ASR-Nano-2512",
-        requires_runtime=("funasr", "torchaudio"),
-    ),
-    ModelConfig(
-        id="funasr-local",
-        label="FunASR paraformer-zh",
-        env_key="",
-        note="本地运行；使用 FunASR 上游模型缓存",
-        languages=FUNASR_LANGUAGES,
-        kind="local",
-        engine="funasr",
-        model_ref="paraformer-zh",
-        requires_runtime=("funasr", "torchaudio"),
-        # FunASR model zoo 把 paraformer-zh 解析为这个 ModelScope ID；
-        # GUI 不能导入 FunASR，扫描缓存时需要显式的映射。
-        cache_refs=("iic/speech_seaco_paraformer_large_asr_nat-zh-cn-16k-common-vocab8404-pytorch",),
-    ),
-    ModelConfig(
-        id="sensevoice-small-local",
-        label="SenseVoice Small",
-        env_key="",
-        note="多语种本地识别；默认配合 FSMN-VAD，CPU/GPU 都可运行",
-        languages=SENSEVOICE_LANGUAGES,
-        kind="local",
-        engine="funasr",
-        model_ref="iic/SenseVoiceSmall",
-        requires_runtime=("funasr", "torchaudio"),
-    ),
-)
-
-# 必剪（B 站非官方免费接口）：仅中文、无语言参数，单文件上限见 maw/bcut.py
-BCUT_LANGUAGES: Final[tuple[tuple[str, str], ...]] = (
-    ("", "中文（自动识别）"),
-)
-
-BCUT_MODELS: Final[tuple[ModelConfig, ...]] = (
-    ModelConfig(
-        id="bcut-asr",
-        label="必剪 ASR（免 Key / 仅中文）",
-        env_key="",
-        note="逐字毫秒时间戳；无需 API Key",
-        languages=BCUT_LANGUAGES,
-    ),
-)
-
 PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
     ProviderConfig(
         id="qwen",
@@ -396,49 +210,9 @@ PROVIDERS: Final[tuple[ProviderConfig, ...]] = (
         supports_speaker=True,
         common_languages=QWEN_COMMON_LANGUAGES,
     ),
-    ProviderConfig(
-        id="soniox",
-        label="Soniox STT",
-        key_url="https://console.soniox.com",
-        models=SONIOX_MODELS,
-        regions=(),
-        languages=SONIOX_LANGUAGES,
-        supports_speaker=True,
-        multi_language=True,
-        common_languages=SONIOX_COMMON_LANGUAGES,
-    ),
-    ProviderConfig(
-        id="local",
-        label="本地模型（Beta）",
-        key_url="",
-        models=LOCAL_MODELS,
-        regions=(),
-        languages=LANGUAGES,
-        supports_speaker=False,
-        common_languages=QWEN_COMMON_LANGUAGES,
-        kind="local",
-        requires_api_key=False,
-    ),
-    # 实验性供应商，置底展示：非官方接口，风险与上限见 note 与 maw/bcut.py
-    ProviderConfig(
-        id="bcut",
-        label="必剪 ASR（非官方 · 免费 · 实验性）",
-        key_url="https://github.com/SocialSisterYi/bcut-asr",
-        models=BCUT_MODELS,
-        regions=(),
-        languages=BCUT_LANGUAGES,
-        requires_api_key=False,
-        supports_language=False,
-        note=(
-            "非官方免费接口：无需 API Key，仅支持中文，单文件上限 2 小时；"
-            "接口可能随时变更、失效或触发限流，请勿高频调用。"
-            "重要或批量任务建议使用上方正式供应商。"
-        ),
-    ),
 )
 
 MODELS: Final[tuple[ModelConfig, ...]] = PROVIDERS[0].models
-LEGACY_MODELS: Final[tuple[ModelConfig, ...]] = tuple(model for model in QWEN_MODELS if model.id == QWEN3_ASR_MODEL_ID)
 
 
 def load_env(path: Path = DEFAULT_ENV_PATH) -> dict[str, str]:
@@ -509,11 +283,9 @@ def effective_config(path: Path = DEFAULT_ENV_PATH, environ: Mapping[str, str] |
         workspace_id=pick("DASHSCOPE_WORKSPACE_ID"),
         language=pick("DASHSCOPE_DEFAULT_LANGUAGE"),
         gui_lang=_gui_language(pick("MAW_GUI_LANG", "zh")),
-        sticker_dir=pick("STICKER_DIR"),
         show_rare_langs=pick("MAW_GUI_SHOW_RARE_LANGS").strip().lower() in ("1", "true", "yes", "on"),
         last_model=pick_optional("MAW_GUI_LAST_MODEL"),
         last_language=pick_optional("MAW_GUI_LAST_LANGUAGE"),
-        model_cache_root=pick("MAW_MODEL_CACHE_ROOT").strip(),
         zoom_percent=normalize_zoom_percent(pick("MAW_GUI_ZOOM_PERCENT", "100")),
     )
 

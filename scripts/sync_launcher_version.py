@@ -33,12 +33,6 @@ def _targets() -> tuple[tuple[str, Path, str, str], ...]:
             r'(BUNDLED_APP_VERSION\s*=\s*")[^"]+(")',
             r'BUNDLED_APP_VERSION\s*=\s*"([^"]+)"',
         ),
-        (
-            "portable editor fallback",
-            ROOT / "edit.py",
-            r'(BUNDLED_EDITOR_VERSION\s*=\s*")[^"]+(")',
-            r'BUNDLED_EDITOR_VERSION\s*=\s*"([^"]+)"',
-        ),
     )
 
 

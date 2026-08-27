@@ -7,7 +7,6 @@ from generate_subtitle_qwen_api import (
     split_segments_auto,
     split_words_to_segments_western,
 )
-from maw.project import validate_project
 
 
 def _words(pairs):
@@ -129,8 +128,10 @@ class AutoTrackTests(unittest.TestCase):
         ])
         segments = split_segments_auto(items, max_len=21, min_len=5, gap_split_ms=1500)
 
-        result = validate_project({"segments": segments})
-        self.assertTrue(result.ok, msg=str([e.to_json() for e in result.errors]))
+        for segment in segments:
+            self.assertIsInstance(segment["start"], int)
+            self.assertIsInstance(segment["end"], int)
+            self.assertGreater(segment["end"], segment["start"])
 
 
 if __name__ == "__main__":

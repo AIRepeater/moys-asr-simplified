@@ -18,7 +18,6 @@ from maw.gui_workflow import (
     TranscriptionResult,
     run_transcription,
 )
-from maw.postprocess_pipeline import PostprocessCancelled, PostprocessPipelineError, enabled_steps
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,7 +29,6 @@ class BatchItem:
 
 BatchEvent = Callable[[Mapping[str, object]], None]
 TranscribeRunner = Callable[..., TranscriptionResult]
-PostprocessRunner = Callable[..., object]
 
 
 def manifest_payload(items: Sequence[BatchItem], settings: Mapping[str, object]) -> dict[str, object]:
@@ -58,17 +56,9 @@ def run_batch(
     cancel_event: Event,
     on_event: BatchEvent | None = None,
     transcribe: TranscribeRunner = run_transcription,
-    postprocess: PostprocessRunner | None = None,
-    env_path: Path | None = None,
-    ffmpeg_path: Path | None = None,
-    ocr_runtime_root: Path | None = None,
 ) -> dict[str, object]:
     """Run items FIFO, never overlapping workers, and isolate item failures."""
     manifest = manifest_payload(items, settings)
-    if postprocess is None:
-        from maw.postprocess_pipeline import run_postprocess_pipeline
-
-        postprocess = run_postprocess_pipeline
     _write_manifest(manifest_path, manifest)
     _emit(on_event, {"type": "batch_started", "total": len(items), "manifestPath": str(manifest_path)})
     outcomes: list[dict[str, object]] = []
@@ -94,53 +84,20 @@ def run_batch(
         _emit(on_event, {"type": "batch_item", "id": item.item_id, "index": index, "status": "running"})
         try:
             request = replace(item.request, srt_path=_batch_unique_output_path(item.request.srt_path, reserved))
-            reserved.update(_artifact_paths(request.srt_path))
+            reserved.add(request.srt_path)
             result = transcribe(request, cancel_event=cancel_event)
-            if request.postprocess_plan:
-                assert postprocess is not None
-                sanitized_plan = _batch_postprocess_plan(request.postprocess_plan)
-                if enabled_steps(sanitized_plan):
-                    pipeline_result = postprocess(
-                    sanitized_plan,
-                    media_path=request.media_path,
-                    project_path=result.json_path,
-                    srt_path=result.srt_path,
-                    env_path=env_path or manifest_path.parent / ".env",
-                    ffmpeg_path=ffmpeg_path,
-                    ocr_runtime_root=ocr_runtime_root,
-                    cancel_event=cancel_event,
-                    llm_settings=request.postprocess_llm_settings,
-                    on_event=lambda event: _emit_item_log(on_event, item, index, event),
-                    )
-                else:
-                    pipeline_result = None
-            else:
-                pipeline_result = None
-            final_srt = getattr(pipeline_result, "srt_path", result.srt_path)
-            final_json: Path | None = getattr(pipeline_result, "project_path", result.json_path)
-            final_html: Path | None = getattr(pipeline_result, "html_path", result.html_path)
-            if request.srt_only:
-                if final_json is not None:
-                    final_json.unlink(missing_ok=True)
-                if final_html:
-                    Path(final_html).unlink(missing_ok=True)
-                final_json = None
-                final_html = None
             outcome = {
                 "id": item.item_id,
                 "status": "done",
                 "index": index,
-                "srtPath": str(final_srt),
-                "jsonPath": str(final_json or ""),
-                "htmlPath": str(final_html or ""),
+                "srtPath": str(result.srt_path),
             }
-        except (TranscriptionCancelledError, PostprocessCancelled):
+        except TranscriptionCancelledError:
             outcome = {"id": item.item_id, "status": "cancelled", "index": index}
             cancel_event.set()
         except (
             MissingOutputError,
             OSError,
-            PostprocessPipelineError,
             RuntimeError,
             TranscriptionProcessError,
             ValueError,
@@ -165,28 +122,10 @@ def run_batch(
     return {"status": status, "manifestPath": str(manifest_path), "outcomes": outcomes}
 
 
-def _batch_postprocess_plan(plan: Mapping[str, object]) -> dict[str, object]:
-    """Batch V1 deliberately skips manuscript matching for every item."""
-    steps = plan.get("steps")
-    if not isinstance(steps, Sequence) or isinstance(steps, (str, bytes)):
-        return dict(plan)
-    return {
-        **dict(plan),
-        "steps": [
-            {**dict(step), "enabled": False} if isinstance(step, Mapping) and str(step.get("id") or "") == "match" else step
-            for step in steps
-        ],
-    }
-
-
-def _artifact_paths(path: Path) -> set[Path]:
-    return {path, path.with_suffix(".mosp"), path.with_suffix(".edit.html")}
-
-
 def _batch_unique_output_path(path: Path, reserved: set[Path]) -> Path:
     candidate = path
     counter = 1
-    while _artifact_paths(candidate) & reserved or any(item.exists() for item in _artifact_paths(candidate)):
+    while candidate in reserved or candidate.exists():
         candidate = path.with_name(f"{path.stem}-{counter}{path.suffix}")
         counter += 1
     return candidate
@@ -216,12 +155,6 @@ def _write_manifest(path: Path, manifest: Mapping[str, object]) -> None:
 def _emit(on_event: BatchEvent | None, event: Mapping[str, object]) -> None:
     if on_event is not None:
         on_event(event)
-
-
-def _emit_item_log(on_event: BatchEvent | None, item: BatchItem, index: int, event: Mapping[str, object]) -> None:
-    message = str(event.get("message") or event.get("detail") or event.get("step") or "").strip()
-    if message:
-        _emit(on_event, {"type": "batch_item_log", "id": item.item_id, "index": index, "message": message})
 
 
 def _without_secrets(value: object) -> object:

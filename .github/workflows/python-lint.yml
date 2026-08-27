@@ -32,4 +32,4 @@ jobs:
           enable-cache: true
 
       - name: Run Ruff check
-        run: uv run --frozen ruff check
+        run: uv run ruff check

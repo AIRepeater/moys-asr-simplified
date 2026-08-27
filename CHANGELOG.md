@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### 🔄 变更
+
+- **项目范围收窄为在线 ASR 直出 SRT** ：MAW 现在只做一件事——把本地音视频发给阿里云百炼（Qwen-Audio / Fun-ASR）转写并输出 UTF-8 SRT。图形界面保留 Launcher 单文件与批量转写；根入口脚本 `generate_subtitle_qwen_api.py` 保留，可用于脚本与自动化。
+- **移除的功能** ：本地转写与本地模型运行时、本地字幕编辑器（Server / HTML / Desktop）、必剪与 Soniox 转写、`.mosp` / `.json` 工程系统与波形链、统一命令行入口、转写后自动处理（文稿匹配 / LLM / OCR 字幕去重 / 固定替换 / 简繁转换）、`desktop/` 与 `website/` 子项目。
+- **输出收窄** ：转写只产出 `.srt`；不再生成工程文件、便携 HTML 或波形缓存。`--debug-raw` 仍可另存完整 ASR 原始 JSON。
+- **依赖收窄** ：运行依赖只剩 `jieba`、`requests` 与 `pywebview`；移除 fontTools、opencc、reapeaks 等依赖与 `local` / `ocr` 可选依赖组。
+- **打包同步** ：`MAW.spec` 与打包契约测试按新范围重写，编译产物验证继续由 GitHub Actions（`release.yml` / `pr-release-windows.yml`）承担。
+
 ## [1.5.0-beta.4] - 2026-08-26
 
 ### 🚀 全新特性

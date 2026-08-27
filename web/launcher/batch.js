@@ -130,10 +130,8 @@
 
       const actions = document.createElement("div");
       actions.className = "batch-row-actions";
-      if (item.result?.jsonPath) actions.append(actionButton("batch_open_project", () => window.MAWLauncher.callBackend("open_file", { path: item.result.jsonPath })));
-      if (item.result?.srtPath || item.result?.jsonPath) {
-        const resultPath = item.result.jsonPath || item.result.srtPath;
-        actions.append(actionButton("batch_open_folder", () => window.MAWLauncher.callBackend("open_containing_folder", { path: resultPath })));
+      if (item.result?.srtPath) {
+        actions.append(actionButton("batch_open_folder", () => window.MAWLauncher.callBackend("open_containing_folder", { path: item.result.srtPath })));
       }
       if (!state.running) {
         actions.append(actionButton("batch_remove", () => {
@@ -185,7 +183,7 @@
   }
 
   function lockControls(locked) {
-    ["mediaCard", "recognitionCard", "autoPostprocessCard"].forEach((id) => {
+    ["mediaCard", "recognitionCard"].forEach((id) => {
       $(id).querySelectorAll("button, input, select, textarea").forEach((control) => {
         control.disabled = locked;
       });
@@ -195,7 +193,7 @@
     $("stopBatch").disabled = state.cancelling;
     $("progress").classList.toggle("hidden", !locked);
     renderQueue();
-    // 解锁后恢复模式相关禁用态（如批量模式下的文稿匹配），上面的批量解锁不能覆盖它们。
+    // 解锁后恢复模式相关禁用态，上面的批量解锁不能覆盖它们。
     if (!locked) window.MAWLauncher.onBatchModeChanged?.(state.mode === "batch");
   }
 
@@ -213,7 +211,6 @@
     $("startBatch").classList.toggle("hidden", !batch);
     $("modeHint").textContent = t(batch ? "mode_batch_hint" : "mode_single_hint");
     $("dropZone").textContent = t(batch ? "batch_drop_zone" : "drop_hint");
-    $("batchManuscriptNotice").classList.toggle("hidden", !batch);
     window.MAWLauncher.onBatchModeChanged?.(batch);
     renderQueue();
   }
@@ -243,8 +240,6 @@
     $("status").textContent = t("batch_starting");
     // 单文件的媒体/输出路径不进批量载荷：每个条目的输出由后端按媒体权威分配。
     const { mediaPath: _singleMediaPath, srtPath: _singleSrtPath, ...settings } = window.MAWLauncher.getTranscriptionPayload();
-    settings.generateHtml = false;
-    settings.batchSrtOnly = Boolean($("batchSrtOnly")?.checked);
     const items = itemsToRun.map((item) => ({ id: item.id, mediaPath: item.mediaPath }));
     const payload = { items, settings };
     const result = await window.MAWLauncher.callBackend("start_batch_transcription", payload);
@@ -303,7 +298,7 @@
       const item = findItem(event);
       if (!item) return;
       const nested = event.item && typeof event.item === "object" ? event.item : {};
-      item.result = event.result || nested.result || ((event.srtPath || event.jsonPath || event.htmlPath) ? { srtPath: event.srtPath || "", jsonPath: event.jsonPath || "", htmlPath: event.htmlPath || "" } : item.result);
+      item.result = event.result || nested.result || (event.srtPath ? { srtPath: event.srtPath } : item.result);
       const detail = event.error || event.detail || nested.error || nested.detail || "";
       const nextStatus = event.status || nested.status || (item.result ? "done" : item.status);
       if (nextStatus === "running") {
@@ -323,9 +318,7 @@
         if (!item) return;
         const result = outcome.result && typeof outcome.result === "object" ? outcome.result : {};
         const srtPath = outcome.srtPath || outcome.srt_path || result.srtPath || result.srt_path || "";
-        const jsonPath = outcome.jsonPath || outcome.json_path || outcome.projectPath || outcome.project_path || result.jsonPath || result.json_path || result.projectPath || result.project_path || "";
-        const htmlPath = outcome.htmlPath || outcome.html_path || result.htmlPath || result.html_path || "";
-        if (srtPath || jsonPath || htmlPath) item.result = { srtPath, jsonPath, htmlPath };
+        if (srtPath) item.result = { srtPath };
         item.status = outcome.status || item.status;
         item.detail = outcome.error || outcome.detail || item.detail;
       });

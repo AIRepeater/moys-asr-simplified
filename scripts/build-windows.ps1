@@ -18,7 +18,7 @@ if (-not (Test-Path -LiteralPath $EntryPoint -PathType Leaf)) {
 
 Push-Location -LiteralPath $RepoRoot
 try {
-    uv sync --group build --frozen
+    uv sync --group build
 
     if (-not $SkipTests) {
         uv run python -m unittest tests.test_packaging_contract
@@ -36,11 +36,6 @@ try {
     if (-not (Test-Path -LiteralPath $FaqBundlePath -PathType Leaf)) {
         throw "Build completed but did not copy FAQ-常见问题.txt beside MAW.exe."
     }
-
-    $UvCommand = Get-Command uv -ErrorAction Stop
-    $BootstrapDirectory = Join-Path (Split-Path -Parent $ExePath) 'bootstrap'
-    New-Item -ItemType Directory -Path $BootstrapDirectory -Force | Out-Null
-    Copy-Item -LiteralPath $UvCommand.Source -Destination (Join-Path $BootstrapDirectory 'uv.exe') -Force
 
     Write-Host "Built $ExePath"
 }

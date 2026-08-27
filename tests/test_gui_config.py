@@ -143,11 +143,11 @@ class GuiConfigTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             env_path = Path(temp_dir) / ".env"
             _ = env_path.write_text(
-                "DASHSCOPE_API_KEY=file-key\nDASHSCOPE_REGION=singapore\nDASHSCOPE_WORKSPACE_ID=file-ws\nDASHSCOPE_DEFAULT_LANGUAGE=zh\nMAW_GUI_LANG=en\nSTICKER_DIR=file-stickers\nMAW_GUI_LAST_MODEL=file-model\nMAW_GUI_LAST_LANGUAGE=\n",
+                "DASHSCOPE_API_KEY=file-key\nDASHSCOPE_REGION=singapore\nDASHSCOPE_WORKSPACE_ID=file-ws\nDASHSCOPE_DEFAULT_LANGUAGE=zh\nMAW_GUI_LANG=en\nMAW_GUI_LAST_MODEL=file-model\nMAW_GUI_LAST_LANGUAGE=\n",
                 encoding="utf-8",
             )
 
-            with mock.patch.dict(os.environ, {"DASHSCOPE_API_KEY": "system-key", "DASHSCOPE_REGION": "beijing", "STICKER_DIR": "system-stickers", "MAW_GUI_LAST_MODEL": "system-model", "MAW_GUI_LAST_LANGUAGE": "en"}, clear=True):
+            with mock.patch.dict(os.environ, {"DASHSCOPE_API_KEY": "system-key", "DASHSCOPE_REGION": "beijing", "MAW_GUI_LAST_MODEL": "system-model", "MAW_GUI_LAST_LANGUAGE": "en"}, clear=True):
                 resolved = gui_config.effective_config(env_path)
 
             self.assertEqual(resolved.api_key, "system-key")
@@ -155,7 +155,6 @@ class GuiConfigTests(unittest.TestCase):
             self.assertEqual(resolved.workspace_id, "file-ws")
         self.assertEqual(resolved.language, "zh")
         self.assertEqual(resolved.gui_lang, "en")
-        self.assertEqual(resolved.sticker_dir, "system-stickers")
         self.assertEqual(resolved.last_model, "system-model")
         self.assertEqual(resolved.last_language, "en")
 
@@ -181,18 +180,6 @@ class GuiConfigTests(unittest.TestCase):
                 resolved = gui_config.effective_config(env_path)
 
         self.assertIsNone(resolved.last_language)
-
-    def test_effective_config_reads_sticker_dir_from_env_file(self) -> None:
-        """Given only .env defines stickers, When resolved, Then sticker_dir is populated."""
-        with tempfile.TemporaryDirectory() as temp_dir:
-            env_path = Path(temp_dir) / ".env"
-            stickers = Path(temp_dir) / "stickers"
-            _ = env_path.write_text(f"STICKER_DIR={stickers}\n", encoding="utf-8")
-
-            with mock.patch.dict(os.environ, {}, clear=True):
-                resolved = gui_config.effective_config(env_path)
-
-        self.assertEqual(resolved.sticker_dir, str(stickers))
 
     def test_masked_secret_never_returns_full_key(self) -> None:
         """Given a saved key, When status text is built, Then only a prefix and suffix remain."""
@@ -226,10 +213,6 @@ class GuiConfigTests(unittest.TestCase):
         self.assertEqual(qwen3.id, "qwen3-asr-flash-filetrans")
         self.assertEqual(qwen3.env_key, "DASHSCOPE_API_KEY")
         self.assertFalse(qwen3.supports_speaker)
-        self.assertEqual(
-            [model.id for model in gui_config.LEGACY_MODELS],
-            ["qwen3-asr-flash-filetrans"],
-        )
 
     def test_provider_registry_contains_qwen_defaults_and_key_url(self) -> None:
         """Given the provider registry, When inspected, Then Qwen owns model settings."""
@@ -250,56 +233,11 @@ class GuiConfigTests(unittest.TestCase):
         self.assertTrue(provider.models[1].supports_speaker)
         self.assertFalse(provider.models[2].supports_speaker)
 
-    def test_provider_registry_contains_soniox_with_speaker_support(self) -> None:
-        """Given the provider registry, When inspected, Then Soniox is registered with speaker support and no regions."""
-        provider = gui_config.provider_by_id("soniox")
-
-        self.assertEqual(provider.label, "Soniox STT")
-        self.assertIn("console.soniox.com", provider.key_url)
-        self.assertEqual(provider.models[0].id, "stt-async-v5")
-        self.assertEqual(provider.models[0].env_key, "SONIOX_API_KEY")
-        self.assertEqual(provider.regions, ())
-        self.assertTrue(provider.supports_speaker)
-        self.assertTrue(provider.multi_language)
-        self.assertTrue(provider.models[0].supports_context)
-
-    def test_provider_registry_contains_local_models_without_api_key(self) -> None:
-        provider = gui_config.provider_by_id("local")
-
-        self.assertEqual(provider.kind, "local")
-        self.assertFalse(provider.requires_api_key)
-        self.assertEqual(
-            [model.id for model in provider.models],
-            [
-                "qwen3-asr-local",
-                "qwen3-asr-1.7b-local",
-                "fun-asr-nano-local",
-                "funasr-local",
-                "sensevoice-small-local",
-            ],
-        )
-        self.assertEqual(
-            [model.label for model in provider.models],
-            [
-                "Qwen3-ASR 0.6B（推荐）",
-                "Qwen3-ASR 1.7B",
-                "Fun-ASR-Nano 2512（GPU）",
-                "FunASR paraformer-zh",
-                "SenseVoice Small",
-            ],
-        )
-        qwen06 = provider.models[0]
-        self.assertEqual(qwen06.model_ref, "Qwen/Qwen3-ASR-0.6B")
-        self.assertIn("Qwen/Qwen3-ForcedAligner-0.6B", qwen06.required_model_refs)
-        qwen17 = provider.models[1]
-        self.assertEqual(qwen17.model_ref, "Qwen/Qwen3-ASR-1.7B")
-        self.assertIn("Qwen/Qwen3-ForcedAligner-0.6B", qwen17.required_model_refs)
-        nano = provider.models[2]
-        self.assertEqual(nano.model_ref, "FunAudioLLM/Fun-ASR-Nano-2512")
-        sensevoice = provider.models[-1]
-        self.assertEqual(sensevoice.model_ref, "iic/SenseVoiceSmall")
-        self.assertIn("funasr", sensevoice.requires_runtime)
-        self.assertEqual(gui_config.api_key_for_provider("local"), "")
+    def test_provider_registry_contains_only_qwen(self) -> None:
+        """Given the provider registry, When inspected, Then only Qwen remains."""
+        self.assertEqual([provider.id for provider in gui_config.PROVIDERS], ["qwen"])
+        self.assertEqual(gui_config.provider_by_id("soniox").id, "qwen")
+        self.assertEqual(gui_config.provider_by_id("local").id, "qwen")
 
     def test_qwen_languages_single_select_with_auto_and_documented_28(self) -> None:
         """Given Qwen docs allow exactly one language, When registry read, Then auto + 27 codes are offered."""
@@ -312,38 +250,21 @@ class GuiConfigTests(unittest.TestCase):
         for expected in ("zh", "yue", "en", "fil", "is", "sv"):
             self.assertIn(expected, codes)
 
-    def test_soniox_languages_multi_select_60_without_auto_entry(self) -> None:
-        """Given Soniox language_hints is a list, When registry read, Then 60 codes and no auto placeholder."""
-        soniox = gui_config.provider_by_id("soniox")
-
-        self.assertEqual(len(soniox.languages), 60)
-        codes = [code for code, _label in soniox.languages]
-        self.assertTrue(all(codes))
-        self.assertEqual(codes[0], "zh")
-        self.assertNotIn("yue", codes)  # Soniox 文档的 60 语言表不含粤语独立代码
-        for expected in ("en", "ja", "ko", "cy", "ur", "sw"):
-            self.assertIn(expected, codes)
-
     def test_provider_common_languages_are_sensible_subsets_under_ten(self) -> None:
         """Given less common languages are hidden, When common sets read, Then common language sets stay compact."""
         qwen = gui_config.provider_by_id("qwen")
-        soniox = gui_config.provider_by_id("soniox")
 
-        for provider in (qwen, soniox):
-            codes = {code for code, _label in provider.languages}
-            self.assertTrue(set(provider.common_languages).issubset(codes))
-            self.assertLess(len(provider.common_languages), len(provider.languages))
-            for expected in ("zh", "en", "ja", "ko"):
-                self.assertIn(expected, provider.common_languages)
+        codes = {code for code, _label in qwen.languages}
+        self.assertTrue(set(qwen.common_languages).issubset(codes))
+        self.assertLess(len(qwen.common_languages), len(qwen.languages))
+        for expected in ("zh", "en", "ja", "ko"):
+            self.assertIn(expected, qwen.common_languages)
 
         self.assertIn("", qwen.common_languages)
         self.assertIn("yue", qwen.common_languages)
         self.assertEqual(len(set(qwen.common_languages) - {""}), 9)
-        self.assertEqual(len(set(soniox.common_languages) - {""}), 8)
         for less_common in ("da", "fil", "is", "sv"):
             self.assertNotIn(less_common, qwen.common_languages)
-        for less_common in ("da", "cy", "ur", "sw"):
-            self.assertNotIn(less_common, soniox.common_languages)
 
     def test_effective_config_parses_show_rare_langs_toggle(self) -> None:
         """Given the rare-language toggle in .env, When resolved, Then it becomes a boolean flag."""
@@ -363,29 +284,30 @@ class GuiConfigTests(unittest.TestCase):
                 self.assertFalse(gui_config.effective_config(env_path).show_rare_langs)
 
     def test_model_by_label_searches_all_providers(self) -> None:
-        """Given a Soniox model id, When resolved, Then its env key comes from the Soniox entry."""
-        model = gui_config.model_by_label("stt-async-v5")
+        """Given a model id, When resolved, Then its env key comes from the matching entry."""
+        model = gui_config.model_by_label("fun-asr（支持说话人）")
 
-        self.assertEqual(model.env_key, "SONIOX_API_KEY")
+        self.assertEqual(model.env_key, "DASHSCOPE_API_KEY")
+        self.assertEqual(model.id, "fun-asr")
         self.assertEqual(gui_config.model_by_label("no-such-model").id, "qwen-audio-3.0-asr-flash-filetrans")
 
-    def test_provider_for_model_maps_soniox_model(self) -> None:
-        """Given a Soniox model id, When provider resolved, Then it maps to the soniox provider."""
-        self.assertEqual(gui_config.provider_for_model("stt-async-v5").id, "soniox")
+    def test_provider_for_model_maps_qwen_models(self) -> None:
+        """Given known model ids, When provider resolved, Then they map to the qwen provider."""
+        self.assertEqual(gui_config.provider_for_model("fun-asr").id, "qwen")
         self.assertEqual(gui_config.provider_for_model("qwen3-asr-flash-filetrans").id, "qwen")
+        self.assertEqual(gui_config.provider_for_model("unknown-model").id, "qwen")
 
-    def test_api_key_for_provider_reads_each_provider_env_key(self) -> None:
-        """Given both keys in .env, When resolved per provider, Then each gets its own key and system env wins."""
+    def test_api_key_for_provider_reads_qwen_env_key(self) -> None:
+        """Given a key in .env, When resolved for qwen, Then system env wins over the file."""
         with tempfile.TemporaryDirectory() as temp_dir:
             env_path = Path(temp_dir) / ".env"
-            _ = env_path.write_text("DASHSCOPE_API_KEY=file-qwen\nSONIOX_API_KEY=file-soniox\n", encoding="utf-8")
+            _ = env_path.write_text("DASHSCOPE_API_KEY=file-qwen\n", encoding="utf-8")
 
-            with mock.patch.dict(os.environ, {"SONIOX_API_KEY": "system-soniox"}, clear=True):
-                self.assertEqual(gui_config.api_key_for_provider("soniox", env_path), "system-soniox")
-                self.assertEqual(gui_config.api_key_for_provider("qwen", env_path), "file-qwen")
+            with mock.patch.dict(os.environ, {"DASHSCOPE_API_KEY": "system-qwen"}, clear=True):
+                self.assertEqual(gui_config.api_key_for_provider("qwen", env_path), "system-qwen")
 
             with mock.patch.dict(os.environ, {}, clear=True):
-                self.assertEqual(gui_config.api_key_for_provider("soniox", env_path), "file-soniox")
+                self.assertEqual(gui_config.api_key_for_provider("qwen", env_path), "file-qwen")
 
 
 if __name__ == "__main__":

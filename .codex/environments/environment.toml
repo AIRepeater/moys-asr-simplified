@@ -9,8 +9,3 @@ script = "uv sync"
 name = "gui"
 icon = "run"
 command = "uv run python maw_gui.py"
-
-[[actions]]
-name = "server"
-icon = "tool"
-command = "uv run python server-editor\\serve.py"

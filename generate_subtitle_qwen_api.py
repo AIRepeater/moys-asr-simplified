@@ -11,7 +11,7 @@
 - 全程 RESTful API（不用 SDK，因为 SDK 不支持 oss:// 给 filetrans）
 - 标点由 API 的 words[].punctuation 字段直接给出，跳过本地 LCS 对齐算法
 
-输出为通用的 UTF-8 JSON 工程格式（默认保存为 `.mosp`，包含 items/text/language），可直接交给 edit.py 编辑。
+输出为 UTF-8 SRT 字幕（可选 --debug-raw 保留 ASR 原始返回）。
 配置读取 .env 文件（DASHSCOPE_API_KEY 等）。
 """
 
@@ -29,13 +29,10 @@ from pathlib import Path
 
 import requests
 
-from edit import get_default_sticker_dir
-from maw.project import repair_segment_durations
+from maw.segments import repair_segment_durations
 from maw.qwen_audio import parse_qwen_audio_hotwords
 from maw.speaker import apply_speaker_colors, split_items_by_speaker
 from maw.console import configure_utf8_stdio
-
-from maw.media_cache import embed_media_caches, merge_media_caches
 
 
 # ===== 路径与常量 =====
@@ -1516,26 +1513,6 @@ def main():
         help="Qwen-Audio/Fun-ASR 在说话人分离基础上，把不同说话人映射成 5 种字幕颜色",
     )
     parser.add_argument(
-        "--json", dest="json_out", action="store_true",
-        help="同时输出含字级时间戳的工程文件（默认 .mosp，供 edit.py 加载）",
-    )
-    parser.add_argument(
-        "--with-waveform", action="store_true",
-        help="将波形峰值数据嵌入工程文件（GUI 转写默认开启）",
-    )
-    parser.add_argument(
-        "--with-spectral", action="store_true",
-        help="在 .ReaPeaks 波形缓存中额外生成频谱数据（需要 --with-waveform）",
-    )
-    parser.add_argument(
-        "-s", "--stickers", default=get_default_sticker_dir(),
-        help="表情包文件夹路径，传给 edit.py（默认读 .env 的 STICKER_DIR）",
-    )
-    parser.add_argument(
-        "--no-html", action="store_true",
-        help="禁用自动生成 edit HTML（默认 --json 时会一并生成）",
-    )
-    parser.add_argument(
         "-ll", "--length-limit", type=_parse_duration, default=None,
         help="只处理音频前 N 时长，用于测试（示例: 10m, 20s, 1h, 90）",
     )
@@ -1584,8 +1561,6 @@ def main():
         help="保存 ASR 服务端返回的完整原始 JSON，用于排查断句、标点和时间码",
     )
     args = parser.parse_args()
-    if args.with_spectral and not args.with_waveform:
-        parser.error("--with-spectral 需要同时指定 --with-waveform")
     enable_speaker = args.speaker or args.speaker_colors
     if enable_speaker and not supports_speaker_diarization(args.model):
         parser.error("--speaker / --speaker-colors 仅适用于 Qwen-Audio 或 Fun-ASR 模型")
@@ -1739,18 +1714,6 @@ def main():
         if repaired_count:
             print(f"[info] 已兜底修复 {repaired_count} 处 0 长/倒挂时间码（保底 100ms）")
 
-        # 媒体缓存必须在临时目录清理前生成：audio_path 指向 tmpdir 内的
-        # 提取音频，with 块结束后文件即被删除。先暂存结果，待 segments
-        # 后处理完成、写出工程时再合并（合并键见 media_cache.CACHE_KEYS）。
-        cache_result = None
-        if args.json_out and args.with_waveform:
-            cache_result = embed_media_caches(
-                {"media": str(input_path)},
-                Path(audio_path) if audio_path else input_path,
-                source_media_path=input_path,
-                generate_spectral=args.with_spectral,
-            )
-
     if enable_speaker:
         speakers = sorted({str(seg["speaker"]) for seg in segments if seg.get("speaker") is not None})
         print(f"[speaker] 识别到 {len(speakers)} 个说话人: {', '.join(speakers)}")
@@ -1810,55 +1773,6 @@ def main():
         print(f"处理用时: {em}分{es}秒 | 实际 RTF: {rtf:.3f} ({speed:.1f}x 实时)")
     else:
         print(f"处理用时: {em}分{es}秒")
-
-    if args.json_out:
-        json_path = output_path.with_suffix(".mosp")
-        json_data = {
-            "media": str(input_path),
-            "language": result.get("language", ""),
-            "model": (
-                args.model if is_funasr_model(args.model)
-                else "qwen-audio-asr-api" if is_qwen_audio_model(args.model)
-                else "qwen3-asr-api"
-            ),
-            "segments": [
-                {
-                    "start": seg["start"],
-                    "end": seg["end"],
-                    "text": seg["text"],
-                    "items": seg.get("items", []),
-                    **({"speaker": seg["speaker"]} if seg.get("speaker") is not None else {}),
-                    **({"color": seg["color"]} if seg.get("color") else {}),
-                    **({"color_ref": seg["color_ref"]} if seg.get("color_ref") else {}),
-                }
-                for seg in segments
-            ],
-        }
-        if cache_result is not None:
-            json_data = merge_media_caches(json_data, cache_result)
-        print("[输出] 正在写入工程文件...")
-        json_path.write_text(
-            json.dumps(json_data, ensure_ascii=False, indent=2), encoding="utf-8"
-        )
-        print(f"工程文件已保存到: {json_path}")
-
-        if not args.no_html:
-            edit_script = Path(__file__).parent / "edit.py"
-            if not edit_script.exists():
-                print("[警告] 找不到 edit.py，跳过 HTML 生成")
-            else:
-                cmd = [sys.executable, str(edit_script), str(json_path)]
-                if args.stickers:
-                    sticker_dir = Path(args.stickers)
-                    if sticker_dir.exists():
-                        cmd += ["-s", str(sticker_dir)]
-                    else:
-                        print(f"[提示] 表情包目录不存在，跳过：{sticker_dir}")
-                print(f"[edit] 生成 HTML: {' '.join(cmd[1:])}")
-                try:
-                    subprocess.run(cmd, check=True)
-                except subprocess.CalledProcessError as e:
-                    print(f"[警告] edit.py 失败 (exit {e.returncode})")
 
 
 if __name__ == "__main__":

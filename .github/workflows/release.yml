@@ -67,8 +67,8 @@ jobs:
       - name: Verify Launcher version
         run: python scripts/sync_launcher_version.py --check
 
-      - name: Install locked dependencies
-        run: uv sync --group build --frozen
+      - name: Install dependencies
+        run: uv sync --group build
 
       - name: Run packaging contract tests
         run: uv run python -m unittest tests/test_packaging_contract.py
@@ -271,8 +271,8 @@ jobs:
       - name: Verify Launcher version
         run: python scripts/sync_launcher_version.py --check
 
-      - name: Install locked dependencies
-        run: uv sync --group build --frozen
+      - name: Install dependencies
+        run: uv sync --group build
 
       - name: Run packaging contract tests
         run: uv run python -m unittest tests/test_packaging_contract.py
@@ -303,17 +303,6 @@ jobs:
           set -euo pipefail
           FaqPath="$(find dist/MAW.app -type f -name 'FAQ-常见问题.txt' -print -quit)"
           test -n "$FaqPath"
-
-      - name: Bundle uv bootstrap for optional runtimes
-        if: matrix.platform == 'macos'
-        shell: bash
-        run: |
-          set -euo pipefail
-          UvCommand="$(command -v uv)"
-          BootstrapDirectory="dist/MAW.app/Contents/Resources/bootstrap"
-          mkdir -p "$BootstrapDirectory"
-          cp "$UvCommand" "$BootstrapDirectory/uv"
-          chmod +x "$BootstrapDirectory/uv"
 
       - name: Smoke MAW executable
         if: matrix.platform == 'macos'
