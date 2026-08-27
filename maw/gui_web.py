@@ -773,8 +773,7 @@ def _request_from_payload(payload: Mapping[str, object], env_path: Path) -> Tran
         region=region,
         workspace_id=workspace_id,
         provider=provider.id,
-        speaker_colors=bool(payload.get("speakerColors")) and model.supports_speaker,
-        ui_language=_gui_lang(payload),
+        speaker=bool(payload.get("speaker")),
         debug_raw=bool(payload.get("debugRaw")),
     )
 

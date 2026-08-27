@@ -5,7 +5,7 @@
 特点：
 - 无需 GPU、模型权重，只调 API（DASHSCOPE_API_KEY）
 - 走 filetrans 异步模式，原生支持字/词级时间戳，最长 12 小时音频
-- Qwen-Audio / Fun-ASR 可选说话人分离，speaker 标签写入 MAW 工程
+- Qwen-Audio / Fun-ASR 可选说话人分离，按说话人切分字幕
 - Qwen-Audio 支持即时热词、预编译 vocabulary_id 和 context 上下文
 - 文件自动上传到 DashScope 临时 OSS（oss:// URL，48 小时有效）
 - 全程 RESTful API（不用 SDK，因为 SDK 不支持 oss:// 给 filetrans）
@@ -31,7 +31,7 @@ import requests
 
 from maw.segments import repair_segment_durations
 from maw.qwen_audio import parse_qwen_audio_hotwords
-from maw.speaker import apply_speaker_colors, split_items_by_speaker
+from maw.speaker import split_items_by_speaker
 from maw.console import configure_utf8_stdio
 
 
@@ -53,10 +53,6 @@ FFMPEG_MISSING_MESSAGE = (
     "如果要继续使用 MAW-lite，请安装 FFmpeg，并确保 ffmpeg 与 ffprobe 已加入 PATH。"
 )
 
-
-def configure_console_output() -> None:
-    """Backward-compatible alias for the shared UTF-8 console setup."""
-    configure_utf8_stdio()
 
 # 本地 language 名 → DashScope language code
 LANGUAGE_MAP = {
@@ -232,7 +228,7 @@ def _raise_for_dashscope_status(response: requests.Response, action: str) -> Non
         ) from exc
 
 
-# ===== ffmpeg 工具函数（与本地版一致） =====
+# ===== ffmpeg 工具函数 =====
 
 def _run_media_tool(cmd: list[str], **kwargs):
     try:
@@ -283,10 +279,6 @@ def parse_duration(value: str) -> float:
     return num
 
 
-# 兼容旧私有名（generate_subtitle_soniox_api.py 等复用方请用 parse_duration）
-_parse_duration = parse_duration
-
-
 def load_hotwords(path: str | os.PathLike[str] | None = None) -> list[str]:
     """从 UTF-8 热词文件读取列表，忽略注释行和空行。"""
     source = Path(path).expanduser() if path else HOTWORDS_FILE
@@ -324,7 +316,7 @@ def build_qwen_audio_context(context_text: str | None) -> list[dict] | None:
     }]
 
 
-# ===== SRT / 时间戳工具（与本地版一致） =====
+# ===== SRT / 时间戳工具 =====
 
 def format_timestamp(ms: int) -> str:
     h = ms // 3_600_000
@@ -346,7 +338,7 @@ def generate_srt(segments: list[dict]) -> str:
     return "\n".join(lines)
 
 
-# ===== 切句逻辑（与本地版 _split_words_to_segments 一致，纯 Python 复制） =====
+# ===== 切句逻辑（纯 Python） =====
 
 def split_by_silence(items: list[dict], min_gap_ms: int) -> list[list[dict]]:
     """按相邻 item 之间的静音间隔切分。"""
@@ -363,10 +355,6 @@ def split_by_silence(items: list[dict], min_gap_ms: int) -> list[list[dict]]:
     if cur:
         groups.append(cur)
     return groups
-
-
-# 兼容旧私有名（maw/soniox.py 等复用方请用 split_by_silence）
-_split_by_silence = split_by_silence
 
 
 def _split_long_group(items: list[dict], max_len: int, weak_punct: set) -> list[list[dict]]:
@@ -602,7 +590,7 @@ def split_words_to_segments(items: list[dict], max_len: int, min_len: int = 5,
                              natural_max_len: int | None = None) -> list[dict]:
     """把字/词级 timestamps 合并成句子级字幕。
 
-    切分策略（与本地版一致）：
+    切分策略：
     0. 按静音间隔（>= gap_split_ms）预切
     1. 每个静音组内按强标点（。！？；\\n）继续切句
     2. 合并过短片段（< min_len 字符）
@@ -1108,19 +1096,18 @@ def download_transcription(transcription_url: str) -> dict:
     return resp.json()
 
 
-# ===== filetrans 结果 → 本地版 transcribe() 输出格式 =====
+# ===== filetrans 结果 → MAW items 输出格式 =====
 
 def parse_transcription_result(result: dict) -> dict:
-    """把 filetrans JSON 转成本地版 transcribe() 的输出格式。
+    """把 filetrans JSON 转成 MAW items 输出格式。
 
     filetrans:
         transcripts[].sentences[].words[] = {begin_time, end_time, text, punctuation}
         (begin_time/end_time 已是毫秒)
-    本地版:
+    MAW:
         items[] = {text(含标点), start, end}, text(完整文本), language
 
-    关键简化：filetrans 把标点单独放 punctuation 字段，直接拼到 item.text 末尾即可，
-    无需本地版的 _align_punctuation() LCS 对齐。
+    关键简化：filetrans 把标点单独放 punctuation 字段，直接拼到 item.text 末尾即可。
     """
     transcripts = result.get("transcripts", [])
     if not transcripts:
@@ -1352,7 +1339,7 @@ def transcribe(audio_path: str, language: str | None, hotwords: list[str],
                capture_raw: bool = False) -> dict:
     """调 DashScope filetrans API 做转录。
 
-    返回可由本项目编辑器读取的工程数据：
+    返回转写结果数据：
         {"text": str, "language": str, "items": [{"text", "start", "end"}, ...]}
     """
     base_url = config["base_url"]
@@ -1506,14 +1493,10 @@ def main():
     )
     parser.add_argument(
         "--speaker", action="store_true",
-        help="Qwen-Audio/Fun-ASR 开启说话人分离，speaker 标签写入工程 JSON",
+        help="Qwen-Audio/Fun-ASR 开启说话人分离，按说话人切分字幕",
     )
     parser.add_argument(
-        "--speaker-colors", action="store_true",
-        help="Qwen-Audio/Fun-ASR 在说话人分离基础上，把不同说话人映射成 5 种字幕颜色",
-    )
-    parser.add_argument(
-        "-ll", "--length-limit", type=_parse_duration, default=None,
+        "-ll", "--length-limit", type=parse_duration, default=None,
         help="只处理音频前 N 时长，用于测试（示例: 10m, 20s, 1h, 90）",
     )
     parser.add_argument(
@@ -1561,9 +1544,9 @@ def main():
         help="保存 ASR 服务端返回的完整原始 JSON，用于排查断句、标点和时间码",
     )
     args = parser.parse_args()
-    enable_speaker = args.speaker or args.speaker_colors
+    enable_speaker = args.speaker
     if enable_speaker and not supports_speaker_diarization(args.model):
-        parser.error("--speaker / --speaker-colors 仅适用于 Qwen-Audio 或 Fun-ASR 模型")
+        parser.error("--speaker 仅适用于 Qwen-Audio 或 Fun-ASR 模型")
     if args.context is not None and args.context_file:
         parser.error("--context 与 --context-file 只能二选一")
 
@@ -1708,7 +1691,7 @@ def main():
             print(f"[解析] 字幕整理完成：{len(segments)} 条。")
 
         # 兜底：上游可能返回 0 长（甚至倒挂）的词/段时间码，
-        # 拉齐到至少 100ms，避免拆分后看不见字幕块、工程无法保存。
+        # 拉齐到至少 100ms，避免拆分后看不见字幕块。
         print("[解析] 正在校验和修复时间码...")
         repaired_count = repair_segment_durations(segments)
         if repaired_count:
@@ -1717,13 +1700,8 @@ def main():
     if enable_speaker:
         speakers = sorted({str(seg["speaker"]) for seg in segments if seg.get("speaker") is not None})
         print(f"[speaker] 识别到 {len(speakers)} 个说话人: {', '.join(speakers)}")
-        if args.speaker_colors:
-            stats = apply_speaker_colors(segments)
-            print(f"[speaker] 已为 {stats['colored_segments']} 条字幕写入颜色快照")
-            if stats["overflow"]:
-                print("[警告] 说话人超过 5 个，颜色已循环复用，请在编辑器中手动调整")
 
-    # 剥句末标点（与本地版一致）
+    # 剥句末标点
     if not args.keep_punct:
         for seg in segments:
             seg["text"] = seg["text"].rstrip("，。")

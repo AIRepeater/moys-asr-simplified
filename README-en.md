@@ -23,7 +23,7 @@ For installation, provider setup, and troubleshooting, start with the [complete 
 ## Core capabilities
 
 - Transcribe with `qwen-audio-3.0-asr` (context and instant hotwords), `fun-asr` (speaker diarization), or `qwen3-asr`, straight to SRT.
-- Optional speaker subtitle coloring, quick test (first 2 minutes), and debug runs that keep the raw API response.
+- Optional speaker-aware subtitle splitting, quick test (first 2 minutes), and debug runs that keep the raw API response.
 - Batch transcription: the queue runs sequentially with shared recognition settings and writes a result manifest.
 - The root entry script `generate_subtitle_qwen_api.py` supports scripting and automation.
 

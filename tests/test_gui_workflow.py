@@ -102,6 +102,18 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertIn("--debug-raw", command)
         self.assertEqual(raw_response_path(self.srt_path), self.srt_path.with_suffix(".asr-response.json"))
 
+    def test_build_transcribe_command_speaker_appends_flag(self) -> None:
+        request = TranscriptionRequest(
+            media_path=self.media_path,
+            srt_path=self.srt_path,
+            speaker=True,
+        )
+
+        command = build_transcribe_command(request, executable=Path("python.exe"), frozen=False)
+
+        self.assertIn("--speaker", command)
+        self.assertNotIn("--speaker-colors", command)
+
     def test_build_transcribe_command_qwen_audio_passes_one_shot_context_hotwords_and_vocabulary(self) -> None:
         request = TranscriptionRequest(
             media_path=self.media_path,
@@ -146,7 +158,7 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertNotIn("--json", command)
         self.assertNotIn("--with-waveform", command)
 
-    def test_build_transcribe_command_funasr_uses_dashscope_script_and_speaker_colors(self) -> None:
+    def test_build_transcribe_command_funasr_uses_dashscope_script(self) -> None:
         request = TranscriptionRequest(
             media_path=self.media_path,
             srt_path=self.srt_path,
@@ -154,7 +166,6 @@ class GuiWorkflowTests(unittest.TestCase):
             model="fun-asr",
             language="zh",
             region="beijing",
-            speaker_colors=True,
         )
 
         command = build_transcribe_command(
@@ -167,7 +178,7 @@ class GuiWorkflowTests(unittest.TestCase):
         self.assertEqual(command[command.index("--model") + 1], "fun-asr")
         self.assertEqual(command[command.index("--language") + 1], "zh")
         self.assertEqual(command[command.index("--region") + 1], "beijing")
-        self.assertIn("--speaker-colors", command)
+        self.assertNotIn("--speaker-colors", command)
 
     def test_run_transcription_passes_api_key_only_in_child_environment(self) -> None:
         request = TranscriptionRequest(
@@ -175,7 +186,6 @@ class GuiWorkflowTests(unittest.TestCase):
             srt_path=self.srt_path,
             api_key="secret-key",
             workspace_id="workspace-123",
-            ui_language="en",
         )
         self.srt_path.write_text("1\n", encoding="utf-8")
         events: list[str] = []

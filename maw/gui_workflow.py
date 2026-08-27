@@ -44,8 +44,7 @@ class TranscriptionRequest:
     region: str = ""
     workspace_id: str = ""
     provider: str = "qwen"
-    speaker_colors: bool = False
-    ui_language: str = "zh"
+    speaker: bool = False
     debug_raw: bool = False
 
 
@@ -185,13 +184,10 @@ def build_transcribe_command(
     command.extend(["--output", str(build_output_paths(request.srt_path).srt)])
     if request.debug_raw:
         command.append("--debug-raw")
+    if request.speaker:
+        command.append("--speaker")
     _append_option(command, "--model", request.model or DEFAULT_MODEL_ID)
     _append_option(command, "--region", request.region)
-    if request.speaker_colors and (
-        request.model.startswith("fun-asr")
-        or request.model == QWEN_AUDIO_MODEL_ID
-    ):
-        command.append("--speaker-colors")
     _append_option(command, "--language", request.language)
     _append_option(command, "--length-limit", request.length_limit)
     _append_option(command, "--max-len", request.max_len)

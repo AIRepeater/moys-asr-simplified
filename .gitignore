@@ -4,19 +4,7 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
-# Derived editor and waveform data. Keep the JSON project and the original media outside the repository when possible.
-*.waveform.json
-*.json.bak
-*.edit.html
-!blank-editor.html
-*.ReaPeaks.maw
-
 # Local media and subtitle outputs
-/examples/
-!/examples/
-/examples/*
-!/examples/preview.html
-!/examples/serve_ograf_preview.py
 *.mp4
 *.mov
 *.mkv
@@ -26,22 +14,12 @@ __pycache__/
 *.m4a
 *.flac
 *.srt
-/.omo
+*.ReaPeaks
 
 # Dev-only browser test tooling (Playwright)
 node_modules/
-.astro/
-website/dist/
 playwright-report/
 test-results/
-
-# desktop/ — MOSE Tauri 项目（Rust 构建产物不入库）
-desktop/src-tauri/target/
-desktop/src-tauri/gen/
-# ffmpeg sidecar 二进制（构建前由 scripts/download-ffmpeg.ps1 下载）
-desktop/src-tauri/binaries/
-# index.html 由 Rust 从 web/ 渲染生成（等价 edit.py --blank）
-desktop/src/index.html
 
 # Local Windows GUI packaging outputs. Keep generated executables local.
 /build/
@@ -52,9 +30,6 @@ desktop/src/index.html
 *.spec.bak
 !MAW.spec
 .playwright-mcp/
-
-# Local post-processing configuration (may contain personal paths and settings).
-maw-postprocess.json
 
 # AppImage 构建产物（scripts/build-appimage.sh）
 build-appimage/

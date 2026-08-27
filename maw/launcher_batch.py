@@ -34,7 +34,7 @@ TranscribeRunner = Callable[..., TranscriptionResult]
 def manifest_payload(items: Sequence[BatchItem], settings: Mapping[str, object]) -> dict[str, object]:
     """Return a persisted batch manifest without credentials or secret fields."""
     return {
-        "version": 1,
+        "version": 2,
         "settings": _without_secrets(settings),
         "items": [
             {
@@ -85,7 +85,14 @@ def run_batch(
         try:
             request = replace(item.request, srt_path=_batch_unique_output_path(item.request.srt_path, reserved))
             reserved.add(request.srt_path)
-            result = transcribe(request, cancel_event=cancel_event)
+            result = transcribe(
+                request,
+                cancel_event=cancel_event,
+                on_event=lambda line, _item_id=item.item_id, _index=index: _emit(
+                    on_event,
+                    {"type": "batch_item_log", "id": _item_id, "index": _index, "message": line},
+                ),
+            )
             outcome = {
                 "id": item.item_id,
                 "status": "done",
@@ -100,6 +107,7 @@ def run_batch(
             OSError,
             RuntimeError,
             TranscriptionProcessError,
+            TypeError,
             ValueError,
         ) as error:
             outcome = {"id": item.item_id, "status": "failed", "index": index, "error": str(error)}

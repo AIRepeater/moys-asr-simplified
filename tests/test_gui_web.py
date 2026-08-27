@@ -402,13 +402,14 @@ class GuiWebBridgeTests(unittest.TestCase):
             "lengthLimit": "30m",
             "testRun": True,
             "debugRaw": True,
+            "speaker": True,
             "guiLang": "en",
         }, self.env_path)
 
         self.assertEqual(request.length_limit, "2m")
         self.assertEqual(request.srt_path.name, "out-test.srt")
-        self.assertEqual(request.ui_language, "en")
         self.assertTrue(request.debug_raw)
+        self.assertTrue(request.speaker)
 
     def test_request_from_payload_without_test_run_uses_manual_length_limit(self) -> None:
         media = self.root / "clip.mp3"
@@ -456,30 +457,6 @@ class GuiWebBridgeTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.field, "maxLen")
         self.assertEqual(raised.exception.code, "segmentation_invalid")
-
-    def test_request_from_payload_enables_speaker_colors_only_for_selected_model(self) -> None:
-        media = self.root / "clip.mp3"
-        media.write_bytes(b"media")
-        base = {
-            "providerId": "qwen",
-            "mediaPath": str(media),
-            "srtPath": str(self.root / "out.srt"),
-            "apiKey": "sk-test",
-            "region": "beijing",
-            "speakerColors": True,
-        }
-
-        qwen = _request_from_payload(
-            {**base, "modelId": "qwen3-asr-flash-filetrans"},
-            self.env_path,
-        )
-        funasr = _request_from_payload(
-            {**base, "modelId": "fun-asr"},
-            self.env_path,
-        )
-
-        self.assertFalse(qwen.speaker_colors)
-        self.assertTrue(funasr.speaker_colors)
 
     def test_request_from_payload_passes_qwen_audio_options_without_persisting_them(self) -> None:
         media = self.root / "clip.mp3"

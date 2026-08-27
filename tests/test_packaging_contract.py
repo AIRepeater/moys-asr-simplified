@@ -33,6 +33,14 @@ class PackagingContractTests(unittest.TestCase):
         self.assertIsNone(re.search(r'(?s)dependencies = \[[^\]]*"pyinstaller', pyproject))
         self.assertRegex(pyproject, r'(?s)\[dependency-groups\].*build = \[[^\]]*"pyinstaller==6\.16\.0"')
 
+    def test_runtime_dependencies_are_pinned_for_reproducible_builds(self) -> None:
+        """Given releases must stay reproducible without a lockfile, When metadata is read, Then runtime deps are exact pins."""
+        project = tomllib.loads(read_text("pyproject.toml"))
+
+        for requirement in project["project"]["dependencies"]:
+            name_and_spec = requirement.split(";")[0]
+            self.assertIn("==", name_and_spec, requirement)
+
     def test_gitignore_keeps_local_windows_bundle_and_generated_build_state_untracked(self) -> None:
         """Given local EXE builds are retained, When ignore rules are read, Then binaries stay local."""
         ignored_paths = set(read_text(".gitignore").splitlines())

@@ -47,7 +47,7 @@
    普通汉字/数字按字体回退逐字符落到 --font-sans，互不影响（CSS Fonts 标准行为）。 */
 h2[data-i18n] {
   font-family: "MAW Emoji", var(--font-sans);
-}/* 亮色主题：令牌值与 MAWE（web/editor.css）的 [data-theme="light"] 对齐；
+}/* 亮色主题：令牌值与 [data-theme="light"] 对齐；
    由 <html data-theme="light"> 激活，launcher.js 根据 localStorage / 系统偏好设置。 */
 [data-theme="light"] {
   --bg-base: #f5f6f8;
@@ -814,8 +814,7 @@ textarea::placeholder {
 }
 
 #qwenAudioHotwords.drag-over,
-#qwenAudioHotwordsFile.drag-over,
-#jsonPath.drag-over {
+#qwenAudioHotwordsFile.drag-over {
   border-color: var(--accent);
   background-color: var(--bg-raised);
   box-shadow: 0 0 0 2px var(--accent-soft);
@@ -1121,7 +1120,7 @@ textarea::placeholder {
 
 .hidden {
   display: none!important;
-}/* 自定义拖拽把手：抽屉右下锚定，顶边拉高、左边拉宽（见 postprocess.js）。 */
+}/* 自定义拖拽把手：抽屉右下锚定，顶边拉高、左边拉宽（见 launcher.js）。 */
 
 #settingsClose {
   display: grid;
@@ -1189,7 +1188,7 @@ textarea::placeholder {
 
 .settings-grid-action-label {
   line-height: 1;
-}/* 工具箱面板内的分组卡片（与高级选项共用 .adv-group 视觉语言）。 *//* 输出与执行固定在抽屉底部，不随面板滚动。 */
+}/* 输出与执行固定在抽屉底部，不随面板滚动。 */
 
 .replace-rule-preview {
   margin-top: 10px;

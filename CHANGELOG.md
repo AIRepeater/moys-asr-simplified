@@ -11,6 +11,7 @@
 - **输出收窄** ：转写只产出 `.srt`；不再生成工程文件、便携 HTML 或波形缓存。`--debug-raw` 仍可另存完整 ASR 原始 JSON。
 - **依赖收窄** ：运行依赖只剩 `jieba`、`requests` 与 `pywebview`；移除 fontTools、opencc、reapeaks 等依赖与 `local` / `ocr` 可选依赖组。
 - **打包同步** ：`MAW.spec` 与打包契约测试按新范围重写，编译产物验证继续由 GitHub Actions（`release.yml` / `pr-release-windows.yml`）承担。
+- **破坏性变更（命令行）** ：移除 `--speaker-colors` 旗标，说话人分离仍可用 `--speaker`；同时移除入口脚本私有兼容别名 `_parse_duration` / `_split_by_silence` / `configure_console_output`。Launcher 的说话人着色开关改为独立的「说话人分离」开关。
 
 ## [1.5.0-beta.4] - 2026-08-26
 
@@ -572,7 +573,7 @@ Launcher 新增可链式后处理工具箱：支持文稿匹配、固定文字�
 
 - 阿里云百炼 Provider 新增 `fun-asr` 第二模型：复用现有 DashScope Key、地域和临时 OSS 上传链路，适配 `file_urls` 提交、子任务轮询与词级结果解析；支持 `--speaker` / `--speaker-colors`，并按说话人变化硬切字幕段。
 - Launcher 按所选模型切换语言列表、说话人颜色开关和默认 `.fun-asr.srt` 输出名；旧版 tkinter fallback 继续保持 Qwen 专用。
-- 新增 [Fun-ASR 与豆包录音文件识别调研](docs/ASR_PROVIDER_RESEARCH.md)，记录能力边界、URL / Base64 输入方案和后续验证项。
+- 新增 Fun-ASR 与豆包录音文件识别调研（`docs/ASR_PROVIDER_RESEARCH.md`，已于后续精简中移除），记录能力边界、URL / Base64 输入方案和后续验证项。
 - 编辑器新增 `C` 合并字幕快捷键，原分割工具快捷键调整为 `R` 并在工具提示中标明；新增 `Shift+A` / `Shift+D` 向前 / 后扩展字幕选择。
 - MAWE 新增「工作区」：把窗口布局与显示状态（字幕列表显示项、波形单/多行及偏好、字幕编辑区显示开关）作为整体保存与恢复。内置「字幕列表编辑」「右侧整列波形」「三折叠布局」「传统字幕编辑器」四个工作区，切换时同步恢复各自的显示开关；服务器版可把工作区保存到本机设置跨工程复用（内置工作区可保存覆盖版、重置或另存，自定义工作区可另存或删除），服务器版与单文件版均提供「工作区配置 ▾」导出/导入 `.workspace.json`。
 - 编辑器快捷键：单选字幕后按 `Enter` 聚焦当前字幕编辑区直接编辑；编辑区按 `Esc` 提交并退出编辑，随后即可用 `A`/`D` 跳转；非编辑状态按 `Esc` 清除字幕选择；`Ctrl(Cmd)+A` 选中所有字幕；`W`/`S` 与 `A`/`D` 等价跳转前后字幕（`Shift` 组合同样支持）。

@@ -117,20 +117,19 @@ Prompt / 上下文用于提供领域背景、前文或会话信息；即时热�
 命令行示例：
 
 ```powershell
-uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model fun-asr -ll 2m --speaker-colors
+uv run python generate_subtitle_qwen_api.py "D:\Videos\example.mp4" --model fun-asr -ll 2m --speaker
 ```
 
 常用可选项：
 
 ```text
---speaker            开启说话人分离
---speaker-colors     在 --speaker 基础上，把不同说话人一次性映射成 5 种字幕颜色
+--speaker            开启说话人分离，按说话人切分字幕
 --language zh        只提供一个语种提示；默认自动识别
 ```
 
 Fun-ASR 普通文件限制为 12 小时 / 2 GB；说话人分离只适用于单声道，官方建议启用时音频不超过 2 小时。MAW 提交前会提取单声道音频，且超过建议时长时给出警告。说话人标签是匿名 ID，不是现实姓名。
 
-Fun-ASR 的 API 输入字段、轮询结果路径和 JSON 映射与 Qwen-Audio 不同，虽然二者共用同一个入口脚本。实现细节和调研记录在 [ASR_PROVIDER_RESEARCH.md](ASR_PROVIDER_RESEARCH.md)。
+Fun-ASR 的 API 输入字段、轮询结果路径和 JSON 映射与 Qwen-Audio 不同，虽然二者共用同一个入口脚本。
 
 ## Launcher 批量转写
 

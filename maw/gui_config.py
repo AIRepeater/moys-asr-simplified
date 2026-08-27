@@ -70,7 +70,7 @@ class ProviderConfig:
     # 开启「显示相对小众的语言」前，GUI 只展示这些。
     common_languages: tuple[str, ...] = ()
     kind: str = "cloud"
-    # 免 Key 供应商（如必剪）为 False：GUI 隐藏 API Key 输入并跳过校验。
+    # 供应商不需要 API Key 时为 False：GUI 隐藏 API Key 输入并跳过校验。
     requires_api_key: bool = True
     # 接口不接受语言参数时为 False：GUI 隐藏语言选择。
     supports_language: bool = True

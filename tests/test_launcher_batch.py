@@ -38,7 +38,7 @@ class BatchRunnerTests(unittest.TestCase):
         max_active = 0
         started: list[str] = []
 
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             nonlocal active, max_active
             active += 1
             max_active = max(max_active, active)
@@ -56,7 +56,7 @@ class BatchRunnerTests(unittest.TestCase):
     def test_failure_isolated_and_later_item_runs(self) -> None:
         started: list[str] = []
 
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             started.append(request.media_path.stem)
             if request.media_path.stem == "clip-1":
                 raise RuntimeError("provider failed")
@@ -72,7 +72,7 @@ class BatchRunnerTests(unittest.TestCase):
         cancel = threading.Event()
         started: list[str] = []
 
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             started.append(request.media_path.stem)
             cancel.set()
             return TranscriptionResult(request.srt_path)
@@ -91,7 +91,7 @@ class BatchRunnerTests(unittest.TestCase):
 
         seen: list[Path] = []
 
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             seen.append(request.srt_path)
             return TranscriptionResult(request.srt_path)
 
@@ -109,7 +109,7 @@ class BatchRunnerTests(unittest.TestCase):
 
     def test_manifest_records_per_item_outcomes_atomically(self) -> None:
         item = self._items(1)[0]
-        result = run_batch((item,), settings={}, manifest_path=self.root / "nested" / "manifest.json", cancel_event=threading.Event(), transcribe=lambda request, *, cancel_event: TranscriptionResult(request.srt_path))
+        result = run_batch((item,), settings={}, manifest_path=self.root / "nested" / "manifest.json", cancel_event=threading.Event(), transcribe=lambda request, *, cancel_event, on_event=None: TranscriptionResult(request.srt_path))
 
         manifest = json.loads((self.root / "nested" / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["status"], "done")
@@ -124,7 +124,7 @@ class BatchRunnerTests(unittest.TestCase):
         )
         started: list[str] = []
 
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             started.append(request.media_path.stem)
             return TranscriptionResult(request.srt_path)
 
@@ -137,7 +137,7 @@ class BatchRunnerTests(unittest.TestCase):
         valid = self._items(1)[0]
         started: list[str] = []
 
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             started.append(request.media_path.stem)
             return TranscriptionResult(request.srt_path)
 
@@ -148,7 +148,7 @@ class BatchRunnerTests(unittest.TestCase):
         self.assertTrue(result["outcomes"][0]["error"])
 
     def test_outcome_only_reports_srt_path(self) -> None:
-        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event) -> TranscriptionResult:
+        def transcribe(request: TranscriptionRequest, *, cancel_event: threading.Event, on_event=None) -> TranscriptionResult:
             return TranscriptionResult(request.srt_path)
 
         result = run_batch(self._items(1), settings={}, manifest_path=self.root / "manifest.json", cancel_event=threading.Event(), transcribe=transcribe)
